@@ -229,4 +229,4 @@
 │   └── vite.config.js
 └── tree.txt
 
-36 directories, 194 files
+36 directories, 194 files.
