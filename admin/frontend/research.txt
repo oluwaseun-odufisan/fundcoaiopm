@@ -1,0 +1,414 @@
+Below is a detailed analysis of each frontend component and page required for the admin side of the NextGen Task Management (NEGTM) system, focusing on what should be present to enable full interaction with the user side. The goal is to ensure administrators can effectively manage users, tasks, goals, files, and reports while maintaining a light-mode interface with a bright teal and blue color scheme. Each component and page is analyzed based on its purpose, the elements it should include, and how it facilitates admin interaction with user-side data, without creating or designing the code yet.
+
+---
+
+### Frontend Components Analysis
+
+#### 1. `src/components/AdminLayout.jsx`
+**Purpose**: Serves as the main layout wrapper for all admin pages, providing a consistent structure and navigation framework for the admin interface.
+
+**Details and Elements**:
+- **Header Section**: Contains the `AdminNavbar.jsx` component for top-level navigation.
+- **Sidebar Section**: Integrates `AdminSidebar.jsx` for side navigation to access different admin modules (e.g., Dashboard, Users, Tasks).
+- **Main Content Area**: A flexible container to render the content of specific admin pages (e.g., `AdminDashboard.jsx`, `AdminUserList.jsx`).
+- **Footer (Optional)**: Displays system information like version number or copyright.
+- **Responsive Design**: Ensures the layout adapts to different screen sizes, collapsing the sidebar on smaller screens (e.g., mobile) into a hamburger menu.
+- **Theming**: Applies a light-mode theme with bright teal (`#00CED1` or similar) as the primary color and blue (`#1E90FF` or similar) as the secondary color for buttons, links, and highlights.
+- **Accessibility**: Includes ARIA labels for navigation elements and keyboard navigation support.
+- **Authentication Check**: Conditionally renders content only if the admin is authenticated (placeholder logic until backend is implemented).
+- **Notifications Area**: Displays system-wide alerts or notifications (e.g., "New user registered") with teal/blue styling.
+- **Admin Interaction**: Provides a consistent framework for navigating and interacting with all user-side data (users, tasks, goals, files) through embedded pages.
+
+**Admin Interaction with User Side**:
+- The layout ensures seamless navigation to all admin modules, allowing admins to access and manage user-side data (e.g., user profiles, tasks) from any page.
+- The sidebar and navbar provide quick links to user management, task oversight, and other modules, ensuring admins can monitor and control user activities efficiently.
+
+---
+
+#### 2. `src/components/AdminLogin.jsx`
+**Purpose**: Provides a dedicated login interface for administrators to access the admin side securely.
+
+**Details and Elements**:
+- **Login Form**:
+  - Input fields for email and password with validation (e.g., email format, required fields).
+  - A "Login" button styled in bright teal with hover effects in blue.
+  - Error message display for invalid credentials (e.g., "Incorrect email or password").
+- **Forgot Password Link**: Links to a password reset page or modal (to be implemented later).
+- **Branding**: Displays the NEGTM logo or admin-specific branding in the light-mode theme.
+- **Theming**: Light background with teal input borders and blue button accents.
+- **Responsive Design**: Ensures the form is centered and usable on mobile and desktop.
+- **Accessibility**: ARIA labels for form inputs and keyboard navigation support.
+- **Loading State**: Spinner or loading indicator for login attempts, styled in teal.
+- **Redirect Logic**: Redirects to `AdminDashboard.jsx` upon successful login (placeholder until backend authentication is implemented).
+
+**Admin Interaction with User Side**:
+- Ensures only authorized admins can access the admin interface, protecting user-side data.
+- Upon login, admins gain access to all user management and oversight features, enabling full control over user accounts and activities.
+
+---
+
+#### 3. `src/components/AdminNavbar.jsx`
+**Purpose**: Provides top-level navigation and quick access to key admin functionalities.
+
+**Details and Elements**:
+- **Logo/Branding**: Displays the NEGTM admin logo or name on the left, styled in teal.
+- **Navigation Links**:
+  - Quick links to key pages (e.g., Dashboard, Users, Tasks, Goals, Files, Reports).
+  - Links styled with blue text and teal hover effects.
+- **Search Bar**: Allows admins to search for users, tasks, or goals by keyword (e.g., user email, task title).
+- **Profile Dropdown**:
+  - Displays the admin’s name or avatar (linked to `AdminProfile.jsx`).
+  - Options for profile settings, password change, and logout.
+  - Styled with a teal background for the dropdown and blue hover effects.
+- **Notifications Icon**: Shows unread notifications (e.g., new user registrations, overdue tasks) with a teal badge.
+- **Responsive Design**: Collapses into a hamburger menu on smaller screens, integrating with `AdminSidebar.jsx`.
+- **Theming**: Light background with teal and blue accents for buttons and links.
+- **Accessibility**: ARIA labels for navigation links and keyboard navigation support.
+
+**Admin Interaction with User Side**:
+- Allows admins to quickly navigate to user management, task oversight, or goal tracking, enabling rapid interaction with user-side data.
+- The search bar facilitates finding specific users or tasks, streamlining admin oversight.
+- Notifications alert admins to user-side activities (e.g., new tasks created), ensuring real-time monitoring.
+
+---
+
+#### 4. `src/components/AdminProfile.jsx`
+**Purpose**: Displays and allows editing of the admin’s profile information.
+
+**Details and Elements**:
+- **Profile Information**:
+  - Displays admin details (e.g., name, email, role: super-admin or manager).
+  - Read-only fields for non-editable data (e.g., admin ID).
+- **Edit Form**:
+  - Fields to update name, email, or preferences (e.g., notification settings).
+  - Save and cancel buttons styled in teal (save) and blue (cancel).
+- **Password Change Section**:
+  - Fields for current password, new password, and confirm password.
+  - Validation for password strength (e.g., minimum length, special characters).
+- **Theming**: Light background with teal borders and blue button accents.
+- **Responsive Design**: Ensures form fields are accessible on all devices.
+- **Accessibility**: ARIA labels for form inputs and keyboard navigation support.
+- **Success/Error Messages**: Displays feedback for profile updates or password changes (e.g., "Profile updated successfully").
+
+**Admin Interaction with User Side**:
+- Allows admins to manage their own account, ensuring they can maintain secure access to control user-side data.
+- Role display reinforces RBAC, reminding admins of their permissions to manage users or tasks.
+
+---
+
+#### 5. `src/components/AdminSidebar.jsx`
+**Purpose**: Provides side navigation for accessing all admin modules, complementing the navbar.
+
+**Details and Elements**:
+- **Navigation Links**:
+  - Links to all admin pages: Dashboard, Users, Tasks, Goals, Files, Reports.
+  - Icons next to each link (e.g., user icon for Users, checkmark for Tasks), styled in teal.
+  - Active link highlighted in blue.
+- **Collapsible Menu**: Option to collapse/expand the sidebar for more screen space, especially on desktop.
+- **Responsive Design**: Converts to a slide-in menu on mobile, triggered by the navbar’s hamburger menu.
+- **Theming**: Light background with teal icons and blue active states.
+- **Accessibility**: ARIA labels for navigation links and keyboard navigation support.
+- **Branding (Optional)**: Small logo or system name at the top of the sidebar.
+
+**Admin Interaction with User Side**:
+- Provides quick access to all user-side management modules (e.g., user list, task overview), enabling admins to monitor and control user activities efficiently.
+- Ensures admins can switch between managing users, tasks, or Sengoku Basara, and goals seamlessly.
+
+---
+
+#### 6. `src/components/AdminUserManagement.jsx`
+**Purpose**: Displays a table of users with actions to manage their accounts.
+
+**Details and Elements**:
+- **User Table**:
+  - Columns: Name, Email, Role (e.g., user, team lead), Registration Date, Status (active/inactive), Last Login.
+  - Sortable headers for each column.
+  - Pagination and search/filter options (e.g., by role, status).
+- **Action Buttons**:
+  - Edit: Opens a modal to update user details (name, email, role).
+  - Deactivate/Activate: Toggles user status.
+  - Reset Password: Initiates a password reset email.
+  - Delete: Removes user account (with confirmation prompt).
+  - Buttons styled in teal (primary actions) and blue (secondary actions).
+- **Bulk Actions**:
+  - Checkbox selection for multiple users.
+  - Options to deactivate, assign roles, or delete in bulk.
+- **Modal for Editing**:
+  - Form fields for name, email, role, preferences.
+  - Save/cancel buttons in teal/blue.
+- **Theming**: Light table background with teal borders and blue hover effects.
+- **Responsive Design**: Table scrolls horizontally on mobile; modals adapt to screen size.
+- **Accessibility**: ARIA labels for table elements and keyboard navigation for actions.
+
+**Admin Interaction with User Side**:
+- Enables admins to view and manage all user accounts in the `userModel.js` collection, including creating, editing, deactivating, or deleting users.
+- Supports monitoring user activity (e.g., last login) and assigning roles to control user permissions on the user side.
+
+---
+
+#### 7. `src/components/AdminTaskManagement.jsx`
+**Purpose**: Displays a table of tasks across all users with management options.
+
+**Details and Elements**:
+- **Task Table**:
+  - Columns: Task Title, Assigned User, Status (pending, completed), Priority, Due Date, Progress (%).
+  - Sortable headers and filters (e.g., by status, user).
+  - Pagination for large datasets.
+- **Action Buttons**:
+  - Edit: Opens a modal to update task details (title, description, priority, due date).
+  - Reassign: Dropdown to select a new user or team.
+  - Delete: Removes task (with confirmation).
+  - Buttons styled in teal (edit, reassign) and blue (delete).
+- **Bulk Actions**:
+  - Select multiple tasks for reassignment, status changes, or deletion.
+- **Modal for Editing**:
+  - Form fields for task details, including admin notes.
+  - Save/cancel buttons in teal/blue.
+- **Theming**: Light table background with teal borders and blue hover effects.
+- **Responsive Design**: Table and modals adapt to mobile screens.
+- **Accessibility**: ARIA labels for table and action elements.
+
+**Admin Interaction with User Side**:
+- Allows admins to oversee and modify tasks in the `taskModel.js` collection, including reassigning tasks to users, updating priorities, or deleting tasks.
+- Facilitates real-time updates to user interfaces via Socket.IO (pending backend integration).
+
+---
+
+#### 8. `src/components/AdminGoalManagement.jsx`
+**Purpose**: Displays a table of goals for admin oversight and management.
+
+**Details and Elements**:
+- **Goal Table**:
+  - Columns: Goal Title, Assigned User(s), Status (pending, approved), Completion (%), Deadline.
+  - Filters for status, user, or completion rate.
+  - Pagination for large datasets.
+- **Action Buttons**:
+  - Create: Opens a modal to create company-wide or user-specific goals.
+  - Edit: Updates goal details (title, description, deadline).
+  - Approve/Reject: Manages goal visibility for users.
+  - Delete: Removes goals (with confirmation).
+  - Buttons styled in teal (create, edit) and blue (approve, delete).
+- **Modal for Creation/Editing**:
+  - Form fields for title, description, deadline, assigned users, admin comments.
+  - Save/cancel buttons in teal/blue.
+- **Theming**: Light table background with teal borders and blue hover effects.
+- **Responsive Design**: Table and modals adapt to mobile screens.
+- **Accessibility**: ARIA labels for table and action elements.
+
+**Admin Interaction with User Side**:
+- Enables admins to manage goals in the `goalModel.js` collection, including creating company-wide goals, approving user goals, and tracking progress.
+- Supports real-time notifications to users via Socket.IO for goal updates.
+
+---
+
+#### 9. `src/components/AdminFileManagement.jsx`
+**Purpose**: Displays a table of user-uploaded files for admin oversight and management.
+
+**Details and Elements**:
+- **File Table**:
+  - Columns: File Name, Owner, Size, Upload Date, Status (public, private).
+  - Filters for owner, file type, or status.
+  - Pagination for large datasets.
+- **Action Buttons**:
+  - View/Download: Opens or downloads the file.
+  - Delete: Removes file (with confirmation).
+  - Update: Changes file status or metadata.
+  - Buttons styled in teal (view, update) and blue (delete).
+- **Storage Usage Display**:
+  - Shows total storage used and per-user quotas.
+- **Modal for Updating**:
+  - Form fields for file metadata (e.g., name, status).
+  - Save/cancel buttons in teal/blue.
+- **Theming**: Light table background with teal borders and blue hover effects.
+- **Responsive Design**: Table and modals adapt to mobile screens.
+- **Accessibility**: ARIA labels for table and action elements.
+
+**Admin Interaction with User Side**:
+- Allows admins to monitor and manage files in the `fileModel.js` collection, ensuring compliance with storage quotas and policies.
+- Supports actions like deleting inappropriate files or updating access permissions.
+
+---
+
+### Frontend Pages Analysis
+
+#### 10. `src/pages/AdminDashboard.jsx`
+**Purpose**: Provides an overview of the system’s status and key metrics for admins.
+
+**Details and Elements**:
+- **Overview Widgets**:
+  - Total Users: Displays count with a teal card background.
+  - Active Tasks: Shows number of pending/completed tasks with a blue card.
+  - Goals in Progress: Displays active goals with completion percentages.
+  - Storage Usage: Shows total and per-user storage metrics.
+- **Recent Activity Feed**:
+  - Lists recent user actions (e.g., "User X created Task Y") with timestamps.
+  - Styled with teal highlights for key actions.
+- **Quick Links**:
+  - Buttons to navigate to Users, Tasks, Goals, Files, Reports pages.
+  - Styled in teal with blue hover effects.
+- **Charts**:
+  - Task completion rates (bar chart).
+  - User activity trends (line chart).
+  - Goal progress (pie chart).
+  - Charts styled with teal and blue colors.
+- **Theming**: Light background with teal and blue accents for cards and buttons.
+- **Responsive Design**: Widgets and charts stack vertically on mobile.
+- **Accessibility**: ARIA labels for interactive elements and charts.
+
+**Admin Interaction with User Side**:
+- Provides a centralized view of user-side activity, including user counts, task statuses, and goal progress.
+- Enables quick navigation to detailed management pages for deeper interaction with user data.
+
+---
+
+#### 11. `src/pages/AdminUserList.jsx`
+**Purpose**: Displays a comprehensive list of users with management options.
+
+**Details and Elements**:
+- **User Table** (Integrates `AdminUserManagement.jsx`):
+  - Columns: Name, Email, Role, Registration Date, Status, Last Login.
+  - Advanced filters (e.g., by role, activity status).
+  - Pagination and search bar.
+- **Action Buttons**:
+  - Same as `AdminUserManagement.jsx` (edit, deactivate, reset password, delete).
+- **Bulk Action Toolbar**:
+  - Select multiple users for bulk operations (e.g., assign roles, deactivate).
+  - Styled in teal.
+- **Export Option**:
+  - Button to export user list as CSV or PDF, styled in blue.
+- **Theming**: Light background with teal table borders and blue buttons.
+- **Responsive Design**: Table scrolls horizontally on mobile.
+- **Accessibility**: ARIA labels for table and actions.
+
+**Admin Interaction with User Side**:
+- Provides full control over the `userModel.js` collection, allowing admins to manage user accounts and monitor activity logs.
+- Supports bulk actions to efficiently manage large user bases.
+
+---
+
+#### 12. `src/pages/AdminTaskOverview.jsx`
+**Purpose**: Provides a detailed overview of all tasks across users.
+
+**Details and Elements**:
+- **Task Table** (Integrates `AdminTaskManagement.jsx`):
+  - Columns: Title, User, Status, Priority, Due Date, Progress.
+  - Filters and sorting options.
+- **Charts**:
+  - Task status distribution (pie chart, teal/blue).
+  - Overdue tasks by user (bar chart).
+- **Action Buttons**:
+  - Same as `AdminTaskManagement.jsx` (edit, reassign, delete).
+- **Bulk Action Toolbar**:
+  - Select multiple tasks for reassignment or status changes.
+- **Export Option**:
+  - Export task data as CSV or PDF.
+- **Theming**: Light background with teal and blue chart accents.
+- **Responsive Design**: Table and charts adapt to mobile screens.
+- **Accessibility**: ARIA labels for charts and table elements.
+
+**Admin Interaction with User Side**:
+- Enables comprehensive oversight of tasks in the `taskModel.js` collection, including reassignment and progress tracking.
+- Supports real-time updates to user interfaces via Socket.IO (pending backend).
+
+---
+
+#### 13. `src/pages/AdminGoalOverview.jsx`
+**Purpose**: Provides a detailed overview of all goals in the system.
+
+**Details and Elements**:
+- **Goal Table** (Integrates `AdminGoalManagement.jsx`):
+  - Columns: Title, User(s), Status, Completion, Deadline.
+  - Filters and sorting options.
+- **Charts**:
+  - Goal completion rates (pie chart, teal/blue).
+  - Goals by status (bar chart).
+- **Action Buttons**:
+  - Same as `AdminGoalManagement.jsx` (create, edit, approve, delete).
+- **Bulk Action Toolbar**:
+  - Select multiple goals for approval or deletion.
+- **Export Option**:
+  - Export goal data as CSV or PDF.
+- **Theming**: Light background with teal and blue chart accents.
+- **Responsive Design**: Table and charts adapt to mobile screens.
+- **Accessibility**: ARIA labels for charts and table elements.
+
+**Admin Interaction with User Side**:
+- Allows admins to manage goals in the `goalModel.js` collection, including creating company-wide goals and approving user goals.
+- Supports real-time notifications to users for goal updates.
+
+---
+
+#### 14. `src/pages/AdminFileStorage.jsx`
+**Purpose**: Provides an interface to manage all user-uploaded files.
+
+**Details and Elements**:
+- **File Table** (Integrates `AdminFileManagement.jsx`):
+  - Columns: File Name, Owner, Size, Upload Date, Status.
+  - Filters and sorting options.
+- **Charts**:
+  - Storage usage by user (bar chart, teal/blue).
+  - File type distribution (pie chart).
+- **Action Buttons**:
+  - Same as `AdminFileManagement.jsx` (view, delete, update).
+- **Storage Quota Display**:
+  - Shows total and per-user storage usage with warnings for quota limits.
+- **Export Option**:
+  - Export file metadata as CSV or PDF.
+- **Theming**: Light background with teal and blue chart accents.
+- **Responsive Design**: Table and charts adapt to mobile screens.
+- **Accessibility**: ARIA labels for charts and table elements.
+
+**Admin Interaction with User Side**:
+- Enables admins to monitor and manage files in the `fileModel.js` collection, ensuring compliance with storage policies.
+- Supports actions like deleting files or updating access permissions.
+
+---
+
+#### 15. `src/pages/AdminReports.jsx`
+**Purpose**: Displays analytics and reports on system and user performance.
+
+**Details and Elements**:
+- **Report Selection**:
+  - Dropdown or buttons to select report types (e.g., User Activity, Task Completion, System Usage).
+  - Styled in teal with blue hover effects.
+- **Charts**:
+  - User activity trends (line chart).
+  - Task completion rates (bar chart).
+  - Goal progress (pie chart).
+  - System performance metrics (e.g., active users, API calls).
+  - Charts styled with teal and blue colors.
+- **Data Table**:
+  - Displays detailed report data with filters and sorting.
+  - Columns depend on report type (e.g., User, Tasks Completed, Date).
+- **Export Options**:
+  - Buttons to export reports as CSV, PDF, or PNG (for charts).
+  - Styled in blue.
+- **Custom Report Builder (Optional)**:
+  - Form to select metrics, date ranges, and users for custom reports.
+- **Theming**: Light background with teal and blue chart/button accents.
+- **Responsive Design**: Charts and tables stack vertically on mobile.
+- **Accessibility**: ARIA labels for charts, tables, and interactive elements.
+
+**Admin Interaction with User Side**:
+- Provides aggregated insights into user-side data (e.g., `userModel.js`, `taskModel.js`) for performance monitoring.
+- Enables admins to generate reports for decision-making, such as identifying inactive users or overdue tasks.
+
+---
+
+### General Notes
+- **Theming**: All components and pages will use a light-mode theme with bright teal (`#00CED1`) as the primary color for buttons, borders, and highlights, and blue (`#1E90FF`) for secondary elements like hover states and cancel buttons. Backgrounds will be white or light gray (`#F5F5F5`).
+- **Responsive Design**: All components will be fully responsive, ensuring usability on desktop, tablet, and mobile devices.
+- **Accessibility**: ARIA labels, keyboard navigation, and high-contrast teal/blue elements will ensure accessibility compliance.
+- **Placeholder Data**: Since the backend is not yet implemented, components should include placeholder data or mock API responses to simulate interactions (e.g., dummy user lists, task data).
+- **Interactivity**: Components will include interactive elements like modals, buttons, and filters, styled consistently with teal and blue, to prepare for backend integration.
+
+---
+
+### Next Steps
+I’ve outlined the necessary details for each frontend component and page, focusing on their purpose, elements, and interaction with the user side. Please confirm if this analysis meets your expectations or if you’d like me to refine any specific details. Additionally, let me know if you want to:
+- Proceed with creating the code for these components using React, styled with Tailwind CSS or another library to implement the teal/blue light-mode theme.
+- Prioritize specific components or pages for creation.
+- Provide mock data structures for testing the frontend without the backend.
+- Discuss additional features or design considerations.
+
+I’ll wait for your response before moving forward!
