@@ -22,6 +22,7 @@ import meetingRouter from './routes/meetingRoutes.js';
 import learningRouter from './routes/learningRoutes.js'; // New
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
+import User from './models/userModel.js';  // Added: Import User for updating lastActive
 import './models/userModel.js';
 import './models/chatModel.js';
 import './models/messageModel.js';
@@ -32,11 +33,9 @@ import './models/goalModel.js';
 import './models/meetingModel.js';
 import './models/learningMaterialModel.js'; // New
 import grokRouter from './routes/grokRoutes.js'
-
 const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 5000;
-
 // Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
@@ -48,16 +47,13 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
-
 // Make io globally accessible
 global.io = io;
-
 // Attach io to every request
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
-
 // Global middleware
 app.use(cors({
   origin: [
@@ -69,13 +65,11 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 // Apply express-fileupload for chat, bot, and post routes
 app.use('/api/chats', fileUpload());
 app.use('/api/bot', fileUpload());
 app.use('/api/posts', fileUpload());
 app.use('/api/user', userRouter);
-
 // Environment variable validation
 const requiredEnvVars = [
   'MONGO_URI',
@@ -105,7 +99,6 @@ console.log('Environment variables loaded:');
 requiredEnvVars.forEach((varName) =>
   console.log(`${varName}: ${process.env[varName] ? 'Set' : 'Not set'}`)
 );
-
 // Socket.IO authentication
 io.use(async (socket, next) => {
   try {
@@ -119,10 +112,21 @@ io.use(async (socket, next) => {
     next(new Error('Authentication error'));
   }
 });
-
 // Socket.IO connection handlers
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   console.log(`Socket connected: ${socket.id}`);
+  
+  // Added: Update lastActive on socket connection (page load/refresh)
+  try {
+    const user = await User.findById(socket.user.id);
+    if (user) {
+      user.lastActive = new Date();
+      await user.save();
+    }
+  } catch (err) {
+    console.error('Error updating lastActive on socket connect:', err);
+  }
+
   // Chat-related events (original)
   socket.on('joinChat', (chatId) => {
     if (typeof chatId === 'string') {
@@ -209,7 +213,6 @@ io.on('connection', (socket) => {
     console.log(`Socket disconnected: ${socket.id}`);
   });
 });
-
 // Routes
 app.use('/api/user', userRouter);
 app.use('/api/tasks', taskRouter);
@@ -224,8 +227,7 @@ app.use('/api/goals', goalRouter);
 app.use('/api/performance', performanceRouter);
 app.use('/api/grok', grokRouter);
 app.use('/api/meetings', meetingRouter);
-app.use('/api/learning', learningRouter); 
-
+app.use('/api/learning', learningRouter);
 // Emit endpoint for admin
 app.post('/api/emit', (req, res) => {
   const { event, data } = req.body;
@@ -235,18 +237,15 @@ app.post('/api/emit', (req, res) => {
   io.emit(event, data);
   res.json({ success: true, message: 'Event emitted' });
 });
-
 // Health check
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'API is running' });
 });
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);
   res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
 });
-
 // Cron for meeting status update (every 5 minutes)
 cron.schedule('*/5 * * * *', async () => {
   try {
@@ -266,7 +265,6 @@ cron.schedule('*/5 * * * *', async () => {
     console.error('Cron meeting status error:', err);
   }
 });
-
 // Start server
 async function startServer() {
   try {
@@ -281,10 +279,8 @@ async function startServer() {
     process.exit(1);
   }
 }
-
 // Export app for testing
 export { app };
-
 // Start server only when run directly
 if (process.env.NODE_ENV !== 'test') {
   startServer();

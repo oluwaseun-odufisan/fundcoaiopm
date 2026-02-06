@@ -219,36 +219,36 @@ const Layout = ({ onLogout, user }) => {
   }, [tasks, stats]);
 
   const StatCard = ({ title, value, icon, bgColor, textColor }) => (
-    <div className="p-3 rounded-xl bg-white border border-gray-200 hover:shadow-md transition-shadow">
+    <div className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
       <div className="flex items-center gap-2">
         <div className={`p-2 rounded-full ${bgColor}`}>
           {React.cloneElement(icon, { className: `w-4 h-4 ${textColor}` })}
         </div>
         <div>
-          <p className="text-base font-bold text-gray-900">{value}</p>
-          <p className="text-xs text-gray-600 font-medium">{title}</p>
+          <p className="text-base font-bold text-gray-900 dark:text-gray-100">{value}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{title}</p>
         </div>
       </div>
     </div>
   );
 
   if (loading) return (
-    <div className="minth-screen bg-blue-50 flex items-center justify-center">
+    <div className="minth-screen bg-blue-50 dark:bg-gray-900 flex items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto"></div>
-        <p className="mt-4 text-sm text-gray-600">Loading FundCo TM...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent mx-auto"></div>
+        <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading FundCo TM...</p>
       </div>
     </div>
   );
 
   if (error) return (
-    <div className="minth-screen bg-blue-50 flex items-center justify-center p-4">
-      <div className="bg-white text-red-600 p-6 rounded-xl border border-red-200 max-w-md shadow-lg text-center">
+    <div className="minth-screen bg-blue-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 p-6 rounded-xl border border-red-200 dark:border-red-700 max-w-md shadow-lg text-center">
         <p className="text-lg font-semibold mb-2">Error</p>
-        <p className="text-sm text-gray-700">{error}</p>
+        <p className="text-sm text-gray-700 dark:text-gray-300">{error}</p>
         <button
           onClick={fetchTasks}
-          className="mt-4 px-6 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+          className="mt-4 px-6 py-2 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-800/50 transition-colors"
         >
           Retry
         </button>
@@ -257,11 +257,11 @@ const Layout = ({ onLogout, user }) => {
   );
 
   return (
-    <div className="minth-screen bg-blue-50 flex relative">
+    <div className="minth-screen bg-blue-50 dark:bg-gray-900 flex relative">
       {/* Background Accents */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute w-64 h-64 top-0 left-0 bg-blue-100 rounded-full opacity-20"></div>
-        <div className="absolute w-64 h-64 bottom-0 right-0 bg-green-100 rounded-full opacity-20"></div>
+        <div className="absolute w-64 h-64 top-0 left-0 bg-blue-100 dark:bg-blue-900 rounded-full opacity-20"></div>
+        <div className="absolute w-64 h-64 bottom-0 right-0 bg-green-100 dark:bg-green-900 rounded-full opacity-20"></div>
       </div>
 
       <Sidebar
@@ -283,37 +283,37 @@ const Layout = ({ onLogout, user }) => {
             {isMetricsVisible && (
               <div className="space-y-5">
                 {/* Metrics Content */}
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2 mb-5">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2 mb-5">
+                    <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     Metrics
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    <StatCard title="Total Tasks" value={stats.totalCount} icon={<Circle />} bgColor="bg-blue-100" textColor="text-blue-700" />
-                    <StatCard title="Completed" value={stats.completedTasks} icon={<Circle />} bgColor="bg-green-100" textColor="text-green-700" />
-                    <StatCard title="Pending" value={stats.pendingCount} icon={<Circle />} bgColor="bg-gray-100" textColor="text-gray-700" />
-                    <StatCard title="Completion Rate" value={`${stats.completionPercentage}%`} icon={<Zap />} bgColor="bg-blue-100" textColor="text-blue-700" />
+                    <StatCard title="Total Tasks" value={stats.totalCount} icon={<Circle />} bgColor="bg-blue-100 dark:bg-blue-900/50" textColor="text-blue-700 dark:text-blue-300" />
+                    <StatCard title="Completed" value={stats.completedTasks} icon={<Circle />} bgColor="bg-green-100 dark:bg-green-900/50" textColor="text-green-700 dark:text-green-300" />
+                    <StatCard title="Pending" value={stats.pendingCount} icon={<Circle />} bgColor="bg-gray-100 dark:bg-gray-700/50" textColor="text-gray-700 dark:text-gray-300" />
+                    <StatCard title="Completion Rate" value={`${stats.completionPercentage}%`} icon={<Zap />} bgColor="bg-blue-100 dark:bg-blue-900/50" textColor="text-blue-700 dark:text-blue-300" />
                   </div>
-                  <hr className="my-5 border-gray-200" />
+                  <hr className="my-5 border-gray-200 dark:border-gray-700" />
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-gray-700">
+                    <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300">
                       <span className="font-medium flex items-center gap-2">
-                        <Circle className="w-2 h-2 fill-green-500 text-green-500" />
+                        <Circle className="w-2 h-2 fill-green-500 dark:fill-green-400 text-green-500 dark:text-green-400" />
                         Progress
                       </span>
-                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                      <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full text-xs font-semibold">
                         {stats.completedTasks}/{stats.totalCount}
                       </span>
                     </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-green-600 transition-all duration-500"
+                        className="h-full bg-green-600 dark:bg-green-500 transition-all duration-500"
                         style={{ width: `${stats.completionPercentage}%` }}
                       />
                     </div>
                     <button
                       onClick={() => navigate('/analytics')}
-                      className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 transition"
+                      className="mt-4 w-full bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 dark:hover:bg-blue-600 transition"
                     >
                       View Analytics Dashboard
                     </button>
@@ -321,69 +321,69 @@ const Layout = ({ onLogout, user }) => {
                 </div>
 
                 {/* Activity Log */}
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
                   <button
                     onClick={toggleLog}
-                    className="w-full text-left text-lg font-bold text-blue-900 flex items-center justify-between gap-2 mb-5 hover:text-blue-700 transition"
+                    className="w-full text-left text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center justify-between gap-2 mb-5 hover:text-blue-700 dark:hover:text-blue-300 transition"
                   >
                     <div className="flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-blue-600" />
+                      <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       Activity Log
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-blue-600 transition-transform ${isLogExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${isLogExpanded ? 'rotate-180' : ''}`} />
                   </button>
                   <div className={`space-y-2 transition-all duration-300 ${isLogExpanded ? 'max-h-96' : 'max-h-48'} overflow-y-auto`}>
                     {(isLogExpanded ? tasks : tasks.slice(0, 3)).map((task) => (
-                      <div key={task._id || task.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <div key={task._id || task.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
                         <div className="flex-1 min-w-0 pr-2">
-                          <p className="text-sm font-medium text-gray-800">{task.title}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{task.title}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'No date'}
                           </p>
                         </div>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${task.completed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${task.completed ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'}`}>
                           {task.completed ? 'Done' : 'Pending'}
                         </span>
                       </div>
                     ))}
                     {tasks.length === 0 && (
-                      <p className="text-center text-sm text-gray-500 py-4">No tasks yet.</p>
+                      <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">No tasks yet.</p>
                     )}
                   </div>
                 </div>
 
                 {/* AI Suggestions */}
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2 mb-5">
-                    <Sparkles className="w-5 h-5 text-blue-600" />
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2 mb-5">
+                    <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     AI Suggestions
                   </h3>
                   <div className="space-y-2">
                     {aiSuggestions.length > 0 ? aiSuggestions.map((s, i) => (
-                      <div key={i} className="p-2 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-800">{s}</p>
+                      <div key={i} className="p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-sm text-gray-800 dark:text-gray-200">{s}</p>
                       </div>
                     )) : (
-                      <p className="text-center text-sm text-gray-500 py-4">No suggestions yet.</p>
+                      <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-4">No suggestions yet.</p>
                     )}
                   </div>
                   <button
                     onClick={() => navigate('/ai-tools')}
-                    className="mt-4 w-full bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-700 transition"
+                    className="mt-4 w-full bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-700 dark:hover:bg-green-600 transition"
                   >
                     Use AI Tools
                   </button>
                 </div>
 
                 {/* Sticky Notes */}
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-bold text-blue-900 flex items-center gap-2 mb-5">
-                    <StickyNote className="w-5 h-5 text-yellow-600" />
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2 mb-5">
+                    <StickyNote className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                     Sticky Notes
                   </h3>
                   <button
                     onClick={toggleNote}
-                    className="w-full p-3 bg-yellow-50 text-gray-700 rounded-md border border-yellow-200 hover:bg-yellow-100 transition text-left"
+                    className="w-full p-3 bg-yellow-50 dark:bg-yellow-900/50 text-gray-700 dark:text-gray-300 rounded-md border border-yellow-200 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 transition text-left"
                   >
                     <p className="text-sm">{noteContent || 'Click to add temporary notes...'}</p>
                   </button>
@@ -396,7 +396,7 @@ const Layout = ({ onLogout, user }) => {
         {/* === FIXED TOGGLE BUTTON (Always on screen) === */}
         <button
           onClick={() => setIsMetricsVisible(!isMetricsVisible)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-blue-600 text-white p-2 rounded-l-full shadow-lg hover:bg-blue-700 transition-all duration-300 hidden lg:flex items-center justify-center w-10 h-16"
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-blue-600 dark:bg-blue-700 text-white p-2 rounded-l-full shadow-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-300 hidden lg:flex items-center justify-center w-10 h-16"
           aria-label={isMetricsVisible ? "Hide metrics" : "Show metrics"}
         >
           <ChevronLeft
@@ -411,7 +411,7 @@ const Layout = ({ onLogout, user }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 flex items-center justify-center z-[1001] p-4"
+              className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-[1001] p-4"
               onClick={handleBackdropClick}
             >
               <motion.div
@@ -419,26 +419,26 @@ const Layout = ({ onLogout, user }) => {
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
                 exit={{ scale: 0.9 }}
-                className="bg-yellow-50 border border-yellow-300 rounded-lg p-6 w-full max-w-md shadow-xl"
+                className="bg-yellow-50 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg p-6 w-full max-w-md shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
-                  <StickyNote className="w-5 h-5 text-yellow-600" />
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-3">
+                  <StickyNote className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                   Temporary Note
                 </h4>
-                <p className="text-xs text-gray-600 mb-4">Write temporary notes here (not saved).</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Write temporary notes here (not saved).</p>
                 <textarea
                   value={noteContent}
                   onChange={(e) => setNoteContent(e.target.value)}
                   placeholder="Write temporary notes here..."
-                  className="w-full h-48 bg-transparent text-gray-800 placeholder-gray-500 text-sm focus:outline-none resize-none"
+                  className="w-full h-48 bg-transparent text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none resize-none"
                   autoFocus
                 />
                 <div className="flex justify-between mt-4">
-                  <button onClick={clearNote} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 transition">
+                  <button onClick={clearNote} className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 rounded-lg text-sm hover:bg-red-100 dark:hover:bg-red-800/50 transition">
                     <Trash2 className="w-4 h-4" /> Clear
                   </button>
-                  <button onClick={toggleNote} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition">
+                  <button onClick={toggleNote} className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-800/50 transition">
                     <Minus className="w-4 h-4" /> Minimize
                   </button>
                 </div>
@@ -448,36 +448,36 @@ const Layout = ({ onLogout, user }) => {
         </AnimatePresence>
 
         {/* TaskBot Chat */}
-        <div className={`fixed bottom-0 right-0 w-full md:w-96 h-[80vh] md:h-[600px] bg-white shadow-xl border border-gray-200 z-[1000] transition-all duration-300 ${isChatOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-0 md:opacity-0 md:pointer-events-none'}`}>
+        <div className={`fixed bottom-0 right-0 w-full md:w-96 h-[80vh] md:h-[600px] bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 z-[1000] transition-all duration-300 ${isChatOpen ? 'translate-y-0' : 'translate-y-full md:translate-y-0 md:opacity-0 md:pointer-events-none'}`}>
           <div className="flex flex-col h-full">
-            <div className="p-5 bg-blue-600 flex items-center justify-between">
+            <div className="p-5 bg-blue-600 dark:bg-blue-700 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <MessageCircle className="w-6 h-6" />
                 FundCo TM Bot
               </h3>
               <div className="flex gap-2">
                 {chatMessages.length > 0 && (
-                  <button onClick={clearChatMessages} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition">
+                  <button onClick={clearChatMessages} className="p-2 rounded-full bg-white/20 dark:bg-gray-200/20 text-white hover:bg-white/30 dark:hover:bg-gray-200/30 transition">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 )}
-                <button onClick={toggleChat} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition">
+                <button onClick={toggleChat} className="p-2 rounded-full bg-white/20 dark:bg-gray-200/20 text-white hover:bg-white/30 dark:hover:bg-gray-200/30 transition">
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50 dark:bg-gray-900">
               {chatMessages.length === 0 && (
-                <div className="text-center py-8 text-gray-600">
-                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-blue-600" />
+                <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-blue-600 dark:text-blue-400" />
                   <p className="font-semibold">Welcome to FundCo TM Bot!</p>
                   <p className="text-sm mt-2">Try: "Add task", "List tasks", "Mark done"</p>
                 </div>
               )}
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex items-start gap-3 p-3 rounded-lg max-w-[80%] ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-800'}`}>
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold shrink-0">
+                  <div className={`flex items-start gap-3 p-3 rounded-lg max-w-[80%] ${msg.sender === 'user' ? 'bg-blue-600 dark:bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200'}`}>
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-700 dark:text-blue-300 text-sm font-bold shrink-0">
                       {msg.sender === 'user' ? 'U' : <MessageCircle className="w-5 h-5" />}
                     </div>
                     <div>
@@ -488,13 +488,13 @@ const Layout = ({ onLogout, user }) => {
                 </div>
               ))}
               {isChatLoading && (
-                <div className="flex items-center gap-2 text-gray-600">
-                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 rounded-full border-t-transparent"></div>
+                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent"></div>
                   <span className="text-sm">Processing...</span>
                 </div>
               )}
             </div>
-            <div className="p-5 border-t border-gray-200 bg-white">
+            <div className="p-5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
               <div className="relative">
                 <input
                   ref={chatInputRef}
@@ -503,15 +503,15 @@ const Layout = ({ onLogout, user }) => {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSubmit(e)}
                   placeholder="Ask FundCo TM Bot..."
-                  className="w-full p-3 pr-12 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"
+                  className="w-full p-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 text-sm text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-700"
                   disabled={isChatLoading}
                 />
                 {chatInput && (
-                  <button onClick={clearChatInput} className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-500 hover:text-blue-600">
+                  <button onClick={clearChatInput} className="absolute right-10 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
                     <X className="w-4 h-4" />
                   </button>
                 )}
-                <button onClick={handleChatSubmit} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-600 hover:text-blue-700">
+                <button onClick={handleChatSubmit} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
@@ -524,7 +524,7 @@ const Layout = ({ onLogout, user }) => {
         {!isChatOpen && (
           <button
             onClick={toggleChat}
-            className="fixed bottom-8 right-8 p-4 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition z-[1001]"
+            className="fixed bottom-8 right-8 p-4 rounded-full bg-blue-600 dark:bg-blue-700 text-white shadow-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition z-[1001]"
             aria-label="Open FundCo TM Bot"
           >
             <MessageCircle className="w-6 h-6" />

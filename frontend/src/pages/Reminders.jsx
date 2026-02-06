@@ -19,9 +19,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken } from 'firebase/messaging';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL;
-
 /* --------------------------------------------------------------- */
 /* Firebase config (push notifications)                           */
 /* --------------------------------------------------------------- */
@@ -33,29 +31,22 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
-
 /* --------------------------------------------------------------- */
-/* Custom Calendar (same as the second snippet)                  */
+/* Custom Calendar (same as the second snippet)                   */
 /* --------------------------------------------------------------- */
 const CustomCalendar = ({ reminders, selectedDate, onDateChange }) => {
-  const [currentMonth, setCurrentMonth] = useState(
-    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
-  );
+  const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
   const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
   const getFirstDay = (y, m) => new Date(y, m, 1).getDay();
-
   const prevMonth = () =>
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   const nextMonth = () =>
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDay(year, month);
-
   const weeks = [];
   let week = Array.from({ length: firstDay }, () => null);
   for (let d = 1; d <= daysInMonth; d++) {
@@ -69,7 +60,6 @@ const CustomCalendar = ({ reminders, selectedDate, onDateChange }) => {
     while (week.length < 7) week.push(null);
     weeks.push(week);
   }
-
   const remindersByDate = {};
   reminders.forEach((r) => {
     const d = new Date(r.remindAt);
@@ -79,7 +69,6 @@ const CustomCalendar = ({ reminders, selectedDate, onDateChange }) => {
     if (!remindersByDate[key]) remindersByDate[key] = [];
     remindersByDate[key].push(r);
   });
-
   const tileContent = (day) => {
     if (!day) return null;
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(
@@ -92,53 +81,48 @@ const CustomCalendar = ({ reminders, selectedDate, onDateChange }) => {
     return (
       <div className="flex justify-center gap-1 mt-1">
         {list.slice(0, max).map((_, i) => (
-          <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#1E40AF]" />
+          <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#1E40AF] dark:bg-blue-400" />
         ))}
         {list.length > max && (
-          <span className="text-xs text-[#1E40AF] font-medium">
+          <span className="text-xs text-[#1E40AF] dark:text-blue-400 font-medium">
             +{list.length - max}
           </span>
         )}
       </div>
     );
   };
-
   const tileClass = (day) => {
     if (!day) return 'text-transparent';
     const isToday =
       selectedDate.getFullYear() === year &&
       selectedDate.getMonth() === month &&
       selectedDate.getDate() === day;
-    return `rounded-full transition-colors hover:bg-blue-50 text-center py-2 text-sm font-medium cursor-pointer ${
-      isToday ? 'bg-[#1E40AF] text-white' : 'text-gray-800'
+    return `rounded-full transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/50 text-center py-2 text-sm font-medium cursor-pointer ${
+      isToday ? 'bg-[#1E40AF] dark:bg-blue-700 text-white' : 'text-gray-800 dark:text-gray-200'
     }`;
   };
-
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={prevMonth}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
-          <ChevronLeft className="w-5 h-5 text-[#1E40AF]" />
+          <ChevronLeft className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
         </button>
-        <span className="text-base font-semibold text-gray-900">
-          {currentMonth.toLocaleString('default', {
-            month: 'long',
-            year: 'numeric',
-          })}
+        <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
         </span>
         <button
           onClick={nextMonth}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
-          <ChevronRight className="w-5 h-5 text-[#1E40AF]" />
+          <ChevronRight className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
         </button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-xs">
         {daysOfWeek.map((d) => (
-          <div key={d} className="text-center font-medium text-gray-600 py-1">
+          <div key={d} className="text-center font-medium text-gray-600 dark:text-gray-400 py-1">
             {d}
           </div>
         ))}
@@ -156,14 +140,12 @@ const CustomCalendar = ({ reminders, selectedDate, onDateChange }) => {
     </div>
   );
 };
-
 /* --------------------------------------------------------------- */
-/* Main Reminders component                                        */
+/* Main Reminders component                                       */
 /* --------------------------------------------------------------- */
 const Reminders = () => {
   const { user, onLogout } = useOutletContext();
   const navigate = useNavigate();
-
   /* -------------------------- State -------------------------- */
   const [reminders, setReminders] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -207,7 +189,6 @@ const Reminders = () => {
   const [viewMode, setViewMode] = useState('grid'); // grid | list | calendar
   const [selectedDate, setSelectedDate] = useState(new Date());
   const modalRef = useRef(null);
-
   /* ---------------------- Helper: filtered reminders for calendar ---------------------- */
   const filteredReminders = viewMode === 'calendar'
     ? reminders.filter((r) => {
@@ -219,7 +200,6 @@ const Reminders = () => {
         );
       })
     : reminders;
-
   /* -------------------------- Firebase push token -------------------------- */
   useEffect(() => {
     const registerPushToken = async () => {
@@ -243,7 +223,6 @@ const Reminders = () => {
     };
     registerPushToken();
   }, []);
-
   /* -------------------------- Socket.IO -------------------------- */
   useEffect(() => {
     const socket = io(API_BASE_URL, {
@@ -277,7 +256,6 @@ const Reminders = () => {
     });
     return () => socket.disconnect();
   }, []);
-
   /* -------------------------- Axios 401 interceptor -------------------------- */
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
@@ -295,7 +273,6 @@ const Reminders = () => {
     );
     return () => axios.interceptors.response.eject(interceptor);
   }, [onLogout, navigate]);
-
   /* -------------------------- Modal focus trap -------------------------- */
   useEffect(() => {
     const esc = (e) => {
@@ -312,12 +289,10 @@ const Reminders = () => {
     }
     return () => window.removeEventListener('keydown', esc);
   }, [showPreferences, showCreateReminder, showReminderDetails]);
-
   const getAuthHeaders = useCallback(
     () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` }),
     []
   );
-
   /* -------------------------- Data fetching -------------------------- */
   const fetchReminders = useCallback(async () => {
     setIsLoading(true);
@@ -333,7 +308,6 @@ const Reminders = () => {
       setIsLoading(false);
     }
   }, [getAuthHeaders]);
-
   const fetchPreferences = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/user/me`, {
@@ -344,7 +318,6 @@ const Reminders = () => {
       if (e.response?.status !== 401) toast.error('Failed to fetch preferences.');
     }
   }, [getAuthHeaders]);
-
   const fetchTasks = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_BASE_URL}/api/tasks/gp`, {
@@ -355,7 +328,6 @@ const Reminders = () => {
       if (e.response?.status !== 401) toast.error('Failed to fetch tasks.');
     }
   }, [getAuthHeaders]);
-
   useEffect(() => {
     if (!user || !localStorage.getItem('token')) {
       navigate('/login');
@@ -365,7 +337,6 @@ const Reminders = () => {
     fetchPreferences();
     fetchTasks();
   }, [user, navigate, fetchReminders, fetchPreferences, fetchTasks]);
-
   /* -------------------------- Handlers -------------------------- */
   const handleSnooze = useCallback(
     async (id, minutes) => {
@@ -383,7 +354,6 @@ const Reminders = () => {
     },
     [getAuthHeaders]
   );
-
   const handleDismiss = useCallback(
     async (id) => {
       try {
@@ -400,7 +370,6 @@ const Reminders = () => {
     },
     [getAuthHeaders]
   );
-
   const handleUpdatePreferences = useCallback(async () => {
     try {
       await axios.put(
@@ -417,7 +386,6 @@ const Reminders = () => {
         toast.error(e.response?.data?.message || 'Failed to update preferences.');
     }
   }, [preferences, getAuthHeaders]);
-
   const handleCreateReminder = useCallback(async () => {
     if (!newReminder.message.trim()) {
       toast.error('Reminder message is required.');
@@ -467,12 +435,10 @@ const Reminders = () => {
         toast.error(e.response?.data?.message || 'Failed to create reminder.');
     }
   }, [newReminder, getAuthHeaders]);
-
   const handleReminderClick = useCallback((rem) => {
     setSelectedReminder(rem);
     setShowReminderDetails(true);
   }, []);
-
   const handleEditReminder = useCallback(async () => {
     if (!editReminder.message.trim()) {
       toast.error('Reminder message is required.');
@@ -516,7 +482,6 @@ const Reminders = () => {
         toast.error(e.response?.data?.message || 'Failed to update reminder.');
     }
   }, [editReminder, selectedReminder, getAuthHeaders]);
-
   const handleDeleteReminder = useCallback(async () => {
     try {
       await axios.delete(
@@ -531,7 +496,6 @@ const Reminders = () => {
         toast.error(e.response?.data?.message || 'Failed to delete reminder.');
     }
   }, [selectedReminder, getAuthHeaders]);
-
   useEffect(() => {
     if (isEditing && selectedReminder) {
       setEditReminder({
@@ -551,16 +515,15 @@ const Reminders = () => {
       });
     }
   }, [isEditing, selectedReminder]);
-
   /* -------------------------- Toast component -------------------------- */
   const ReminderToast = ({ reminder, onSnooze, onDismiss }) => (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 50 }}
-      className="bg-[#1E40AF] text-white p-4 rounded-xl shadow-2xl max-w-sm flex items-center gap-4"
+      className="bg-[#1E40AF] dark:bg-blue-700 text-white p-4 rounded-xl shadow-2xl max-w-sm flex items-center gap-4"
     >
-      <Bell className="w-6 h-6 text-[#F3F4F6]" />
+      <Bell className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />
       <div className="flex-1">
         <p className="text-sm font-semibold">{reminder.message}</p>
         <p className="text-xs opacity-75">
@@ -570,14 +533,14 @@ const Reminders = () => {
       <div className="flex gap-2">
         <button
           onClick={onSnooze}
-          className="p-2 bg-[#1E40AF]/90 rounded-full hover:bg-[#1E40AF]/80 transition-all"
+          className="p-2 bg-[#1E40AF]/90 dark:bg-blue-600 rounded-full hover:bg-[#1E40AF]/80 dark:hover:bg-blue-500 transition-all"
           aria-label="Snooze"
         >
           <Clock className="w-4 h-4" />
         </button>
         <button
           onClick={onDismiss}
-          className="p-2 bg-red-600 rounded-full hover:bg-red-500 transition-all"
+          className="p-2 bg-red-600 dark:bg-red-700 rounded-full hover:bg-red-500 dark:hover:bg-red-600 transition-all"
           aria-label="Dismiss"
         >
           <X className="w-4 h-4" />
@@ -585,25 +548,22 @@ const Reminders = () => {
       </div>
     </motion.div>
   );
-
   /* -------------------------- Render -------------------------- */
   if (!user || !localStorage.getItem('token')) return null;
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen bg-[#F3F4F6] font-sans"
+      className="min-h-screen bg-[#F3F4F6] dark:bg-gray-900 font-sans"
     >
       <Toaster
         position="bottom-right"
         toastOptions={{ className: 'text-xs sm:text-sm max-w-xs sm:max-w-sm' }}
       />
-
       {/* Header */}
-      <header className="bg-white shadow-lg px-4 sm:px-6 py-4 sm:py-5 sticky top-0 z-20">
+      <header className="bg-white dark:bg-gray-800 shadow-lg px-4 sm:px-6 py-4 sm:py-5 sticky top-0 z-20">
         <div className="max-w-[90rem] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             Reminders
           </h1>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -611,28 +571,26 @@ const Reminders = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowCreateReminder(true)}
-              className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base md:text-lg font-semibold hover:bg-[#1E40AF]/90 transition-all flex items-center gap-2 sm:gap-3 shadow-md"
+              className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base md:text-lg font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all flex items-center gap-2 sm:gap-3 shadow-md"
               aria-label="Create Reminder"
             >
               <Plus className="w-4 h-4 sm:w-5 h-5" />
               Create Reminder
             </motion.button>
-
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowPreferences(true)}
-              className="p-1 sm:p-2 text-[#1E40AF] hover:text-[#16A34A] transition-colors"
+              className="p-1 sm:p-2 text-[#1E40AF] dark:text-blue-400 hover:text-[#16A34A] dark:hover:text-green-400 transition-colors"
               aria-label="Preferences"
             >
               <Settings className="w-5 h-5 sm:w-6 h-6" />
             </motion.button>
-
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/')}
-              className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base md:text-lg font-semibold hover:bg-[#1E40AF]/90 transition-all flex items-center gap-2 sm:gap-3 shadow-md"
+              className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base md:text-lg font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all flex items-center gap-2 sm:gap-3 shadow-md"
               aria-label="Back to Dashboard"
             >
               <ArrowLeft className="w-4 h-4 sm:w-5 h-5" />
@@ -641,13 +599,12 @@ const Reminders = () => {
           </div>
         </div>
       </header>
-
       {/* View mode toggle */}
       <div className="max-w-[90rem] mx-auto px-4 sm:px-6 md:px-8 mt-4 flex gap-2">
         <button
           onClick={() => setViewMode('grid')}
           className={`p-2 rounded-lg ${
-            viewMode === 'grid' ? 'bg-[#E5E7EB] text-[#1E40AF]' : 'text-[#1E40AF] hover:bg-[#E5E7EB]'
+            viewMode === 'grid' ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700'
           }`}
         >
           <Grid className="w-5 h-5" />
@@ -655,7 +612,7 @@ const Reminders = () => {
         <button
           onClick={() => setViewMode('list')}
           className={`p-2 rounded-lg ${
-            viewMode === 'list' ? 'bg-[#E5E7EB] text-[#1E40AF]' : 'text-[#1E40AF] hover:bg-[#E5E7EB]'
+            viewMode === 'list' ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700'
           }`}
         >
           <List className="w-5 h-5" />
@@ -664,14 +621,13 @@ const Reminders = () => {
           onClick={() => setViewMode('calendar')}
           className={`p-2 rounded-lg ${
             viewMode === 'calendar'
-              ? 'bg-[#E5E7EB] text-[#1E40AF]'
-              : 'text-[#1E40AF] hover:bg-[#E5E7EB]'
+              ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400'
+              : 'text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700'
           }`}
         >
           <Calendar className="w-5 h-5" />
         </button>
       </div>
-
       {/* Main content */}
       <main className="max-w-[90rem] mx-auto w-full px-4 sm:px-6 md:px-8 py-6 sm:py-8">
         <motion.div
@@ -680,16 +636,15 @@ const Reminders = () => {
           transition={{ duration: 0.5 }}
           className="space-y-6 sm:space-y-8 overflow-y-auto custom-scrollbar"
         >
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#1E40AF] truncate">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#1E40AF] dark:text-blue-400 truncate">
             Your Reminders
           </h2>
-
           {isLoading ? (
-            <div className="text-center text-[#6B7280] text-xs sm:text-sm">
+            <div className="text-center text-[#6B7280] dark:text-gray-400 text-xs sm:text-sm">
               Loading reminders...
             </div>
           ) : reminders.length === 0 ? (
-            <div className="text-center text-[#6B7280] text-xs sm:text-sm">
+            <div className="text-center text-[#6B7280] dark:text-gray-400 text-xs sm:text-sm">
               No reminders found. Create tasks or reminders to get started!
             </div>
           ) : viewMode === 'calendar' ? (
@@ -704,7 +659,7 @@ const Reminders = () => {
               </div>
               <div className="lg:col-span-2 overflow-y-auto custom-scrollbar max-h-[500px]">
                 {filteredReminders.length === 0 ? (
-                  <p className="text-center text-[#6B7280] py-8">
+                  <p className="text-center text-[#6B7280] dark:text-gray-400 py-8">
                     No reminders for this date
                   </p>
                 ) : (
@@ -714,16 +669,16 @@ const Reminders = () => {
                         key={rem._id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-white rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                        className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
                         onClick={() => handleReminderClick(rem)}
                       >
                         <div className="flex items-start gap-3">
-                          <Bell className="w-6 h-6 text-[#1E40AF]" />
+                          <Bell className="w-6 h-6 text-[#1E40AF] dark:text-blue-400" />
                           <div className="flex-1">
-                            <p className="font-medium text-[#1F2937] line-clamp-2">
+                            <p className="font-medium text-[#1F2937] dark:text-gray-200 line-clamp-2">
                               {rem.message}
                             </p>
-                            <p className="text-sm text-[#6B7280]">
+                            <p className="text-sm text-[#6B7280] dark:text-gray-400">
                               {moment(rem.remindAt)
                                 .tz('Africa/Lagos')
                                 .format('h:mm A')}
@@ -753,7 +708,7 @@ const Reminders = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     layout
-                    className="bg-white rounded-xl shadow-md p-4 flex flex-col gap-3 hover:shadow-lg transition-shadow duration-300 border border-[#F3F4F6] cursor-pointer"
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex flex-col gap-3 hover:shadow-lg transition-shadow duration-300 border border-[#F3F4F6] dark:border-gray-700 cursor-pointer"
                     onClick={() => handleReminderClick(rem)}
                   >
                     <div className="flex justify-between items-start">
@@ -766,7 +721,7 @@ const Reminders = () => {
                             e.stopPropagation();
                             handleSnooze(rem._id, 15);
                           }}
-                          className="p-1.5 bg-[#1E40AF] text-white rounded-full hover:bg-[#1E40AF]/90 transition-all"
+                          className="p-1.5 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-full hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all"
                           aria-label="Snooze"
                           disabled={rem.status === 'dismissed'}
                         >
@@ -779,7 +734,7 @@ const Reminders = () => {
                             e.stopPropagation();
                             handleDismiss(rem._id);
                           }}
-                          className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-500 transition-all"
+                          className="p-1.5 bg-red-600 dark:bg-red-700 text-white rounded-full hover:bg-red-500 dark:hover:bg-red-600 transition-all"
                           aria-label="Dismiss"
                           disabled={rem.status === 'dismissed'}
                         >
@@ -787,19 +742,19 @@ const Reminders = () => {
                         </motion.button>
                       </div>
                     </div>
-                    <p className="text-sm font-semibold text-[#1F2937] line-clamp-2">
+                    <p className="text-sm font-semibold text-[#1F2937] dark:text-gray-200 line-clamp-2">
                       {rem.message}
                     </p>
-                    <p className="text-xs text-[#6B7280]">
+                    <p className="text-xs text-[#6B7280] dark:text-gray-400">
                       {moment(rem.remindAt)
                         .tz('Africa/Lagos')
                         .format('MMM D, h:mm A')}
                     </p>
-                    <p className="text-xs text-[#6B7280] capitalize">
+                    <p className="text-xs text-[#6B7280] dark:text-gray-400 capitalize">
                       Status: {rem.status}
                     </p>
                     {rem.repeatInterval && (
-                      <p className="text-xs text-[#6B7280]">
+                      <p className="text-xs text-[#6B7280] dark:text-gray-400">
                         Repeats every {rem.repeatInterval} min
                       </p>
                     )}
@@ -809,27 +764,7 @@ const Reminders = () => {
             </div>
           )}
         </motion.div>
-
-        {/* Scrollbar style */}
-        <style jsx>{`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 5px;
-            height: 5px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(30, 64, 175, 0.1);
-            border-radius: 3px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #1e40af;
-            border-radius: 3px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #1e3a8a;
-          }
-        `}</style>
       </main>
-
       {/* ---------- Modals (Preferences, Create, Details) ---------- */}
       <AnimatePresence>
         {/* Preferences */}
@@ -842,7 +777,6 @@ const Reminders = () => {
             modalRef={modalRef}
           />
         )}
-
         {/* Create */}
         {showCreateReminder && (
           <CreateReminderModal
@@ -855,7 +789,6 @@ const Reminders = () => {
             modalRef={modalRef}
           />
         )}
-
         {/* Details / Edit */}
         {showReminderDetails && selectedReminder && (
           <ReminderDetailsModal
@@ -879,31 +812,28 @@ const Reminders = () => {
     </motion.div>
   );
 };
-
 /* --------------------------------------------------------------- */
 /* Icon helper (same as first file)                               */
 /* --------------------------------------------------------------- */
 const ReminderIcon = ({ type }) => {
   const icons = {
-    task_due: <CheckCircle className="w-6 h-6 text-[#F3F4F6]" />,
-    meeting: <Calendar className="w-6 h-6 text-[#F3F4F6]" />,
-    goal_deadline: <Target className="w-6 h-6 text-[#F3F4F6]" />,
-    appraisal_submission: <FileText className="w-6 h-6 text-[#F3F4F6]" />,
-    manager_feedback: <AlertTriangle className="w-6 h-6 text-[#F3F4F6]" />,
-    custom: <Bell className="w-6 h-6 text-[#F3F4F6]" />,
+    task_due: <CheckCircle className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
+    meeting: <Calendar className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
+    goal_deadline: <Target className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
+    appraisal_submission: <FileText className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
+    manager_feedback: <AlertTriangle className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
+    custom: <Bell className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />,
   };
-  return icons[type] || <Bell className="w-6 h-6 text-[#F3F4F6]" />;
+  return icons[type] || <Bell className="w-6 h-6 text-[#F3F4F6] dark:text-gray-200" />;
 };
-
 /* --------------------------------------------------------------- */
-/* Modal components (exactly the same styling as the first file)   */
+/* Modal components (exactly the same styling as the first file)  */
 /* --------------------------------------------------------------- */
 const modalVariants = {
   hidden: { opacity: 0, scale: 0.8 },
   visible: { opacity: 1, scale: 1 },
   exit: { opacity: 0, scale: 0.8 },
 };
-
 const PreferencesModal = ({
   preferences,
   setPreferences,
@@ -916,31 +846,30 @@ const PreferencesModal = ({
     animate="visible"
     exit="exit"
     variants={modalVariants}
-    className="fixed inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
+    className="fixed inset-0 bg-white dark:bg-black bg-opacity-70 dark:bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
     role="dialog"
     ref={modalRef}
     tabIndex={-1}
   >
     <div
-      className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
+      className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex justify-between items-center mb-3 sm:mb-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] truncate">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] dark:text-blue-400 truncate">
           Reminder Preferences
         </h2>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
-          className="p-1 sm:p-2 text-[#1E40AF] hover:text-[#16A34A]"
+          className="p-1 sm:p-2 text-[#1E40AF] dark:text-blue-400 hover:text-[#16A34A] dark:hover:text-green-400"
         >
           <X className="w-4 h-4 sm:w-5 h-5" />
         </motion.button>
       </div>
-
       <div className="space-y-4 sm:space-y-6">
-        <h3 className="text-sm sm:text-base font-semibold text-[#1F2937]">
+        <h3 className="text-sm sm:text-base font-semibold text-[#1F2937] dark:text-gray-200">
           Delivery Channels
         </h3>
         {Object.keys(preferences.defaultDeliveryChannels).map((c) => (
@@ -957,20 +886,19 @@ const PreferencesModal = ({
                   },
                 }))
               }
-              className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF]"
+              className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF] dark:text-blue-400"
             />
-            <span className="text-xs sm:text-sm text-[#1F2937] capitalize">
+            <span className="text-xs sm:text-sm text-[#1F2937] dark:text-gray-300 capitalize">
               {c}
             </span>
           </label>
         ))}
-
-        <h3 className="text-sm sm:text-base font-semibold text-[#1F2937] mt-4 sm:mt-6">
+        <h3 className="text-sm sm:text-base font-semibold text-[#1F2937] dark:text-gray-200 mt-4 sm:mt-6">
           Reminder Times (minutes before)
         </h3>
         {Object.keys(preferences.defaultReminderTimes).map((t) => (
           <div key={t} className="flex items-center gap-2 sm:gap-3">
-            <label className="text-xs sm:text-sm text-[#1F2937] capitalize flex-1 truncate">
+            <label className="text-xs sm:text-sm text-[#1F2937] dark:text-gray-300 capitalize flex-1 truncate">
               {t.replace('_', ' ')}
             </label>
             <input
@@ -985,19 +913,18 @@ const PreferencesModal = ({
                   },
                 }))
               }
-              className="w-20 sm:w-24 p-1 sm:p-2 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-20 sm:w-24 p-1 sm:p-2 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
               min="0"
             />
           </div>
         ))}
       </div>
-
       <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
-          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] text-[#1F2937] text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] transition-all"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all"
         >
           Cancel
         </motion.button>
@@ -1005,7 +932,7 @@ const PreferencesModal = ({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onSave}
-          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 transition-all"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all"
         >
           Save
         </motion.button>
@@ -1013,7 +940,6 @@ const PreferencesModal = ({
     </div>
   </motion.div>
 );
-
 const CreateReminderModal = ({
   newReminder,
   setNewReminder,
@@ -1028,33 +954,32 @@ const CreateReminderModal = ({
     animate="visible"
     exit="exit"
     variants={modalVariants}
-    className="fixed inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
+    className="fixed inset-0 bg-white dark:bg-black bg-opacity-70 dark:bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
     role="dialog"
     ref={modalRef}
     tabIndex={-1}
   >
     <div
-      className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
+      className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex justify-between items-center mb-3 sm:mb-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] truncate">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] dark:text-blue-400 truncate">
           Create New Reminder
         </h2>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
-          className="p-1 sm:p-2 text-[#1E40AF] hover:text-[#16A34A]"
+          className="p-1 sm:p-2 text-[#1E40AF] dark:text-blue-400 hover:text-[#16A34A] dark:hover:text-green-400"
         >
           <X className="w-4 h-4 sm:w-5 h-5" />
         </motion.button>
       </div>
-
       <div className="space-y-4 sm:space-y-6">
         {/* Message */}
         <div>
-          <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Message
           </label>
           <input
@@ -1063,15 +988,14 @@ const CreateReminderModal = ({
             onChange={(e) =>
               setNewReminder((p) => ({ ...p, message: e.target.value }))
             }
-            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             placeholder="Enter reminder message"
             maxLength={200}
           />
         </div>
-
         {/* Attach Task */}
         <div>
-          <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Attach Task (Optional)
           </label>
           <select
@@ -1083,7 +1007,7 @@ const CreateReminderModal = ({
                 targetModel: e.target.value ? 'Task' : '',
               }))
             }
-            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
           >
             <option value="">No Task</option>
             {tasks.map((t) => (
@@ -1093,10 +1017,9 @@ const CreateReminderModal = ({
             ))}
           </select>
         </div>
-
         {/* Date & Time */}
         <div>
-          <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Reminder Date & Time
           </label>
           <DatePicker
@@ -1107,15 +1030,14 @@ const CreateReminderModal = ({
             showTimeSelect
             timeIntervals={15}
             dateFormat="MMMM d, yyyy h:mm aa"
-            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             minDate={new Date()}
             popperClassName="z-[60]"
           />
         </div>
-
         {/* Repeat */}
         <div>
-          <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Repeat Interval (minutes, optional)
           </label>
           <input
@@ -1127,16 +1049,15 @@ const CreateReminderModal = ({
                 repeatInterval: e.target.value,
               }))
             }
-            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             placeholder="e.g., 20"
             min="5"
             max="1440"
           />
         </div>
-
         {/* Email */}
         <div>
-          <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Email Address (Optional)
           </label>
           <input
@@ -1148,14 +1069,13 @@ const CreateReminderModal = ({
                 emailOverride: e.target.value,
               }))
             }
-            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+            className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             placeholder={`Default: ${user.email}`}
           />
         </div>
-
         {/* Channels */}
         <div>
-          <h3 className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+          <h3 className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
             Delivery Channels
           </h3>
           {Object.keys(newReminder.deliveryChannels).map((c) => (
@@ -1172,22 +1092,21 @@ const CreateReminderModal = ({
                     },
                   }))
                 }
-                className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF]"
+                className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF] dark:text-blue-400"
               />
-              <span className="text-xs sm:text-sm text-[#1F2937] capitalize">
+              <span className="text-xs sm:text-sm text-[#1F2937] dark:text-gray-300 capitalize">
                 {c}
               </span>
             </label>
           ))}
         </div>
       </div>
-
       <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
-          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] text-[#1F2937] text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] transition-all"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all"
         >
           Cancel
         </motion.button>
@@ -1195,7 +1114,7 @@ const CreateReminderModal = ({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onCreate}
-          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 transition-all"
+          className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all"
         >
           Create
         </motion.button>
@@ -1203,7 +1122,6 @@ const CreateReminderModal = ({
     </div>
   </motion.div>
 );
-
 const ReminderDetailsModal = ({
   reminder,
   tasks,
@@ -1222,35 +1140,34 @@ const ReminderDetailsModal = ({
     animate="visible"
     exit="exit"
     variants={modalVariants}
-    className="fixed inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
+    className="fixed inset-0 bg-white dark:bg-black bg-opacity-70 dark:bg-opacity-70 flex items-center justify-center z-50 px-4 sm:px-6"
     role="dialog"
     ref={modalRef}
     tabIndex={-1}
   >
     <div
-      className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
+      className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 max-w-xs sm:max-w-sm md:max-w-lg w-full"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex justify-between items-center mb-3 sm:mb-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] truncate">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#1E40AF] dark:text-blue-400 truncate">
           {isEditing ? 'Edit Reminder' : 'Reminder Details'}
         </h2>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
-          className="p-1 sm:p-2 text-[#1E40AF] hover:text-[#16A34A]"
+          className="p-1 sm:p-2 text-[#1E40AF] dark:text-blue-400 hover:text-[#16A34A] dark:hover:text-green-400"
         >
           <X className="w-4 h-4 sm:w-5 h-5" />
         </motion.button>
       </div>
-
       {isEditing ? (
         /* ---------- Edit form (same fields as create) ---------- */
         <div className="space-y-4 sm:space-y-6">
           {/* Message */}
           <div>
-            <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Message
             </label>
             <input
@@ -1259,14 +1176,13 @@ const ReminderDetailsModal = ({
               onChange={(e) =>
                 setEditReminder((p) => ({ ...p, message: e.target.value }))
               }
-              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
               maxLength={200}
             />
           </div>
-
           {/* Attach Task */}
           <div>
-            <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Attach Task (Optional)
             </label>
             <select
@@ -1278,7 +1194,7 @@ const ReminderDetailsModal = ({
                   targetModel: e.target.value ? 'Task' : '',
                 }))
               }
-              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             >
               <option value="">No Task</option>
               {tasks.map((t) => (
@@ -1288,10 +1204,9 @@ const ReminderDetailsModal = ({
               ))}
             </select>
           </div>
-
           {/* Date & Time */}
           <div>
-            <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Reminder Date & Time
             </label>
             <DatePicker
@@ -1302,15 +1217,14 @@ const ReminderDetailsModal = ({
               showTimeSelect
               timeIntervals={15}
               dateFormat="MMMM d, yyyy h:mm aa"
-              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
               minDate={new Date()}
               popperClassName="z-[60]"
             />
           </div>
-
           {/* Repeat */}
           <div>
-            <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Repeat Interval (minutes, optional)
             </label>
             <input
@@ -1322,15 +1236,14 @@ const ReminderDetailsModal = ({
                   repeatInterval: e.target.value,
                 }))
               }
-              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
               min="5"
               max="1440"
             />
           </div>
-
           {/* Email */}
           <div>
-            <label className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <label className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Email Address (Optional)
             </label>
             <input
@@ -1342,14 +1255,13 @@ const ReminderDetailsModal = ({
                   emailOverride: e.target.value,
                 }))
               }
-              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 rounded-lg text-xs sm:text-sm"
+              className="w-full p-2 sm:p-3 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg text-xs sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
               placeholder={`Default: ${user.email}`}
             />
           </div>
-
           {/* Channels */}
           <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <h3 className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Delivery Channels
             </h3>
             {Object.keys(editReminder.deliveryChannels).map((c) => (
@@ -1366,21 +1278,20 @@ const ReminderDetailsModal = ({
                       },
                     }))
                   }
-                  className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF]"
+                  className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E40AF] dark:text-blue-400"
                 />
-                <span className="text-xs sm:text-sm text-[#1F2937] capitalize">
+                <span className="text-xs sm:text-sm text-[#1F2937] dark:text-gray-300 capitalize">
                   {c}
                 </span>
               </label>
             ))}
           </div>
-
           <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsEditing(false)}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] text-[#1F2937] text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] transition-all"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 text-sm sm:text-base font-semibold hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all"
             >
               Cancel
             </motion.button>
@@ -1388,7 +1299,7 @@ const ReminderDetailsModal = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onSave}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 transition-all"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all"
             >
               Save
             </motion.button>
@@ -1398,83 +1309,76 @@ const ReminderDetailsModal = ({
         /* ---------- Details view ---------- */
         <div className="space-y-4 sm:space-y-6">
           <div>
-            <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Message
             </p>
-            <p className="text-xs sm:text-sm text-[#6B7280] break-words">
+            <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 break-words">
               {reminder.message}
             </p>
           </div>
-
           <div>
-            <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Type
             </p>
-            <p className="text-xs sm:text-sm text-[#6B7280] capitalize">
+            <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 capitalize">
               {reminder.type.replace('_', ' ')}
             </p>
           </div>
-
           {reminder.targetId && (
             <div>
-              <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+              <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
                 Attached Task
               </p>
-              <p className="text-xs sm:text-sm text-[#6B7280] truncate">
+              <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 truncate">
                 {tasks.find((t) => t._id === reminder.targetId)?.title ||
                   'Task not found'}
               </p>
             </div>
           )}
-
           <div>
-            <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Reminder Time
             </p>
-            <p className="text-xs sm:text-sm text-[#6B7280] line-clamp-1">
+            <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 line-clamp-1">
               {moment(reminder.remindAt)
                 .tz('Africa/Lagos')
                 .format('MMM D, YYYY, h:mm A')}
             </p>
           </div>
-
           {reminder.repeatInterval && (
             <div>
-              <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+              <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
                 Repeat Interval
               </p>
-              <p className="text-xs sm:text-sm text-[#6B7280]">
+              <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400">
                 {reminder.repeatInterval} minutes
               </p>
             </div>
           )}
-
           <div>
-            <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Email
             </p>
-            <p className="text-xs sm:text-sm text-[#6B7280] truncate">
+            <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 truncate">
               {reminder.emailOverride || user.email}
             </p>
           </div>
-
           <div>
-            <p className="text-xs sm:text-sm font-semibold text-[#1F2937]">
+            <p className="text-xs sm:text-sm font-semibold text-[#1F2937] dark:text-gray-200">
               Delivery Channels
             </p>
-            <p className="text-xs sm:text-sm text-[#6B7280] truncate">
+            <p className="text-xs sm:text-sm text-[#6B7280] dark:text-gray-400 truncate">
               {Object.keys(reminder.deliveryChannels)
                 .filter((k) => reminder.deliveryChannels[k])
                 .join(', ')}
             </p>
           </div>
-
           <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsEditing(true)}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 transition-all flex items-center gap-2 sm:gap-3"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-[#1E40AF] dark:bg-blue-700 text-white text-sm sm:text-base font-semibold hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all flex items-center gap-2 sm:gap-3"
             >
               <Edit className="w-4 h-4 sm:w-5 h-5" />
               Edit
@@ -1483,7 +1387,7 @@ const ReminderDetailsModal = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onDelete}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-red-600 text-white text-sm sm:text-base font-semibold hover:bg-red-500 transition-all flex items-center gap-2 sm:gap-3"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-red-600 dark:bg-red-700 text-white text-sm sm:text-base font-semibold hover:bg-red-500 dark:hover:bg-red-600 transition-all flex items-center gap-2 sm:gap-3"
             >
               <Trash className="w-4 h-4 sm:w-5 h-5" />
               Delete
@@ -1494,5 +1398,4 @@ const ReminderDetailsModal = ({
     </div>
   </motion.div>
 );
-
 export default Reminders;

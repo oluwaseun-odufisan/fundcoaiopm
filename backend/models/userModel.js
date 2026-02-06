@@ -2,7 +2,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import validator from 'validator';
-
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -36,6 +35,9 @@ const userSchema = new mongoose.Schema(
             default: Date.now,
         },
         lastLogin: {
+            type: Date,
+        },
+        lastActive: {  // New field for tracking refreshes and activities
             type: Date,
         },
         activityLogs: [{
@@ -91,6 +93,5 @@ const userSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
-
 const User = mongoose.models.user || mongoose.model('user', userSchema);
 export default User;

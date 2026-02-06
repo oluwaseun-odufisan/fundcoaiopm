@@ -9,10 +9,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { Tooltip } from 'react-tooltip';
 import moment from 'moment-timezone';
 import { debounce } from 'lodash';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const SOCKET_URL = API_BASE_URL;
-
 const TeamChat = () => {
   const { user, onLogout } = useOutletContext();
   const navigate = useNavigate();
@@ -45,6 +43,7 @@ const TeamChat = () => {
   const [selectionMode, setSelectionMode] = useState(null);
   const [selectedMessages, setSelectedMessages] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [lastSeen, setLastSeen] = useState('never');  // New: Track computed last seen
   const socket = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -53,15 +52,12 @@ const TeamChat = () => {
   const modalRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
-
   useEffect(() => {
     console.log('TeamChat mounted with user:', user?._id);
   }, [user]);
-
   useEffect(() => {
     localStorage.setItem('chatMode', chatMode);
   }, [chatMode]);
-
   useEffect(() => {
     if (selectedChat && window.innerWidth < 1024) {
       setSidebarCollapsed(true);
@@ -69,14 +65,12 @@ const TeamChat = () => {
       setSidebarCollapsed(false);
     }
   }, [selectedChat]);
-
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
       setShowScrollButton(false);
     }
   }, []);
-
   const handleScroll = useCallback(() => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -84,7 +78,6 @@ const TeamChat = () => {
       setShowScrollButton(!isAtBottom);
     }
   }, []);
-
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -95,7 +88,6 @@ const TeamChat = () => {
     }
     return { Authorization: `Bearer ${token}` };
   }, [onLogout, navigate]);
-
   const getInitials = useCallback((name) => {
     if (!name) return '';
     const words = name.trim().split(' ');
@@ -103,7 +95,6 @@ const TeamChat = () => {
       ? words[0].slice(0, 2).toUpperCase()
       : (words[0][0] + (words[1]?.[0] || '')).toUpperCase();
   }, []);
-
   const fetchInitialChats = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -112,7 +103,6 @@ const TeamChat = () => {
         axios.get(`${API_BASE_URL}/api/chats/groups`, { headers: getAuthHeaders() }),
         axios.get(`${API_BASE_URL}/api/chats/timestamps`, { headers: getAuthHeaders() }),
       ]);
-
       const validUsers = usersResponse.data.users.filter((u) => {
         if (!u._id || typeof u._id !== 'string' || !u.name || !u.email) {
           console.warn('Invalid user detected:', u);
@@ -121,12 +111,9 @@ const TeamChat = () => {
         return u._id !== user?._id;
       });
       setUsers(validUsers);
-
       const validGroups = (groupsResponse.data.groups || []).filter((g) => g._id && g.members?.length > 0);
       setGroups(validGroups);
-
       setChatTimestamps(timestampsResponse.data.timestamps || {});
-
       const chats = await Promise.all(
         validUsers.map(async (u) => {
           const chatResponse = await axios.post(
@@ -142,7 +129,6 @@ const TeamChat = () => {
         return acc;
       }, {});
       setUserChatMap(map);
-
       // Fetch last messages
       const allChatIds = [...Object.values(map), ...validGroups.map(g => g._id)];
       const lastMessagesResponses = await Promise.all(
@@ -169,13 +155,11 @@ const TeamChat = () => {
       setIsLoading(false);
     }
   }, [user, getAuthHeaders, onLogout]);
-
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
-
     socket.current = io(SOCKET_URL, {
       auth: { token: localStorage.getItem('token') },
       transports: ['websocket', 'polling'],
@@ -184,20 +168,17 @@ const TeamChat = () => {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     });
-
     socket.current.on('connect', () => {
       console.log('Socket connected:', socket.current.id);
       reconnectAttempts.current = 0;
       socket.current.emit('joinChat', `user:${user._id}`);
       if (selectedChat?._id) socket.current.emit('joinChat', selectedChat._id);
     });
-
     socket.current.on('message', (message) => {
       if (!message?._id || !message?.chatId) {
         console.warn('Invalid message received:', message);
         return;
       }
-
       setMessages((prev) => {
         if (prev.some((msg) => msg._id === message._id)) return prev;
         if (message.chatId === selectedChat?._id) {
@@ -206,14 +187,11 @@ const TeamChat = () => {
         }
         return prev;
       });
-
       setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
-
       setChatTimestamps((prev) => ({
         ...prev,
         [message.chatId]: message.createdAt || new Date().toISOString(),
       }));
-
       if (message.sender?._id !== user?._id && message.chatId !== selectedChat?._id) {
         toast.success('New message received!', { style: { background: '#16A34A', color: '#FFFFFF' } });
         setUnreadCounts((prev) => ({
@@ -221,8 +199,14 @@ const TeamChat = () => {
           [message.chatId]: (prev[message.chatId] || 0) + 1,
         }));
       }
+      // New: If message from recipient in individual chat, update lastSeen
+      if (chatMode === 'individual' && selectedChat?.type === 'individual' && message.sender?._id === selectedChat.recipient?._id) {
+        const newLastSeenTime = new Date(message.createdAt);
+        const recipientActive = selectedChat.recipient?.lastActive ? new Date(selectedChat.recipient.lastActive) : null;
+        const maxTime = recipientActive && recipientActive > newLastSeenTime ? recipientActive : newLastSeenTime;
+        setLastSeen(maxTime ? moment(maxTime).fromNow() : 'never');
+      }
     });
-
     socket.current.on('messageUpdated', (message) => {
       if (message.chatId === selectedChat?._id) {
         setMessages((prev) =>
@@ -233,7 +217,6 @@ const TeamChat = () => {
         setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
       }
     });
-
     socket.current.on('messageDeleted', (message) => {
       if (message.chatId === selectedChat?._id) {
         setMessages((prev) =>
@@ -244,7 +227,6 @@ const TeamChat = () => {
         setLastMessages((prev) => ({ ...prev, [message.chatId]: { ...prev[message.chatId], isDeleted: true } }));
       }
     });
-
     socket.current.on('typing', ({ chatId, userId, isTyping }) => {
       if (chatId && userId && userId !== user?._id) {
         setTypingUsers((prev) => ({
@@ -253,7 +235,6 @@ const TeamChat = () => {
         }));
       }
     });
-
     socket.current.on('groupCreated', (response) => {
       if (response.success && response.group?._id) {
         setGroups((prev) => {
@@ -268,7 +249,6 @@ const TeamChat = () => {
         toast.error('Failed to process group creation.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       }
     });
-
     socket.current.on('groupUpdated', (response) => {
       if (response.success && response.group?._id) {
         setGroups((prev) =>
@@ -282,7 +262,6 @@ const TeamChat = () => {
         toast.error('Failed to process group update.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       }
     });
-
     socket.current.on('connect_error', (error) => {
       console.error('Socket connection error:', error.message);
       if (reconnectAttempts.current < maxReconnectAttempts) {
@@ -292,24 +271,20 @@ const TeamChat = () => {
         toast.error('Failed to reconnect to chat server. Please refresh the page.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       }
     });
-
     socket.current.on('error', (error) => {
       console.error('Socket error:', error.message);
       toast.error('Chat error: ' + error.message, { style: { background: '#16A34A', color: '#FFFFFF' } });
     });
-
     return () => {
       socket.current?.emit('leaveChat', selectedChat?._id);
       socket.current?.emit('leaveChat', `user:${user._id}`);
       socket.current?.disconnect();
     };
-  }, [user, selectedChat, scrollToBottom, navigate, lastMessages]);
-
+  }, [user, selectedChat, scrollToBottom, navigate, lastMessages, chatMode]);
   useEffect(() => {
     if (!user) return;
     fetchInitialChats();
   }, [user, fetchInitialChats]);
-
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -325,7 +300,6 @@ const TeamChat = () => {
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showEmojiPicker, showGroupModal, showMembersModal, mediaViewer.isOpen]);
-
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -340,7 +314,6 @@ const TeamChat = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker]);
-
   const selectIndividualChat = useCallback(async (recipient) => {
     if (!recipient?._id || typeof recipient._id !== 'string') {
       toast.error('Invalid user selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
@@ -355,19 +328,21 @@ const TeamChat = () => {
       );
       const chat = response.data.chat;
       if (!chat?._id) throw new Error('Invalid chat data received');
-      setSelectedChat({ ...chat, type: 'individual', recipient });
+      setSelectedChat({ ...chat, type: 'individual', recipient: chat.members.find(m => m._id !== user._id) });  // Ensure recipient has lastActive
       setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
       socket.current?.emit('joinChat', chat._id);
       setCurrentPage(1);
       setSidebarCollapsed(window.innerWidth < 1024);
+      // Initial lastSeen computation (will be updated after messages fetch)
+      const initialLastSeen = chat.members.find(m => m._id !== user._id)?.lastActive ? moment(chat.members.find(m => m._id !== user._id).lastActive).fromNow() : 'never';
+      setLastSeen(initialLastSeen);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to start chat.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       if (error.response?.status === 401) onLogout?.();
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthHeaders, onLogout]);
-
+  }, [getAuthHeaders, onLogout, user]);
   const selectGroupChat = useCallback((group) => {
     if (!group?._id) {
       toast.error('Invalid group selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
@@ -379,10 +354,8 @@ const TeamChat = () => {
     setCurrentPage(1);
     setSidebarCollapsed(window.innerWidth < 1024);
   }, []);
-
   const fetchMessages = useCallback(async () => {
     if (!selectedChat?._id) return;
-
     try {
       setIsLoading(true);
       const response = await axios.get(
@@ -412,27 +385,35 @@ const TeamChat = () => {
           [selectedChat._id]: newMessages[newMessages.length - 1],
         }));
       }
+      // New: Compute lastSeen after fetching messages (for individual chats)
+      if (chatMode === 'individual' && selectedChat.type === 'individual') {
+        const recipientId = selectedChat.recipient?._id;
+        const lastMessageFromRecipient = [...newMessages].reverse().find(msg => msg.sender?._id === recipientId)?.createdAt;
+        const lastMessageTime = lastMessageFromRecipient ? new Date(lastMessageFromRecipient) : null;
+        const recipientActive = selectedChat.recipient?.lastActive ? new Date(selectedChat.recipient.lastActive) : null;
+        const maxTime = (lastMessageTime && recipientActive)
+          ? (lastMessageTime > recipientActive ? lastMessageTime : recipientActive)
+          : lastMessageTime || recipientActive;
+        setLastSeen(maxTime ? moment(maxTime).fromNow() : 'never');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to fetch messages.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       if (error.response?.status === 401) onLogout?.();
     } finally {
       setIsLoading(false);
     }
-  }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout]);
-
+  }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout, chatMode, user]);
   useEffect(() => {
     fetchMessages();
     return () => {
       socket.current?.emit('leaveChat', selectedChat?._id);
     };
   }, [fetchMessages, selectedChat]);
-
   const loadMoreMessages = () => {
     if (currentPage < totalPages) {
       setCurrentPage((prev) => prev + 1);
     }
   };
-
   const debouncedHandleTyping = debounce(() => {
     if (selectedChat?._id) {
       socket.current?.emit('typing', {
@@ -442,17 +423,14 @@ const TeamChat = () => {
       });
     }
   }, 500);
-
   const handleTyping = () => {
     debouncedHandleTyping();
   };
-
   useEffect(() => {
     if (!selectedChat) {
       setTypingUsers({});
       return;
     }
-
     const typingTimeout = setTimeout(() => {
       socket.current?.emit('typing', {
         chatId: selectedChat._id,
@@ -460,10 +438,8 @@ const TeamChat = () => {
         isTyping: false,
       });
     }, 2000);
-
     return () => clearTimeout(typingTimeout);
   }, [newMessage, selectedChat, user]);
-
   const uploadFile = async (file) => {
     try {
       setIsUploading(true);
@@ -482,14 +458,11 @@ const TeamChat = () => {
       setIsUploading(false);
     }
   };
-
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() && !file && !editingMessageId) return;
-
     let fileUrl = '';
     let contentType = '';
     let fileName = '';
-
     if (file) {
       try {
         const { fileUrl: uploadedUrl, contentType: fileContentType, fileName: uploadedFileName } = await uploadFile(file);
@@ -503,7 +476,6 @@ const TeamChat = () => {
         return;
       }
     }
-
     try {
       setIsLoading(true);
       if (editingMessageId) {
@@ -550,13 +522,11 @@ const TeamChat = () => {
       setIsLoading(false);
     }
   }, [selectedChat, newMessage, file, editingMessageId, getAuthHeaders, scrollToBottom, onLogout]);
-
   const handleDeleteMessages = async () => {
     if (selectedMessages.length === 0) {
       toast.error('Please select at least one message to delete.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       return;
     }
-
     try {
       setIsLoading(true);
       await Promise.all(
@@ -577,13 +547,11 @@ const TeamChat = () => {
       setIsLoading(false);
     }
   };
-
   const handleCreateGroup = async () => {
     if (selectedUsers.length < 1) {
       toast.error('At least one member required.', { style: { background: '#16A34A', color: '#FFFFFF' } });
       return;
     }
-
     try {
       setIsLoading(true);
       const validSelectedUsers = selectedUsers.filter((id) => users.some((u) => u._id === id));
@@ -591,16 +559,13 @@ const TeamChat = () => {
         toast.error('No valid members selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
         return;
       }
-
       const payload = {
         name: groupName || 'Unnamed Group',
         members: [...new Set([...validSelectedUsers, user._id])],
       };
-
       await axios.post(`${API_BASE_URL}/api/chats/groups`, payload, {
         headers: getAuthHeaders(),
       });
-
       setShowGroupModal(false);
       setGroupName('');
       setSelectedUsers([]);
@@ -611,7 +576,6 @@ const TeamChat = () => {
       setIsLoading(false);
     }
   };
-
   const handleAddMembers = async (groupId, newMembers) => {
     try {
       setIsLoading(true);
@@ -620,12 +584,10 @@ const TeamChat = () => {
         toast.error('No valid members selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
         return;
       }
-
       const payload = { members: validNewMembers };
       await axios.put(`${API_BASE_URL}/api/chats/groups/${groupId}/members`, payload, {
         headers: getAuthHeaders(),
       });
-
       setShowGroupModal(false);
       setSelectedUsers([]);
     } catch (error) {
@@ -635,7 +597,6 @@ const TeamChat = () => {
       setIsLoading(false);
     }
   };
-
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -646,7 +607,6 @@ const TeamChat = () => {
       setFile(selectedFile);
     }
   };
-
   const handleCloseChat = () => {
     socket.current?.emit('leaveChat', selectedChat?._id);
     setSelectedChat(null);
@@ -657,8 +617,8 @@ const TeamChat = () => {
     setEditingMessageId(null);
     setNewMessage('');
     setSidebarCollapsed(false);
+    setLastSeen('never');  // Reset lastSeen
   };
-
   const handleChatModeChange = (mode) => {
     if (mode === chatMode) return;
     setChatMode(mode);
@@ -671,24 +631,20 @@ const TeamChat = () => {
     setSelectedMessages([]);
     setEditingMessageId(null);
     setNewMessage('');
+    setLastSeen('never');
   };
-
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
-
   const openMediaViewer = (fileUrl, contentType, fileName) => {
     setMediaViewer({ isOpen: true, fileUrl, contentType, fileName });
   };
-
   const closeMediaViewer = () => {
     setMediaViewer({ isOpen: false, fileUrl: '', contentType: '', fileName: '' });
   };
-
   const toggleMessageSelection = (messageId) => {
     const message = messages.find((msg) => msg._id === messageId);
     if (!message || message.isDeleted) return;
-
     if (selectionMode === 'edit') {
       if (message.sender?._id !== user?._id) {
         toast.error('You can only edit your own messages.', { style: { background: '#16A34A', color: '#FFFFFF' } });
@@ -705,17 +661,14 @@ const TeamChat = () => {
       );
     }
   };
-
   const isSenderMessage = (message) => {
     return message.sender?._id === user?._id && !message.isDeleted;
   };
-
   const filteredUsers = users.filter(
     (u) =>
       u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
   const sortedUsers = [...filteredUsers].sort((a, b) => {
     const chatIdA = userChatMap[a._id];
     const chatIdB = userChatMap[b._id];
@@ -723,35 +676,31 @@ const TeamChat = () => {
     const timeB = chatTimestamps[chatIdB] || '1970-01-01T00:00:00Z';
     return new Date(timeB) - new Date(timeA);
   });
-
   const sortedGroups = [...groups].sort((a, b) => {
     const timeA = chatTimestamps[a._id] || a.updatedAt || '1970-01-01T00:00:00Z';
     const timeB = chatTimestamps[b._id] || b.updatedAt || '1970-01-01T00:00:00Z';
     return new Date(timeB) - new Date(timeA);
   });
-
   const filteredMessages = messages.filter((msg) => msg.content?.toLowerCase().includes(messageSearch.toLowerCase()));
-
   if (!user) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#F3F4F6]">
-        <p className="text-base text-[#6B7280]">Please log in to access the chat.</p>
+      <div className="h-screen flex items-center justify-center bg-[#F3F4F6] dark:bg-gray-900">
+        <p className="text-base text-[#6B7280] dark:text-gray-400">Please log in to access the chat.</p>
       </div>
     );
   }
-
   return (
-    <div className="h-screen bg-[#F3F4F6] flex font-sans overflow-hidden">
+    <div className="h-screen bg-[#F3F4F6] dark:bg-gray-900 flex font-sans overflow-hidden">
       <Toaster position="bottom-right" toastOptions={{ className: 'text-base max-w-md' } } />
-      <aside className={`w-full lg:w-80 bg-[#F3F4F6] border-r border-[#6B7280]/20 p-4 flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
+      <aside className={`w-full lg:w-80 bg-[#F3F4F6] dark:bg-gray-800 border-r border-[#6B7280]/20 dark:border-gray-700 p-4 flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
         <header className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Users className="w-6 h-6 text-[#1E40AF]" />
-            <h1 className="text-xl font-bold text-[#1F2937]">TeamChat</h1>
+            <Users className="w-6 h-6 text-[#1E40AF] dark:text-blue-400" />
+            <h1 className="text-xl font-bold text-[#1F2937] dark:text-gray-100">TeamChat</h1>
           </div>
           <button
             onClick={() => navigate('/')}
-            className="p-2 text-[#1E40AF] hover:bg-[#F3F4F6] rounded transition-all duration-200"
+            className="p-2 text-[#1E40AF] dark:text-blue-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-700 rounded transition-all duration-200"
             aria-label="Back to Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -760,13 +709,13 @@ const TeamChat = () => {
         <div className="flex mb-4">
           <button
             onClick={() => handleChatModeChange('individual')}
-            className={`flex-1 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${chatMode === 'individual' ? 'bg-[#1E40AF] text-white' : 'bg-white text-[#1F2937] hover:bg-[#F3F4F6]'}`}
+            className={`flex-1 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${chatMode === 'individual' ? 'bg-[#1E40AF] dark:bg-blue-700 text-white' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-600'}`}
           >
             Individual
           </button>
           <button
             onClick={() => handleChatModeChange('group')}
-            className={`flex-1 py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${chatMode === 'group' ? 'bg-[#1E40AF] text-white' : 'bg-white text-[#1F2937] hover:bg-[#F3F4F6]'}`}
+            className={`flex-1 py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${chatMode === 'group' ? 'bg-[#1E40AF] dark:bg-blue-700 text-white' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-600'}`}
           >
             Groups
           </button>
@@ -777,29 +726,29 @@ const TeamChat = () => {
               setShowGroupModal(true);
               setSelectedUsers([]);
             }}
-            className="mb-4 flex items-center gap-2 py-2 px-4 bg-[#16A34A] text-white rounded-lg hover:bg-[#15803D] transition-all duration-200 text-sm"
+            className="mb-4 flex items-center gap-2 py-2 px-4 bg-[#16A34A] dark:bg-green-700 text-white rounded-lg hover:bg-[#15803D] dark:hover:bg-green-600 transition-all duration-200 text-sm"
             aria-label="Create Group"
           >
             <Plus className="w-4 h-4" /> Create Group
           </button>
         )}
-        <div className="mb-4 flex items-center gap-2 bg-white border border-[#6B7280]/20 rounded-lg px-3 py-2">
-          <Search className="w-5 h-5 text-[#6B7280]" />
+        <div className="mb-4 flex items-center gap-2 bg-white dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg px-3 py-2">
+          <Search className="w-5 h-5 text-[#6B7280] dark:text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            className="w-full bg-transparent text-sm text-[#1F2937] focus:outline-none"
+            className="w-full bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none"
           />
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {isLoading && <p className="text-center text-sm text-[#6B7280] py-4">Loading chats...</p>}
+          {isLoading && <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">Loading chats...</p>}
           {chatMode === 'individual' && sortedUsers.length === 0 && !isLoading && (
-            <p className="text-center text-sm text-[#6B7280] py-4">No users found</p>
+            <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No users found</p>
           )}
           {chatMode === 'group' && sortedGroups.length === 0 && !isLoading && (
-            <p className="text-center text-sm text-[#6B7280] py-4">No groups found</p>
+            <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No groups found</p>
           )}
           {chatMode === 'individual'
             ? sortedUsers.map((u) => {
@@ -811,24 +760,24 @@ const TeamChat = () => {
                   <div
                     key={u._id}
                     onClick={() => selectIndividualChat(u)}
-                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] transition-all duration-200 rounded-lg ${
-                      selectedChat?.recipient?._id === u._id ? 'bg-blue-50' : ''
-                    } border-b border-[#F3F4F6]/50 last:border-0`}
+                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 transition-all duration-200 rounded-lg ${
+                      selectedChat?.recipient?._id === u._id ? 'bg-blue-50 dark:bg-blue-900/50' : ''
+                    } border-b border-[#F3F4F6]/50 dark:border-gray-700/50 last:border-0`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-[#F3F4F6] text-[#1E40AF] flex items-center justify-center text-sm font-medium flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
                           {getInitials(u.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1F2937] truncate">{u.name}</p>
-                          <p className="text-xs text-[#6B7280] truncate">{snippet}</p>
+                          <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200 truncate">{u.name}</p>
+                          <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate">{snippet}</p>
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-[#6B7280]">{time}</p>
+                        <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
                         {unreadCounts[chatId] > 0 && (
-                          <span className="bg-[#16A34A] text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
+                          <span className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
                             {unreadCounts[chatId]}
                           </span>
                         )}
@@ -845,24 +794,24 @@ const TeamChat = () => {
                   <div
                     key={g._id}
                     onClick={() => selectGroupChat(g)}
-                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] transition-all duration-200 rounded-lg ${
-                      selectedChat?._id === g._id ? 'bg-blue-50' : ''
-                    } border-b border-[#F3F4F6]/50 last:border-0`}
+                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 transition-all duration-200 rounded-lg ${
+                      selectedChat?._id === g._id ? 'bg-blue-50 dark:bg-blue-900/50' : ''
+                    } border-b border-[#F3F4F6]/50 dark:border-gray-700/50 last:border-0`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-[#F3F4F6] text-[#1E40AF] flex items-center justify-center text-sm font-medium flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
                           {getInitials(g.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1F2937] truncate">{g.name}</p>
-                          <p className="text-xs text-[#6B7280] truncate">{snippet}</p>
+                          <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200 truncate">{g.name}</p>
+                          <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate">{snippet}</p>
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-[#6B7280]">{time}</p>
+                        <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
                         {unreadCounts[g._id] > 0 && (
-                          <span className="bg-[#16A34A] text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
+                          <span className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
                             {unreadCounts[g._id]}
                           </span>
                         )}
@@ -873,19 +822,19 @@ const TeamChat = () => {
               })}
         </div>
       </aside>
-      <section className={`flex-1 bg-white flex flex-col ${selectedChat ? 'flex' : 'hidden lg:flex'}`}>
+      <section className={`flex-1 bg-white dark:bg-gray-800 flex flex-col ${selectedChat ? 'flex' : 'hidden lg:flex'}`}>
         {selectedChat ? (
           <>
-            <header className="bg-[#F3F4F6] border-b border-[#6B7280]/20 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+            <header className="bg-[#F3F4F6] dark:bg-gray-700 border-b border-[#6B7280]/20 dark:border-gray-600 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-3 min-w-0">
                 <button
                   onClick={handleCloseChat}
-                  className="p-1 text-[#16A34A] hover:bg-[#16A34A]/10 rounded-full lg:hidden"
+                  className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full lg:hidden"
                   aria-label="Back to Chat List"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                <div className="w-10 h-10 rounded-full bg-[#F3F4F6] text-[#1E40AF] flex items-center justify-center text-sm font-medium flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
                   {getInitials(
                     chatMode === 'individual'
                       ? selectedChat.recipient?.name || 'Anonymous'
@@ -893,36 +842,36 @@ const TeamChat = () => {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-medium text-[#1F2937] truncate">
+                  <h2 className="text-lg font-medium text-[#1F2937] dark:text-gray-200 truncate">
                     {chatMode === 'individual' ? selectedChat.recipient?.name || 'Anonymous' : selectedChat.name || 'Unnamed Group'}
                   </h2>
                   {chatMode === 'group' ? (
-                    <p className="text-xs text-[#6B7280]">{selectedChat.members?.length || 0} members</p>
+                    <p className="text-xs text-[#6B7280] dark:text-gray-400">{selectedChat.members?.length || 0} members</p>
                   ) : (
-                    <p className="text-xs text-[#6B7280]">Online</p> // Fake online status
+                    <p className="text-xs text-[#6B7280] dark:text-gray-400">Last seen {lastSeen}</p>  // Updated: Show computed last seen
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-white border border-[#6B7280]/20 rounded-full px-3 py-1">
-                  <Search className="w-4 h-4 text-[#6B7280]" />
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-full px-3 py-1">
+                  <Search className="w-4 h-4 text-[#6B7280] dark:text-gray-400" />
                   <input
                     type="text"
                     value={messageSearch}
                     onChange={(e) => setMessageSearch(e.target.value)}
                     placeholder="Search messages..."
-                    className="w-32 bg-transparent text-sm text-[#1F2937] focus:outline-none"
+                    className="w-32 bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none"
                   />
                 </div>
                 {selectionMode ? (
                   <>
-                    <p className="text-sm font-medium text-[#1F2937]">
+                    <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200">
                       {selectedMessages.length} selected
                     </p>
                     {selectionMode === 'delete' && (
                       <button
                         onClick={handleDeleteMessages}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-all duration-200"
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-full transition-all duration-200"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
@@ -934,7 +883,7 @@ const TeamChat = () => {
                         setEditingMessageId(null);
                         setNewMessage('');
                       }}
-                      className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded-full transition-all duration-200"
+                      className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded-full transition-all duration-200"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -943,21 +892,21 @@ const TeamChat = () => {
                   <>
                     <button
                       onClick={() => setSelectionMode('edit')}
-                      className="p-2 text-[#1E40AF] hover:bg-[#1E40AF]/10 rounded-full transition-all duration-200"
+                      className="p-2 text-[#1E40AF] dark:text-blue-400 hover:bg-[#1E40AF]/10 dark:hover:bg-blue-900/50 rounded-full transition-all duration-200"
                       data-tooltip-id="edit-messages"
                       data-tooltip-content="Select to Edit"
                     >
                       <Edit2 className="w-5 h-5" />
-                      <Tooltip id="edit-messages" className="bg-[#1E40AF] text-white" />
+                      <Tooltip id="edit-messages" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
                     </button>
                     <button
                       onClick={() => setSelectionMode('delete')}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-all duration-200"
+                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-full transition-all duration-200"
                       data-tooltip-id="delete-messages"
                       data-tooltip-content="Select to Delete"
                     >
                       <Trash2 className="w-5 h-5" />
-                      <Tooltip id="delete-messages" className="bg-[#1E40AF] text-white" />
+                      <Tooltip id="delete-messages" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
                     </button>
                     {chatMode === 'group' && (
                       <button
@@ -965,52 +914,52 @@ const TeamChat = () => {
                           setShowGroupModal(true);
                           setSelectedUsers([]);
                         }}
-                        className="p-2 text-[#16A34A] hover:bg-[#16A34A]/10 rounded-full transition-all duration-200"
+                        className="p-2 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full transition-all duration-200"
                         data-tooltip-id="add-members"
                         data-tooltip-content="Add Members"
                       >
                         <Users className="w-5 h-5" />
-                        <Tooltip id="add-members" className="bg-[#1E40AF] text-white" />
+                        <Tooltip id="add-members" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
                       </button>
                     )}
                     <button
                       onClick={() => setShowMembersModal(true)}
-                      className="p-2 text-[#16A34A] hover:bg-[#16A34A]/10 rounded-full transition-all duration-200"
+                      className="p-2 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full transition-all duration-200"
                       data-tooltip-id="view-members"
                       data-tooltip-content="View Members"
                     >
                       <Users className="w-5 h-5" />
-                      <Tooltip id="view-members" className="bg-[#1E40AF] text-white" />
+                      <Tooltip id="view-members" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
                     </button>
                     <button
                       onClick={handleCloseChat}
-                      className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded-full transition-all duration-200 lg:flex"
+                      className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded-full transition-all duration-200 lg:flex"
                       data-tooltip-id="close-chat"
                       data-tooltip-content="Close Chat"
                     >
                       <X className="w-5 h-5" />
-                      <Tooltip id="close-chat" className="bg-[#1E40AF] text-white" />
+                      <Tooltip id="close-chat" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
                     </button>
                   </>
                 )}
               </div>
             </header>
             <div
-              className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2 bg-[#F3F4F6] max-h-[65vh] lg:max-h-[75vh]"
+              className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2 bg-[#F3F4F6] dark:bg-gray-900 max-h-[65vh] lg:max-h-[75vh]"
               ref={messagesContainerRef}
               onScroll={handleScroll}
             >
-              {isLoading && <p className="text-center text-sm text-[#6B7280] py-4">Loading messages...</p>}
+              {isLoading && <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">Loading messages...</p>}
               {currentPage < totalPages && (
                 <button
                   onClick={loadMoreMessages}
-                  className="mx-auto mb-4 px-4 py-2 bg-white text-[#1F2937] text-sm rounded-full hover:bg-[#E5E7EB] transition-all duration-200 shadow-sm"
+                  className="mx-auto mb-4 px-4 py-2 bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 text-sm rounded-full hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all duration-200 shadow-sm"
                 >
                   Load More
                 </button>
               )}
               {!isLoading && filteredMessages.length === 0 && (
-                <p className="text-center text-sm text-[#6B7280] py-4">No messages match your search</p>
+                <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No messages match your search</p>
               )}
               <AnimatePresence>
                 {filteredMessages.map((msg, index) => (
@@ -1029,14 +978,14 @@ const TeamChat = () => {
                   >
                     <div
                       className={`max-w-[70%] p-3 rounded-2xl relative shadow-sm ${
-                        isSenderMessage(msg) ? 'bg-[#1E40AF] text-white rounded-br-none sender-bubble' : 'bg-white text-[#1F2937] rounded-bl-none receiver-bubble'
-                      } ${selectedMessages.includes(msg._id) ? 'ring-2 ring-[#1E40AF]' : ''}`}
+                        isSenderMessage(msg) ? 'bg-[#1E40AF] dark:bg-blue-700 text-white rounded-br-none sender-bubble' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-200 rounded-bl-none receiver-bubble'
+                      } ${selectedMessages.includes(msg._id) ? 'ring-2 ring-[#1E40AF] dark:ring-blue-400' : ''}`}
                     >
                       {selectionMode && !msg.isDeleted && (
                         <input
                           type="checkbox"
                           checked={selectedMessages.includes(msg._id)}
-                          className={`absolute top-2 ${isSenderMessage(msg) ? 'right-2' : 'left-2'} h-4 w-4 text-[#1E40AF]`}
+                          className={`absolute top-2 ${isSenderMessage(msg) ? 'right-2' : 'left-2'} h-4 w-4 text-[#1E40AF] dark:text-blue-400`}
                           readOnly
                         />
                       )}
@@ -1044,12 +993,12 @@ const TeamChat = () => {
                         {msg.sender?._id === user?._id ? 'You' : msg.sender?.name || 'Anonymous'}
                       </p>
                       {msg.isDeleted ? (
-                        <p className="text-xs italic text-[#6B7280]">This message was deleted</p>
+                        <p className="text-xs italic text-[#6B7280] dark:text-gray-400">This message was deleted</p>
                       ) : (
                         <>
                           {msg.content && <p className="text-sm break-words">{msg.content}</p>}
                           {msg.isEdited && (
-                            <p className={`text-xs italic mt-1 ${isSenderMessage(msg) ? 'text-white/70' : 'text-[#6B7280]'}`}>
+                            <p className={`text-xs italic mt-1 ${isSenderMessage(msg) ? 'text-white/70' : 'text-[#6B7280] dark:text-gray-400'}`}>
                               Edited
                             </p>
                           )}
@@ -1077,14 +1026,14 @@ const TeamChat = () => {
                                 <div className="flex flex-col gap-1 text-sm">
                                   <button
                                     onClick={() => openMediaViewer(msg.fileUrl, msg.fileUrl.includes('.pdf') ? 'pdf' : 'application', msg.fileName || 'Document')}
-                                    className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] hover:text-[#1F2937]'}`}
+                                    className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200'}`}
                                   >
                                     View {msg.fileName || 'Document'}
                                   </button>
                                   <a
                                     href={msg.fileUrl}
                                     download={msg.fileName || 'Document'}
-                                    className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] hover:text-[#1F2937]'}`}
+                                    className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200'}`}
                                   >
                                     Download {msg.fileName || 'Document'}
                                   </a>
@@ -1094,7 +1043,7 @@ const TeamChat = () => {
                           )}
                         </>
                       )}
-                      <p className={`text-xs mt-1 text-right ${isSenderMessage(msg) ? 'text-white/60' : 'text-[#6B7280]'}`}>
+                      <p className={`text-xs mt-1 text-right ${isSenderMessage(msg) ? 'text-white/60' : 'text-[#6B7280] dark:text-gray-400'}`}>
                         {msg.createdAt ? moment.utc(msg.createdAt).tz('Africa/Lagos').format('h:mm A') : 'Unknown'}
                       </p>
                     </div>
@@ -1103,14 +1052,14 @@ const TeamChat = () => {
               </AnimatePresence>
               <div ref={messagesEndRef} className="pb-4" />
               {typingUsers[selectedChat._id]?.isTyping && typingUsers[selectedChat._id]?.id !== user?._id && (
-                <p className="text-sm text-[#6B7280] italic py-2">
+                <p className="text-sm text-[#6B7280] dark:text-gray-400 italic py-2">
                   {users.find((u) => u._id === typingUsers[selectedChat._id]?.id)?.name || 'Someone'} is typing...
                 </p>
               )}
             </div>
-            <div className="bg-[#F3F4F6] px-4 py-3 flex items-center gap-3 border-t border-[#6B7280]/20 sticky bottom-0 z-10">
+            <div className="bg-[#F3F4F6] dark:bg-gray-700 px-4 py-3 flex items-center gap-3 border-t border-[#6B7280]/20 dark:border-gray-600 sticky bottom-0 z-10">
               {editingMessageId && (
-                <div className="absolute -top-10 left-4 bg-white p-2 rounded shadow flex items-center gap-2 text-sm text-[#6B7280]">
+                <div className="absolute -top-10 left-4 bg-white dark:bg-gray-800 p-2 rounded shadow flex items-center gap-2 text-sm text-[#6B7280] dark:text-gray-400">
                   Editing message...
                   <button
                     onClick={() => {
@@ -1119,7 +1068,7 @@ const TeamChat = () => {
                       setSelectionMode(null);
                       setSelectedMessages([]);
                     }}
-                    className="p-1 hover:bg-[#F3F4F6] rounded"
+                    className="p-1 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1137,17 +1086,17 @@ const TeamChat = () => {
                     />
                   </div>
                 )}
-                <div className="flex items-center gap-2 bg-white border border-[#6B7280]/20 rounded-full p-2">
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-[#6B7280]/20 dark:border-gray-600 rounded-full p-2">
                   <button
                     ref={emojiButtonRef}
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="p-1 text-[#16A34A] hover:bg-[#F3F4F6] rounded transition-all duration-200"
+                    className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
                   >
                     <Smile className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-1 text-[#16A34A] hover:bg-[#F3F4F6] rounded transition-all duration-200"
+                    className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
                   >
                     <Paperclip className="w-5 h-5" />
                   </button>
@@ -1166,20 +1115,20 @@ const TeamChat = () => {
                       }
                     }}
                     placeholder={editingMessageId ? 'Edit message...' : 'Message'}
-                    className="flex-1 bg-transparent text-sm text-[#1F2937] focus:outline-none min-w-0"
+                    className="flex-1 bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none min-w-0"
                     disabled={selectionMode && !editingMessageId}
                   />
                   {file && (
-                    <div className="flex items-center gap-1 text-sm text-[#6B7280] truncate max-w-[100px]">
+                    <div className="flex items-center gap-1 text-sm text-[#6B7280] dark:text-gray-400 truncate max-w-[100px]">
                       {file.name}
-                      <button onClick={() => setFile(null)} className="text-red-600 hover:text-red-700">
+                      <button onClick={() => setFile(null)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   )}
-                  {isUploading && <p className="text-sm text-[#6B7280]">Uploading...</p>}
+                  {isUploading && <p className="text-sm text-[#6B7280] dark:text-gray-400">Uploading...</p>}
                   <button
-                    className="p-1 text-[#16A34A] hover:bg-[#F3F4F6] rounded transition-all duration-200"
+                    className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
                     title="Voice note"
                   >
                     <Mic className="w-5 h-5" />
@@ -1189,8 +1138,8 @@ const TeamChat = () => {
                     disabled={(!newMessage.trim() && !file) || isUploading || (selectionMode && !editingMessageId)}
                     className={`p-2 rounded-full transition-all duration-200 ${
                       (newMessage.trim() || file) && !isUploading && (!selectionMode || editingMessageId)
-                        ? 'bg-[#1E40AF] text-white hover:bg-[#1E3A8A]'
-                        : 'text-[#6B7280]'
+                        ? 'bg-[#1E40AF] dark:bg-blue-700 text-white hover:bg-[#1E3A8A] dark:hover:bg-blue-600'
+                        : 'text-[#6B7280] dark:text-gray-400'
                     }`}
                   >
                     <Send className="w-5 h-5" />
@@ -1201,14 +1150,14 @@ const TeamChat = () => {
             {showScrollButton && (
               <button
                 onClick={scrollToBottom}
-                className="absolute bottom-20 right-4 p-2 bg-[#1E40AF] text-white rounded-full shadow-lg hover:bg-[#1E3A8A] transition-all duration-200"
+                className="absolute bottom-20 right-4 p-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-full shadow-lg hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200"
               >
                 <ArrowDown className="w-5 h-5" />
               </button>
             )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-[#6B7280] text-lg">
+          <div className="flex-1 flex items-center justify-center text-[#6B7280] dark:text-gray-400 text-lg">
             Select a chat to begin
           </div>
         )}
@@ -1218,18 +1167,18 @@ const TeamChat = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50"
         >
           <motion.div
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-sm mx-4"
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4"
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-[#1F2937]">
+              <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200">
                 {selectedChat?.type === 'group' ? 'Add Members' : 'New Group'}
               </h3>
-              <button onClick={() => setShowGroupModal(false)} className="text-[#6B7280] hover:text-[#1F2937]">
+              <button onClick={() => setShowGroupModal(false)} className="text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1239,20 +1188,20 @@ const TeamChat = () => {
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 placeholder="Group name (optional)"
-                className="w-full p-2 border border-[#6B7280]/20 rounded mb-4 text-sm"
+                className="w-full p-2 border border-[#6B7280]/20 dark:border-gray-600 rounded mb-4 text-sm bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300"
               />
             )}
-            <p className="text-sm font-medium mb-2">Select members</p>
+            <p className="text-sm font-medium mb-2 text-[#1F2937] dark:text-gray-200">Select members</p>
             <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
               {users
                 .filter((u) => !selectedChat?.members?.some((m) => m._id === u._id))
                 .map((u) => (
-                  <label key={u._id} className="flex items-center gap-2 cursor-pointer">
+                  <label key={u._id} className="flex items-center gap-2 cursor-pointer text-[#1F2937] dark:text-gray-200">
                     <input
                       type="checkbox"
                       checked={selectedUsers.includes(u._id)}
                       onChange={() => setSelectedUsers((prev) => prev.includes(u._id) ? prev.filter(id => id !== u._id) : [...prev, u._id])}
-                      className="w-4 h-4 text-[#1E40AF] rounded"
+                      className="w-4 h-4 text-[#1E40AF] dark:text-blue-400 rounded"
                     />
                     {u.name}
                   </label>
@@ -1260,7 +1209,7 @@ const TeamChat = () => {
             </div>
             <button
               onClick={() => selectedChat?.type === 'group' ? handleAddMembers(selectedChat._id, selectedUsers) : handleCreateGroup()}
-              className="w-full py-2 bg-[#1E40AF] text-white rounded hover:bg-[#1E3A8A] transition-all duration-200 text-sm"
+              className="w-full py-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200 text-sm"
             >
               {selectedChat?.type === 'group' ? 'Add' : 'Create'}
             </button>
@@ -1272,32 +1221,36 @@ const TeamChat = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50"
         >
           <motion.div
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-sm mx-4"
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4"
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-[#1F2937]">{selectedChat.name} Members</h3>
-              <button onClick={() => setShowMembersModal(false)} className="text-[#6B7280] hover:text-[#1F2937]">
+              <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200">{selectedChat.name} Members</h3>
+              <button onClick={() => setShowMembersModal(false)} className="text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="max-h-48 overflow-y-auto space-y-2">
               {(selectedChat.members || []).map((member) => (
                 <div key={member._id} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#1E40AF] flex items-center justify-center text-xs font-medium">
+                  <div className="w-8 h-8 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-xs font-medium">
                     {getInitials(member.name)}
                   </div>
-                  <p className="text-sm text-[#1F2937]">{member.name}</p>
+                  <p className="text-sm text-[#1F2937] dark:text-gray-200">{member.name}</p>
+                  {/* New: Show last seen for each member in group */}
+                  <p className="text-xs text-[#6B7280] dark:text-gray-400 ml-auto">
+                    Last seen {member.lastActive ? moment(member.lastActive).fromNow() : 'never'}
+                  </p>
                 </div>
               ))}
             </div>
             <button
               onClick={() => setShowMembersModal(false)}
-              className="w-full mt-4 py-2 bg-[#F3F4F6] text-[#1F2937] rounded hover:bg-[#E5E7EB] transition-all duration-200 text-sm"
+              className="w-full mt-4 py-2 bg-[#F3F4F6] dark:bg-gray-700 text-[#1F2937] dark:text-gray-200 rounded hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all duration-200 text-sm"
             >
               Close
             </button>
@@ -1309,20 +1262,20 @@ const TeamChat = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50 p-4"
         >
           <motion.div
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-auto"
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-auto"
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-[#1F2937] truncate">{mediaViewer.fileName}</h3>
+              <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200 truncate">{mediaViewer.fileName}</h3>
               <div className="flex gap-2">
-                <a href={mediaViewer.fileUrl} download className="py-2 px-4 bg-[#1E40AF] text-white text-sm rounded hover:bg-[#1E3A8A] transition-all duration-200">
+                <a href={mediaViewer.fileUrl} download className="py-2 px-4 bg-[#1E40AF] dark:bg-blue-700 text-white text-sm rounded hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200">
                   Download
                 </a>
-                <button onClick={closeMediaViewer} className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded">
+                <button onClick={closeMediaViewer} className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1347,7 +1300,6 @@ const TeamChat = () => {
           width: 0;
           height: 0;
           border: 8px solid transparent;
-          border-left-color: #1E40AF;
           border-bottom-color: #1E40AF;
           transform: rotate(45deg);
         }
@@ -1384,5 +1336,4 @@ const TeamChat = () => {
     </div>
   );
 };
-
 export default TeamChat;

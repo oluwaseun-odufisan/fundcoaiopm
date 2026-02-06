@@ -1,16 +1,76 @@
+// backend/routes/grokRoutes.js
 import express from 'express';
+import { grokChat, getChatHistory, updateChat, deleteChat, summarizeChat } from '../controllers/grokController.js';
 import authMiddleware from '../middleware/auth.js';
-import { getGoalById, getGoals, updateGoal, createGoal, deleteGoal } from '../controllers/goalController.js';
-
-const goalRouter = express.Router();
-
-goalRouter.route('/')
-    .get(authMiddleware, getGoals)
-    .post(authMiddleware, createGoal);
-
-goalRouter.route('/:id')
-    .get(authMiddleware, getGoalById)
-    .put(authMiddleware, updateGoal)
-    .delete(authMiddleware, deleteGoal);
-
-export default goalRouter;
+const router = express.Router();
+router.post('/chat', authMiddleware, grokChat);
+router.get('/chat-history', authMiddleware, getChatHistory);
+router.put('/chat/:chatId', authMiddleware, updateChat);
+router.delete('/chat/:chatId', authMiddleware, deleteChat);
+router.get('/chat/:chatId/summarize', authMiddleware, summarizeChat);
+// Tool-specific endpoints for all tools
+router.post('/general-ai', authMiddleware, (req, res) => { req.body.toolId = 'general-ai'; grokChat(req, res); });
+router.post('/report-generator', authMiddleware, (req, res) => { req.body.toolId = 'report-generator'; grokChat(req, res); });
+router.post('/task-prioritizer', authMiddleware, (req, res) => { req.body.toolId = 'task-prioritizer'; grokChat(req, res); });
+router.post('/effort-estimator', authMiddleware, (req, res) => { req.body.toolId = 'effort-estimator'; grokChat(req, res); });
+router.post('/task-breaker', authMiddleware, (req, res) => { req.body.toolId = 'task-breaker'; grokChat(req, res); });
+router.post('/email-writer', authMiddleware, (req, res) => { req.body.toolId = 'email-writer'; grokChat(req, res); });
+router.post('/summary-generator', authMiddleware, (req, res) => { req.body.toolId = 'summary-generator'; grokChat(req, res); });
+router.post('/brainstormer', authMiddleware, (req, res) => { req.body.toolId = 'brainstormer'; grokChat(req, res); });
+router.post('/performance-analyzer', authMiddleware, (req, res) => { req.body.toolId = 'performance-analyzer'; grokChat(req, res); });
+router.post('/research-assistant', authMiddleware, (req, res) => { req.body.toolId = 'research-assistant'; grokChat(req, res); });
+router.post('/reminder-optimizer', authMiddleware, (req, res) => { req.body.toolId = 'reminder-optimizer'; grokChat(req, res); });
+router.post('/goal-planner', authMiddleware, (req, res) => { req.body.toolId = 'goal-planner'; grokChat(req, res); });
+router.post('/team-collaborator', authMiddleware, (req, res) => { req.body.toolId = 'team-collaborator'; grokChat(req, res); });
+router.post('/document-analyzer', authMiddleware, (req, res) => { req.body.toolId = 'document-analyzer'; grokChat(req, res); });
+router.post('/automation-builder', authMiddleware, (req, res) => { req.body.toolId = 'automation-builder'; grokChat(req, res); });
+router.post('/calendar-optimizer', authMiddleware, (req, res) => { req.body.toolId = 'calendar-optimizer'; grokChat(req, res); });
+router.post('/mini-grid-planner', authMiddleware, (req, res) => { req.body.toolId = 'mini-grid-planner'; grokChat(req, res); });
+router.post('/lcoe-calculator', authMiddleware, (req, res) => { req.body.toolId = 'lcoe-calculator'; grokChat(req, res); });
+router.post('/ppa-drafter', authMiddleware, (req, res) => { req.body.toolId = 'ppa-drafter'; grokChat(req, res); });
+router.post('/carbon-credit-estimator', authMiddleware, (req, res) => { req.body.toolId = 'carbon-credit-estimator'; grokChat(req, res); });
+router.post('/mortgage-simulator', authMiddleware, (req, res) => { req.body.toolId = 'mortgage-simulator'; grokChat(req, res); });
+router.post('/property-valuator', authMiddleware, (req, res) => { req.body.toolId = 'property-valuator'; grokChat(req, res); });
+router.post('/green-building-assessor', authMiddleware, (req, res) => { req.body.toolId = 'green-building-assessor'; grokChat(req, res); });
+router.post('/crop-yield-predictor', authMiddleware, (req, res) => { req.body.toolId = 'crop-yield-predictor'; grokChat(req, res); });
+router.post('/pue-optimizer', authMiddleware, (req, res) => { req.body.toolId = 'pue-optimizer'; grokChat(req, res); });
+router.post('/agro-processing-simulator', authMiddleware, (req, res) => { req.body.toolId = 'agro-processing-simulator'; grokChat(req, res); });
+router.post('/ev-infrastructure-planner', authMiddleware, (req, res) => { req.body.toolId = 'ev-infrastructure-planner'; grokChat(req, res); });
+router.post('/battery-swap-optimizer', authMiddleware, (req, res) => { req.body.toolId = 'battery-swap-optimizer'; grokChat(req, res); });
+router.post('/portfolio-risk-analyzer', authMiddleware, (req, res) => { req.body.toolId = 'portfolio-risk-analyzer'; grokChat(req, res); });
+router.post('/esg-compliance-checker', authMiddleware, (req, res) => { req.body.toolId = 'esg-compliance-checker'; grokChat(req, res); });
+router.post('/investment-forecaster', authMiddleware, (req, res) => { req.body.toolId = 'investment-forecaster'; grokChat(req, res); });
+router.post('/ai-orchestrator', authMiddleware, (req, res) => { req.body.toolId = 'ai-orchestrator'; grokChat(req, res); });
+router.post('/knowledge-base-query', authMiddleware, (req, res) => { req.body.toolId = 'knowledge-base-query'; grokChat(req, res); });
+router.post('/site-surveyor', authMiddleware, (req, res) => { req.body.toolId = 'site-surveyor'; grokChat(req, res); });
+router.post('/oem-selector', authMiddleware, (req, res) => { req.body.toolId = 'oem-selector'; grokChat(req, res); });
+router.post('/training-simulator', authMiddleware, (req, res) => { req.body.toolId = 'training-simulator'; grokChat(req, res); });
+router.post('/community-engager', authMiddleware, (req, res) => { req.body.toolId = 'community-engager'; grokChat(req, res); });
+router.post('/sustainability-reporter', authMiddleware, (req, res) => { req.body.toolId = 'sustainability-reporter'; grokChat(req, res); });
+router.post('/financial-structurer', authMiddleware, (req, res) => { req.body.toolId = 'financial-structurer'; grokChat(req, res); });
+router.post('/risk-mitigator', authMiddleware, (req, res) => { req.body.toolId = 'risk-mitigator'; grokChat(req, res); });
+router.post('/impact-measurer', authMiddleware, (req, res) => { req.body.toolId = 'impact-measurer'; grokChat(req, res); });
+router.post('/grant-applier', authMiddleware, (req, res) => { req.body.toolId = 'grant-applier'; grokChat(req, res); });
+router.post('/partner-matcher', authMiddleware, (req, res) => { req.body.toolId = 'partner-matcher'; grokChat(req, res); });
+router.post('/bsf-farming-simulator', authMiddleware, (req, res) => { req.body.toolId = 'bsf-farming-simulator'; grokChat(req, res); });
+router.post('/waste-management-optimizer', authMiddleware, (req, res) => { req.body.toolId = 'waste-management-optimizer'; grokChat(req, res); });
+router.post('/needs-assessment-tool', authMiddleware, (req, res) => { req.body.toolId = 'needs-assessment-tool'; grokChat(req, res); });
+router.post('/procurement-advisor', authMiddleware, (req, res) => { req.body.toolId = 'procurement-advisor'; grokChat(req, res); });
+router.post('/o-m-planner', authMiddleware, (req, res) => { req.body.toolId = 'o-m-planner'; grokChat(req, res); });
+router.post('/kyc-assessor', authMiddleware, (req, res) => { req.body.toolId = 'kyc-assessor'; grokChat(req, res); });
+router.post('/credit-evaluator', authMiddleware, (req, res) => { req.body.toolId = 'credit-evaluator'; grokChat(req, res); });
+router.post('/boq-generator', authMiddleware, (req, res) => { req.body.toolId = 'boq-generator'; grokChat(req, res); });
+router.post('/financial-proposal-drafter', authMiddleware, (req, res) => { req.body.toolId = 'financial-proposal-drafter'; grokChat(req, res); });
+router.post('/contract-drafter', authMiddleware, (req, res) => { req.body.toolId = 'contract-drafter'; grokChat(req, res); });
+router.post('/installation-simulator', authMiddleware, (req, res) => { req.body.toolId = 'installation-simulator'; grokChat(req, res); });
+router.post('/portfolio-monitor', authMiddleware, (req, res) => { req.body.toolId = 'portfolio-monitor'; grokChat(req, res); });
+router.post('/sdg-impact-analyzer', authMiddleware, (req, res) => { req.body.toolId = 'sdg-impact-analyzer'; grokChat(req, res); });
+router.post('/climate-risk-assessor', authMiddleware, (req, res) => { req.body.toolId = 'climate-risk-assessor'; grokChat(req, res); });
+router.post('/green-kiosk-planner', authMiddleware, (req, res) => { req.body.toolId = 'green-kiosk-planner'; grokChat(req, res); });
+router.post('/ev-swap-sop-simulator', authMiddleware, (req, res) => { req.body.toolId = 'ev-swap-sop-simulator'; grokChat(req, res); });
+router.post('/learning-resource-recommender', authMiddleware, (req, res) => { req.body.toolId = 'learning-resource-recommender'; grokChat(req, res); });
+router.post('/unit-responsibility-query', authMiddleware, (req, res) => { req.body.toolId = 'unit-responsibility-query'; grokChat(req, res); });
+router.post('/term-definer', authMiddleware, (req, res) => { req.body.toolId = 'term-definer'; grokChat(req, res); });
+router.post('/sop-query', authMiddleware, (req, res) => { req.body.toolId = 'sop-query'; grokChat(req, res); });
+router.post('/team-profile-query', authMiddleware, (req, res) => { req.body.toolId = 'team-profile-query'; grokChat(req, res); });
+export default router;

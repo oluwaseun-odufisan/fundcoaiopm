@@ -9,7 +9,6 @@ import { Toaster, toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { Search, Filter, ChevronDown } from 'lucide-react';
 import debounce from 'lodash/debounce'; // Install lodash if not present: npm i lodash
-
 const Training = () => {
   const [courses, setCourses] = useState([]);
   const [progress, setProgress] = useState([]);
@@ -20,14 +19,11 @@ const Training = () => {
   const [selectedAssetcos, setSelectedAssetcos] = useState([]); // Array for multi-select
   const [showLevelDropdown, setShowLevelDropdown] = useState(false);
   const [showAssetcoDropdown, setShowAssetcoDropdown] = useState(false);
-
   const levels = ['beginner', 'intermediate', 'expert'];
   const assetcos = ['General', 'EML', 'GroSolar', 'Agronomie', 'SSM']; // From your seed data
-
   useEffect(() => {
     fetchProgress();
   }, []);
-
   const fetchCourses = useCallback(debounce(async (filters) => {
     setLoading(true);
     try {
@@ -40,7 +36,6 @@ const Training = () => {
       if (filters.level) params.append('level', filters.level);
       if (filters.assetco) params.append('assetco', filters.assetco);
       if (filters.search) params.append('search', filters.search);
-
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/learning/courses?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -52,7 +47,6 @@ const Training = () => {
       setLoading(false);
     }
   }, 300), []); // Debounce search/filter by 300ms
-
   useEffect(() => {
     fetchCourses({
       level: selectedLevels.join(','),
@@ -60,7 +54,6 @@ const Training = () => {
       search: searchTerm,
     });
   }, [selectedLevels, selectedAssetcos, searchTerm]);
-
   const fetchProgress = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -74,11 +67,9 @@ const Training = () => {
       console.error('Fetch progress error:', err);
     }
   };
-
   const handleCourseSelect = (course) => {
     setSelectedCourse(course);
   };
-
   const handleModuleComplete = async (courseId, moduleId) => {
     try {
       const token = localStorage.getItem('token');
@@ -92,28 +83,24 @@ const Training = () => {
       console.error('Update progress error:', err);
     }
   };
-
   const handleBack = () => {
     setSelectedCourse(null);
   };
-
   const toggleLevel = (level) => {
-    setSelectedLevels(prev => 
+    setSelectedLevels(prev =>
       prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
     );
   };
-
   const toggleAssetco = (assetco) => {
-    setSelectedAssetcos(prev => 
+    setSelectedAssetcos(prev =>
       prev.includes(assetco) ? prev.filter(a => a !== assetco) : [...prev, assetco]
     );
   };
-
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-8">
       <Toaster position="top-right" />
       <motion.h1
-        className="text-3xl font-bold text-blue-800 mb-8"
+        className="text-3xl font-bold text-blue-800 dark:text-blue-300 mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
@@ -126,30 +113,30 @@ const Training = () => {
             placeholder="Search trainings, modules, or assetcos..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:outline-none transition-colors"
+            className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
           />
-          <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400 dark:text-gray-500" />
         </div>
         <div className="relative">
           <button
             onClick={() => setShowLevelDropdown(!showLevelDropdown)}
-            className="flex items-center gap-2 px-4 py-3 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors"
+            className="flex items-center gap-2 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-colors bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
           >
             <Filter className="w-5 h-5" /> Levels <ChevronDown className="w-4 h-4" />
           </button>
           {showLevelDropdown && (
             <motion.div
-              className="absolute z-10 mt-2 w-48 bg-white rounded-lg shadow-lg border"
+              className="absolute z-10 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
               {levels.map(l => (
-                <label key={l} className="flex items-center px-4 py-2 hover:bg-blue-50">
+                <label key={l} className="flex items-center px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/50">
                   <input
                     type="checkbox"
                     checked={selectedLevels.includes(l)}
                     onChange={() => toggleLevel(l)}
-                    className="mr-2 accent-blue-600"
+                    className="mr-2 accent-blue-600 dark:accent-blue-400"
                   />
                   {l.charAt(0).toUpperCase() + l.slice(1)}
                 </label>
@@ -160,23 +147,23 @@ const Training = () => {
         <div className="relative">
           <button
             onClick={() => setShowAssetcoDropdown(!showAssetcoDropdown)}
-            className="flex items-center gap-2 px-4 py-3 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors"
+            className="flex items-center gap-2 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 transition-colors bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
           >
             <Filter className="w-5 h-5" /> Assetcos <ChevronDown className="w-4 h-4" />
           </button>
           {showAssetcoDropdown && (
             <motion.div
-              className="absolute z-10 mt-2 w-48 bg-white rounded-lg shadow-lg border"
+              className="absolute z-10 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
               {assetcos.map(a => (
-                <label key={a} className="flex items-center px-4 py-2 hover:bg-blue-50">
+                <label key={a} className="flex items-center px-4 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/50">
                   <input
                     type="checkbox"
                     checked={selectedAssetcos.includes(a)}
                     onChange={() => toggleAssetco(a)}
-                    className="mr-2 accent-blue-600"
+                    className="mr-2 accent-blue-600 dark:accent-blue-400"
                   />
                   {a}
                 </label>
@@ -189,7 +176,7 @@ const Training = () => {
         <div className="lg:col-span-3">
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
             </div>
           ) : selectedCourse ? (
             <MaterialViewer
@@ -214,5 +201,4 @@ const Training = () => {
     </div>
   );
 };
-
 export default Training;

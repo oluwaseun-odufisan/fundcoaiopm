@@ -32,8 +32,8 @@ class ErrorBoundary extends React.Component {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="h-96 bg-gray-900/20 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-400">{this.state.error || 'Failed to render content'}</p>
+                <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-400 dark:text-gray-500">{this.state.error || 'Failed to render content'}</p>
                 </div>
             );
         }
@@ -86,133 +86,121 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
     const renderPreview = () => {
         if (error) {
             return (
-                <div className="h-96 bg-gray-900/20 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-400">{error}</p>
+                <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-400 dark:text-gray-500">{error}</p>
                 </div>
             );
         }
-        if (['jpg', 'jpeg', 'png'].includes(type)) {
-            return <img src={url} alt={file.fileName} className="w-full h-auto rounded-lg max-h-[70vh] object-contain" />;
-        }
-        if (['mp4', 'webm'].includes(type)) {
-            return (
-                <video
-                    controls
-                    autoPlay
-                    muted
-                    loop
-                    className="w-full max-h-[70vh] rounded-lg"
-                    onError={() => setError('Failed to load video')}
-                    aria-label={`Video player for ${file.fileName}`}
-                >
-                    <source src={url} type={`video/${type}`} />
-                    Your browser does not support video playback.
-                </video>
-            );
-        }
-        if (type === 'pdf') {
-            return (
-                <ErrorBoundary>
-                    <div className="relative">
-                        <div className="flex justify-between items-center mb-2">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handleZoomOut}
-                                    className="p-1 text-gray-300 hover:text-cyan-500"
-                                    aria-label="Zoom Out"
-                                >
-                                    <Minus className="w-4 h-4" />
-                                </button>
-                                <span className="text-sm text-gray-300">{(zoom * 100).toFixed(0)}%</span>
-                                <button
-                                    onClick={handleZoomIn}
-                                    className="p-1 text-gray-300 hover:text-cyan-500"
-                                    aria-label="Zoom In"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handlePrevPage}
-                                    disabled={pageNumber <= 1}
-                                    className="p-1 text-gray-300 hover:text-cyan-500 disabled:text-gray-500"
-                                    aria-label="Previous Page"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <span className="text-sm text-gray-300">
-                                    Page {pageNumber} of {numPages || '?'}
-                                </span>
-                                <button
-                                    onClick={handleNextPage}
-                                    disabled={pageNumber >= numPages}
-                                    className="p-1 text-gray-300 hover:text-cyan-500 disabled:text-gray-500"
-                                    aria-label="Next Page"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="h-[70vh] overflow-y-auto scrollbar-thin">
-                            <Document
-                                file={url}
-                                onLoadSuccess={onDocumentLoadSuccess}
-                                onLoadError={(err) => {
-                                    console.error('Error loading PDF:', err);
-                                    setError('Failed to load PDF');
-                                }}
-                                className="flex justify-center"
-                                loading={<Loader2 className="w-8 h-8 animate-spin text-cyan-500" />}
+        if (['jpg', 'jpeg', 'png'].includes(type)) return <img src={url} alt={file.fileName} className="w-full h-auto rounded-lg max-h-[70vh] object-contain" />;
+        if (['mp4', 'webm'].includes(type)) return (
+            <video
+                controls
+                autoPlay
+                muted
+                loop
+                className="w-full max-h-[70vh] rounded-lg"
+                onError={() => setError('Failed to load video')}
+                aria-label={`Video player for ${file.fileName}`}
+            >
+                <source src={url} type={`video/${type}`} />
+                Your browser does not support video playback.
+            </video>
+        );
+        if (type === 'pdf') return (
+            <ErrorBoundary>
+                <div className="relative">
+                    <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleZoomOut}
+                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
+                                aria-label="Zoom Out"
                             >
-                                <Page
-                                    pageNumber={pageNumber}
-                                    scale={zoom}
-                                    renderTextLayer={true}
-                                    renderAnnotationLayer={true}
-                                    className="shadow-md"
-                                />
-                            </Document>
+                                <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm text-gray-300 dark:text-gray-400">{(zoom * 100).toFixed(0)}%</span>
+                            <button
+                                onClick={handleZoomIn}
+                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
+                                aria-label="Zoom In"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handlePrevPage}
+                                disabled={pageNumber <= 1}
+                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
+                                aria-label="Previous Page"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm text-gray-300 dark:text-gray-400">
+                                Page {pageNumber} of {numPages || '?'}
+                            </span>
+                            <button
+                                onClick={handleNextPage}
+                                disabled={pageNumber >= numPages}
+                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
+                                aria-label="Next Page"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
-                </ErrorBoundary>
-            );
-        }
-        if (type === 'docx') {
-            return (
-                <div className="h-[70vh] overflow-y-auto scrollbar-thin bg-gray-900/10 p-4 rounded-lg">
-                    {docContent ? (
-                        <div
-                            dangerouslySetInnerHTML={{ __html: docContent }}
-                            className="doc-content max-w-none text-sm leading-relaxed text-gray-200"
-                            style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.6' }}
-                        />
-                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <Loader2 className="w-6 h-6 text-cyan-500 animate-spin" />
-                        </div>
-                    )}
+                    <div className="h-[70vh] overflow-y-auto scrollbar-thin">
+                        <Document
+                            file={url}
+                            onLoadSuccess={onDocumentLoadSuccess}
+                            onLoadError={(err) => {
+                                console.error('Error loading PDF:', err);
+                                setError('Failed to load PDF');
+                            }}
+                            className="flex justify-center"
+                            loading={<Loader2 className="w-8 h-8 animate-spin text-cyan-500 dark:text-cyan-400" />}
+                        >
+                            <Page
+                                pageNumber={pageNumber}
+                                scale={zoom}
+                                renderTextLayer={true}
+                                renderAnnotationLayer={true}
+                                className="shadow-md"
+                            />
+                        </Document>
+                    </div>
                 </div>
-            );
-        }
-        if (type === 'doc') {
-            return (
-                <div className="h-96 bg-gray-900/20 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-400">Preview not supported for .doc files</p>
-                </div>
-            );
-        }
-        if (['xls', 'xlsx'].includes(type)) {
-            return (
-                <div className="h-96 bg-gray-900/20 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-400">Preview not supported for Excel files</p>
-                </div>
-            );
-        }
+            </ErrorBoundary>
+        );
+        if (type === 'docx') return (
+            <div className="h-[70vh] overflow-y-auto scrollbar-thin bg-gray-900/10 dark:bg-gray-800/10 p-4 rounded-lg">
+                {docContent ? (
+                    <div
+                        dangerouslySetInnerHTML={{ __html: docContent }}
+                        className="doc-content max-w-none text-sm leading-relaxed text-gray-200 dark:text-gray-300"
+                        style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.6' }}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-full">
+                        <Loader2 className="w-6 h-6 text-cyan-500 dark:text-cyan-400 animate-spin" />
+                    </div>
+                )}
+            </div>
+        );
+        if (type === 'doc') return (
+            <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                <p className="text-gray-400 dark:text-gray-500">Preview not supported for .doc files</p>
+            </div>
+        );
+        if (['xls', 'xlsx'].includes(type)) return (
+            <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                <p className="text-gray-400 dark:text-gray-500">Preview not supported for Excel files</p>
+            </div>
+        );
         return (
-            <div className="h-96 bg-gray-900/20 rounded-lg flex items-center justify-center">
-                <File className="w-12 h-12 text-cyan-500" />
-                <p className="ml-2 text-gray-400">No preview available</p>
+            <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                <File className="w-12 h-12 text-cyan-500 dark:text-cyan-400" />
+                <p className="ml-2 text-gray-400 dark:text-gray-500">No preview available</p>
             </div>
         );
     };
@@ -221,7 +209,7 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1002] p-4"
+            className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/90 backdrop-blur-sm flex items-center justify-center z-[1002] p-4"
             onClick={onClose}
             role="dialog"
             aria-label="File Preview Modal"
@@ -230,17 +218,17 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-gray-800/80 backdrop-blur-xl rounded-2xl p-8 w-full max-w-5xl border border-gray-700/50 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
+                className="bg-gray-800/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl p-8 w-full max-w-5xl border border-gray-700/50 dark:border-gray-800/50 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-white truncate">{file.fileName}</h3>
-                    <button onClick={onClose} className="p-2 text-gray-300 hover:bg-gray-700/50 rounded-full" aria-label="Close Modal">
+                    <h3 className="text-xl font-bold text-white dark:text-gray-100 truncate">{file.fileName}</h3>
+                    <button onClick={onClose} className="p-2 text-gray-300 dark:text-gray-500 hover:bg-gray-700/50 dark:hover:bg-gray-800/50 rounded-full" aria-label="Close Modal">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
                 {renderPreview()}
-                <div className="mt-4 space-y-2 text-sm text-gray-300">
+                <div className="mt-4 space-y-2 text-sm text-gray-300 dark:text-gray-500">
                     <p><span className="font-medium">Size:</span> {(file.size / 1024 / 1024).toFixed(2)} MB</p>
                     <p><span className="font-medium">Type:</span> {file.type}</p>
                     <p><span className="font-medium">Task:</span> {file.taskTitle || 'None'}</p>
@@ -251,7 +239,7 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
                     <button
                         type="button"
                         onClick={() => handleDownload(file)}
-                        className="px-4 py-2 text-sm bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all duration-200"
+                        className="px-4 py-2 text-sm bg-cyan-500 dark:bg-cyan-600 text-white rounded-lg hover:bg-cyan-600 dark:hover:bg-cyan-500 transition-all duration-200"
                         aria-label={`Download ${file.fileName}`}
                     >
                         Download
@@ -259,7 +247,7 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
                     <button
                         type="button"
                         onClick={() => handleShare(file)}
-                        className="px-4 py-2 text-sm bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 transition-all duration-200"
+                        className="px-4 py-2 text-sm bg-gray-700 dark:bg-gray-800 text-gray-200 dark:text-gray-400 rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 transition-all duration-200"
                         aria-label={`Share ${file.fileName}`}
                     >
                         Share
@@ -349,7 +337,7 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#1F2937]/80 flex items-center justify-center z-[1000]"
+            className="fixed inset-0 bg-[#1F2937]/80 dark:bg-gray-950/80 flex items-center justify-center z-[1000]"
             onClick={onClose}
             role="dialog"
             aria-label="Upload Modal"
@@ -358,34 +346,34 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-xl p-6 max-w-md w-full border border-[#6B7280]/20 shadow-lg"
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full border border-[#6B7280]/20 dark:border-gray-700 shadow-lg"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-[#1F2937]">Upload Files</h3>
+                    <h3 className="text-lg font-semibold text-[#1F2937] dark:text-gray-200">Upload Files</h3>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1 text-[#6B7280] hover:text-[#1F2937]"
+                        className="p-1 text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200"
                         aria-label="Close Modal"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+                {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="text-sm text-[#6B7280] mb-1 block">Files (max 25MB each)</label>
+                        <label className="text-sm text-[#6B7280] dark:text-gray-400 mb-1 block">Files (max 25MB each)</label>
                         <div
-                            className="border-2 border-dashed border-[#6B7280]/20 rounded-lg p-6 text-center hover:bg-[#E5E7EB]"
+                            className="border-2 border-dashed border-[#6B7280]/20 dark:border-gray-600 rounded-lg p-6 text-center hover:bg-[#E5E7EB] dark:hover:bg-gray-700"
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
                                 e.preventDefault();
                                 handleFileChange({ target: { files: e.dataTransfer.files } });
                             }}
                         >
-                            <Upload className="w-8 h-8 mx-auto text-[#1E40AF]" />
-                            <p className="text-sm text-[#6B7280] mt-2">Drag & drop files here</p>
+                            <Upload className="w-8 h-8 mx-auto text-[#1E40AF] dark:text-blue-400" />
+                            <p className="text-sm text-[#6B7280] dark:text-gray-400 mt-2">Drag & drop files here</p>
                             <input
                                 type="file"
                                 id="file-upload"
@@ -397,13 +385,13 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
                             />
                             <label
                                 htmlFor="file-upload"
-                                className="cursor-pointer text-sm text-[#1E40AF] mt-2 block"
+                                className="cursor-pointer text-sm text-[#1E40AF] dark:text-blue-400 mt-2 block"
                             >
                                 Or click to browse
                             </label>
                         </div>
                         {selectedFiles.length > 0 && (
-                            <ul className="mt-2 text-sm text-[#6B7280]">
+                            <ul className="mt-2 text-sm text-[#6B7280] dark:text-gray-400">
                                 {selectedFiles.map((file, index) => (
                                     <li key={index}>{file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)</li>
                                 ))}
@@ -411,11 +399,11 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
                         )}
                     </div>
                     <div>
-                        <label className="text-sm text-[#6B7280] mb-1 block">Task</label>
+                        <label className="text-sm text-[#6B7280] dark:text-gray-400 mb-1 block">Task</label>
                         <select
                             value={taskId}
                             onChange={(e) => setTaskId(e.target.value)}
-                            className="w-full p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-md text-[#1F2937]"
+                            className="w-full p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-md text-[#1F2937] dark:text-gray-300"
                             aria-label="Select task"
                         >
                             <option value="">No Task</option>
@@ -425,20 +413,20 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
                         </select>
                     </div>
                     <div>
-                        <label className="text-sm text-[#6B7280] mb-1 block">Tags</label>
+                        <label className="text-sm text-[#6B7280] dark:text-gray-400 mb-1 block">Tags</label>
                         <input
                             type="text"
                             value={tags}
                             onChange={(e) => setTags(e.target.value)}
                             placeholder="e.g., report, urgent"
-                            className="w-full p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-md text-[#1F2937]"
+                            className="w-full p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-md text-[#1F2937] dark:text-gray-300"
                             aria-label="Enter tags"
                         />
                     </div>
                     <button
                         type="submit"
                         disabled={!selectedFiles.length || isUploading}
-                        className="w-full py-2 bg-[#1E40AF] text-white rounded-md hover:bg-[#1E40AF]/90 disabled:bg-gray-500 disabled:opacity-50"
+                        className="w-full py-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-md hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 disabled:bg-gray-500 dark:disabled:bg-gray-600 disabled:opacity-50"
                         aria-label="Upload files"
                     >
                         {isUploading ? <Loader2 className="w-4 h-4 animate-spin inline-block mr-2" /> : 'Upload'}
@@ -483,7 +471,7 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#1F2937]/80 flex items-center justify-center z-[1001]"
+            className="fixed inset-0 bg-[#1F2937]/80 dark:bg-gray-950/80 flex items-center justify-center z-[1001]"
             onClick={onClose}
             role="dialog"
             aria-label="Move Files Modal"
@@ -492,15 +480,15 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-xl p-6 max-w-md w-full border border-[#6B7280]/20 shadow-lg"
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full border border-[#6B7280]/20 dark:border-gray-700 shadow-lg"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-[#1F2937]">Move to Folder</h3>
+                    <h3 className="text-lg font-semibold text-[#1F2937] dark:text-gray-200">Move to Folder</h3>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1 text-[#6B7280] hover:text-[#1F2937]"
+                        className="p-1 text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200"
                         aria-label="Close Modal"
                     >
                         <X className="w-5 h-5" />
@@ -508,11 +496,11 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="text-sm text-[#6B7280] mb-1 block">Select Destination Folder</label>
+                        <label className="text-sm text-[#6B7280] dark:text-gray-400 mb-1 block">Select Destination Folder</label>
                         <select
                             value={selectedFolderId}
                             onChange={(e) => setSelectedFolderId(e.target.value)}
-                            className="w-full p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-md text-[#1F2937]"
+                            className="w-full p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-md text-[#1F2937] dark:text-gray-300"
                             aria-label="Select destination folder"
                         >
                             <option value="">Root Folder</option>
@@ -521,7 +509,7 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2 bg-[#1E40AF] text-white rounded-md hover:bg-[#1E40AF]/90"
+                        className="w-full py-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-md hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600"
                         aria-label="Move files"
                     >
                         Move
@@ -537,14 +525,14 @@ const FolderNode = ({ folder, onSelect, selectedFolderId, folders, level = 0 }) 
     return (
         <div style={{ paddingLeft: `${level * 16}px` }}>
             <div
-                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-[#E5E7EB] ${selectedFolderId === folder._id ? 'bg-[#E5E7EB] text-[#1E40AF]' : 'text-[#1F2937]'}`}
+                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 ${selectedFolderId === folder._id ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1F2937] dark:text-gray-200'}`}
                 onClick={() => {
                     setIsOpen(!isOpen);
                     onSelect(folder._id);
                 }}
             >
                 {childFolders.length > 0 && (isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
-                <Folder className="w-4 h-4 text-[#1E40AF]" />
+                <Folder className="w-4 h-4 text-[#1E40AF] dark:text-blue-400" />
                 <span className="text-sm truncate">{folder.name}</span>
             </div>
             {isOpen && childFolders.map((child) => (
@@ -1065,167 +1053,17 @@ const FileStorage = () => {
     };
     const getFileIcon = (type) => {
         type = type?.toLowerCase();
-        if (['jpg', 'jpeg', 'png'].includes(type)) return <Image className="w-6 h-6 text-emerald-500" />;
-        if (['mp4', 'webm'].includes(type)) return <Video className="w-6 h-6 text-violet-500" />;
-        if (type === 'pdf') return <FileText className="w-6 h-6 text-rose-500" />;
-        if (['docx', 'doc'].includes(type)) return <FileText className="w-6 h-6 text-blue-500" />;
-        if (['xls', 'xlsx'].includes(type)) return <FileText className="w-6 h-6 text-green-500" />;
-        return <File className="w-6 h-6 text-gray-400" />;
+        if (['jpg', 'jpeg', 'png'].includes(type)) return <Image className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />;
+        if (['mp4', 'webm'].includes(type)) return <Video className="w-6 h-6 text-violet-500 dark:text-violet-400" />;
+        if (type === 'pdf') return <FileText className="w-6 h-6 text-rose-500 dark:text-rose-400" />;
+        if (['docx', 'doc'].includes(type)) return <FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" />;
+        if (['xls', 'xlsx'].includes(type)) return <FileText className="w-6 h-6 text-green-500 dark:text-green-400" />;
+        return <File className="w-6 h-6 text-gray-400 dark:text-gray-500" />;
     };
     if (!user) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-950">
-                <p className="text-lg font-medium text-gray-300">Please log in to access file manager</p>
-            </div>
-        );
-    }
-    console.log('Rendering FileStorage, passing to UploadModal:', { isUploading, setIsUploadingType: typeof setIsUploading });
-    const renderItem = (item, index, isLast) => {
-        const isFolder = item.isFolder;
-        return (
-            <motion.div
-                key={item._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`relative rounded-xl border ${selectedItems.has(item._id) ? 'border-[#1E40AF] bg-[#E5E7EB]' : 'border-[#6B7280]/20 bg-[#F3F4F6]'} p-4 hover:bg-[#E5E7EB] transition-all duration-300 ${viewMode === 'list' ? 'flex items-center gap-4' : ''}`}
-                ref={isLast ? lastFileRef : null}
-                data-tooltip-id="file-tab"
-                data-tooltip-content={item.fileName || item.name}
-            >
-                <input
-                    type="checkbox"
-                    checked={selectedItems.has(item._id)}
-                    onChange={() => {
-                        setSelectedItems(prev => {
-                            const newSet = new Set(prev);
-                            if (newSet.has(item._id)) {
-                                newSet.delete(item._id);
-                            } else {
-                                newSet.add(item._id);
-                            }
-                            return newSet;
-                        });
-                    }}
-                    className="absolute top-2 left-2 form-checkbox text-[#1E40AF]"
-                    aria-label={`Select ${item.fileName || item.name}`}
-                />
-                <div
-                    className="flex-1 cursor-pointer"
-                    onClick={() => {
-                        if (isFolder) {
-                            setCurrentFolder(item._id);
-                            setPage(1);
-                            setFiles([]);
-                            fetchFilesAndFolders(1, true);
-                        } else {
-                            handlePreview(item);
-                        }
-                    }}
-                >
-                    {isFolder ? (
-                        <div className={viewMode === 'list' ? 'flex items-center gap-4' : ''}>
-                            <Folder className="w-12 h-12 text-[#1E40AF]" />
-                            <div className={viewMode === 'list' ? 'flex-1' : 'mt-2'}>
-                                <p className="text-sm font-medium text-[#1F2937] truncate">{item.name}</p>
-                                <p className="text-xs text-[#6B7280]">
-                                    Created: {new Date(item.createdAt).toLocaleDateString()}
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className={viewMode === 'list' ? 'flex items-center gap-4' : ''}>
-                            {getFileIcon(item.type)}
-                            <div className={viewMode === 'list' ? 'flex-1' : 'mt-2'}>
-                                <p className="text-sm font-medium text-[#1F2937] truncate">{item.fileName}</p>
-                                <p className="text-xs text-[#6B7280]">
-                                    {formatFileSize(item.size)} | {new Date(item.uploadedAt).toLocaleDateString()}</p>
-                                {item.tags?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {item.tags.map((tag, i) => (
-                                            <span
-                                                key={i}
-                                                className="px-1.5 py-0.5 text-xs bg-[#E5E7EB] text-[#1F2937] rounded"
-                                            >
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <div className="absolute top-2 right-2 flex gap-1">
-                    {!showTrash && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownload(item);
-                                }}
-                                className="p-1.5 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full"
-                                aria-label={`Download ${item.fileName || item.name}`}
-                            >
-                                <Download className="w-4 h-4" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleShare(item);
-                                }}
-                                className="p-1.5 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full"
-                                aria-label={`Share ${item.fileName || item.name}`}
-                            >
-                                <Share2 className="w-4 h-4" />
-                            </button>
-                        </>
-                    )}
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailsPanel(item);
-                        }}
-                        className="p-1.5 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full"
-                        aria-label={`View details of ${item.fileName || item.name}`}
-                    >
-                        <Info className="w-4 h-4" />
-                    </button>
-                    {!isFolder && showTrash && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleRestore(item._id);
-                            }}
-                            className="p-1.5 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full"
-                            aria-label={`Restore ${item.fileName}`}
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(item._id, isFolder, showTrash);
-                        }}
-                        className="p-1.5 text-red-500 hover:bg-red-100/50 rounded-full"
-                        aria-label={`Delete ${item.fileName || item.name}`}
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                </div>
-            </motion.div>
-        );
-    };
-    if (!user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-950">
-                <p className="text-lg font-medium text-gray-300">Please log in to access file manager</p>
+            <div className="min-h-screen flex items-center justify-center bg-gray-950 dark:bg-gray-900">
+                <p className="text-lg font-medium text-gray-300 dark:text-gray-400">Please log in to access file manager</p>
             </div>
         );
     }
@@ -1235,7 +1073,7 @@ const FileStorage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="min-h-screen bg-[#F3F4F6] flex flex-col font-sans"
+            className="min-h-screen bg-[#F3F4F6] dark:bg-gray-900 flex flex-col font-sans"
         >
             <Toaster position="bottom-right" toastOptions={{ duration: 4000, style: { background: '#e0f7fa', color: '#1e3a8a' } }} />
             <div className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-8">
@@ -1243,18 +1081,18 @@ const FileStorage = () => {
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.5 }}
-                    className="bg-white border border-[#F3F4F6] rounded-3xl shadow-lg flex flex-col overflow-hidden"
+                    className="bg-white dark:bg-gray-800 border border-[#F3F4F6] dark:border-gray-700 rounded-3xl shadow-lg flex flex-col overflow-hidden"
                 >
-                    <header className="bg-[#F3F4F6] border-b border-[#6B7280]/20 px-6 py-4 flex items-center justify-between">
+                    <header className="bg-[#F3F4F6] dark:bg-gray-800 border-b border-[#6B7280]/20 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Folder className="w-7 h-7 text-[#1E40AF]" />
-                            <h1 className="text-2xl font-bold text-[#1F2937]">File Manager</h1>
+                            <Folder className="w-7 h-7 text-[#1E40AF] dark:text-blue-400" />
+                            <h1 className="text-2xl font-bold text-[#1F2937] dark:text-gray-100">File Manager</h1>
                         </div>
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                                className="p-2 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full md:hidden"
+                                className="p-2 text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700 rounded-full md:hidden"
                                 aria-label="Toggle sidebar"
                             >
                                 {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -1269,7 +1107,7 @@ const FileStorage = () => {
                                     setFiles([]);
                                     fetchFilesAndFolders(1, true);
                                 }}
-                                className="px-4 py-2 text-sm bg-[#F3F4F6] text-[#1E40AF] rounded-lg hover:bg-[#E5E7EB]"
+                                className="px-4 py-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 rounded-lg hover:bg-[#E5E7EB] dark:hover:bg-gray-600"
                                 aria-label={showTrash ? 'View Files' : 'View Trash'}
                             >
                                 {showTrash ? 'Files' : 'Trash'}
@@ -1277,7 +1115,7 @@ const FileStorage = () => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/')}
-                                className="px-4 py-2 text-sm bg-[#F3F4F6] text-[#1E40AF] rounded-lg hover:bg-[#E5E7EB] flex items-center gap-2"
+                                className="px-4 py-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 rounded-lg hover:bg-[#E5E7EB] dark:hover:bg-gray-600 flex items-center gap-2"
                                 aria-label="Back to dashboard"
                             >
                                 <ArrowLeft className="w-5 h-5" />
@@ -1287,7 +1125,7 @@ const FileStorage = () => {
                     </header>
                     <main className="flex-1 flex overflow-hidden">
                         <aside
-                            className={`fixed inset-y-0 left-0 z-30 w-72 bg-[#F3F4F6] border-r border-[#6B7280]/20 transform transition-transform duration-300 md:static md:transform-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 flex flex-col`}
+                            className={`fixed inset-y-0 left-0 z-30 w-72 bg-[#F3F4F6] dark:bg-gray-800 border-r border-[#6B7280]/20 dark:border-gray-700 transform transition-transform duration-300 md:static md:transform-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 flex flex-col`}
                         >
                             <div className="flex-1 p-6 overflow-y-auto scrollbar-thin">
                                 <motion.section
@@ -1296,14 +1134,14 @@ const FileStorage = () => {
                                     transition={{ delay: 0.1 }}
                                     className="mb-6"
                                 >
-                                    <h3 className="text-sm font-semibold text-[#1E40AF] mb-3 flex items-center gap-2">
-                                        <Upload className="w-5 h-5 text-[#1E40AF]" />
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-3 flex items-center gap-2">
+                                        <Upload className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
                                         Upload Files
                                     </h3>
                                     <button
                                         type="button"
                                         onClick={() => setUploadModal(true)}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm bg-[#1E40AF] text-white rounded-xl hover:bg-[#1E40AF]/90 transition-all duration-300 shadow-md hover:shadow-lg"
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm bg-[#1E40AF] dark:bg-blue-700 text-white rounded-xl hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all duration-300 shadow-md hover:shadow-lg"
                                         aria-label="Upload Files"
                                     >
                                         <Plus className="w-5 h-5" />
@@ -1316,8 +1154,8 @@ const FileStorage = () => {
                                     transition={{ delay: 0.2 }}
                                     className="mb-6"
                                 >
-                                    <h3 className="text-sm font-semibold text-[#1E40AF] mb-3 flex items-center gap-2">
-                                        <FolderPlus className="w-5 h-5 text-[#1E40AF]" />
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-3 flex items-center gap-2">
+                                        <FolderPlus className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
                                         New Folder
                                     </h3>
                                     <div className="flex gap-2">
@@ -1326,13 +1164,13 @@ const FileStorage = () => {
                                             value={newFolderName}
                                             onChange={(e) => setNewFolderName(e.target.value)}
                                             placeholder="Folder name"
-                                            className="flex-1 p-3 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF] focus:outline-none transition-all duration-300"
+                                            className="flex-1 p-3 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400 focus:outline-none transition-all duration-300"
                                             aria-label="New folder name"
                                         />
                                         <button
                                             type="button"
                                             onClick={handleCreateFolder}
-                                            className="p-3 bg-[#1E40AF] text-white rounded-xl hover:bg-[#1E40AF]/90 transition-all duration-300"
+                                            className="p-3 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-xl hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 transition-all duration-300"
                                             aria-label="Create folder"
                                         >
                                             <Plus className="w-5 h-5" />
@@ -1345,8 +1183,8 @@ const FileStorage = () => {
                                     transition={{ delay: 0.3 }}
                                     className="mb-6"
                                 >
-                                    <h3 className="text-sm font-semibold text-[#1E40AF] mb-3 flex items-center gap-2">
-                                        <Folder className="w-5 h-5 text-[#1E40AF]" />
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-3 flex items-center gap-2">
+                                        <Folder className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
                                         Folders
                                     </h3>
                                     {folders.length ? (
@@ -1362,7 +1200,7 @@ const FileStorage = () => {
                                                 />
                                             ))
                                     ) : (
-                                        <p className="text-sm text-[#1E40AF]">No folders created</p>
+                                        <p className="text-sm text-[#1E40AF] dark:text-blue-400">No folders created</p>
                                     )}
                                 </motion.section>
                                 <motion.section
@@ -1371,21 +1209,21 @@ const FileStorage = () => {
                                     transition={{ delay: 0.4 }}
                                     className="mb-6"
                                 >
-                                    <h3 className="text-sm font-semibold text-[#1E40AF] mb-3 flex items-center gap-2">
-                                        <Search className="w-5 h-5 text-[#1E40AF]" />
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-3 flex items-center gap-2">
+                                        <Search className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
                                         Search & Filter
                                     </h3>
                                     <input
                                         type="text"
                                         onChange={(e) => debouncedSearch(e.target.value)}
                                         placeholder="Search files, folders, or tags..."
-                                        className="w-full p-3 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF] focus:outline-none transition-all duration-300"
+                                        className="w-full p-3 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400 focus:outline-none transition-all duration-300"
                                         aria-label="Search files and folders"
                                     />
                                     <select
                                         value={sortBy}
                                         onChange={(e) => setSortBy(e.target.value)}
-                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF] focus:outline-none transition-all duration-300"
+                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400 focus:outline-none transition-all duration-300"
                                         aria-label="Sort by"
                                     >
                                         <option value="uploadedAt">Uploaded Date</option>
@@ -1401,7 +1239,7 @@ const FileStorage = () => {
                                             setFiles([]);
                                             fetchFilesAndFolders(1, true);
                                         }}
-                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF] focus:outline-none transition-all duration-300"
+                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400 focus:outline-none transition-all duration-300"
                                         aria-label="Filter by type"
                                     >
                                         <option value="all">All Types</option>
@@ -1417,7 +1255,7 @@ const FileStorage = () => {
                                             setFiles([]);
                                             fetchFilesAndFolders(1, true);
                                         }}
-                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF] focus:outline-none transition-all duration-300"
+                                        className="w-full mt-3 p-3 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400 focus:outline-none transition-all duration-300"
                                         aria-label="Filter by task"
                                     >
                                         <option value="all">All Tasks</option>
@@ -1426,10 +1264,10 @@ const FileStorage = () => {
                                         ))}
                                     </select>
                                     <div className="mt-3">
-                                        <h4 className="text-sm font-semibold text-[#1E40AF] mb-2">Filter by Tags</h4>
+                                        <h4 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-2">Filter by Tags</h4>
                                         {uniqueTags.length ? (
                                             uniqueTags.map(tag => (
-                                                <label key={tag} className="flex items-center gap-2 text-sm text-[#1F2937] mb-1">
+                                                <label key={tag} className="flex items-center gap-2 text-sm text-[#1F2937] dark:text-gray-200 mb-1">
                                                     <input
                                                         type="checkbox"
                                                         checked={filterTags.includes(tag)}
@@ -1441,13 +1279,13 @@ const FileStorage = () => {
                                                             setFiles([]);
                                                             fetchFilesAndFolders(1, true);
                                                         }}
-                                                        className="form-checkbox text-[#1E40AF]"
+                                                        className="form-checkbox text-[#1E40AF] dark:text-blue-400"
                                                     />
                                                     {tag}
                                                 </label>
                                             ))
                                         ) : (
-                                            <p className="text-sm text-[#1E40AF]">No tags available</p>
+                                            <p className="text-sm text-[#1E40AF] dark:text-blue-400">No tags available</p>
                                         )}
                                     </div>
                                 </motion.section>
@@ -1456,27 +1294,27 @@ const FileStorage = () => {
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.5 }}
                                 >
-                                    <h3 className="text-sm font-semibold text-[#1E40AF] mb-3 flex items-center gap-2">
-                                        <HardDrive className="w-5 h-5 text-[#1E40AF]" />
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400 mb-3 flex items-center gap-2">
+                                        <HardDrive className="w-5 h-5 text-[#1E40AF] dark:text-blue-400" />
                                         Storage
                                     </h3>
-                                    <div className="relative h-2 bg-[#F3F4F6] rounded-full overflow-hidden">
+                                    <div className="relative h-2 bg-[#F3F4F6] dark:bg-gray-700 rounded-full overflow-hidden">
                                         <div
-                                            className="absolute h-full bg-[#1E40AF]"
+                                            className="absolute h-full bg-[#1E40AF] dark:bg-blue-700"
                                             style={{ width: `${Math.min((storageUsed / TOTAL_STORAGE) * 100, 100)}%` }}
                                         />
                                     </div>
-                                    <p className="text-sm text-[#1E40AF] mt-2">
+                                    <p className="text-sm text-[#1E40AF] dark:text-blue-400 mt-2">
                                         {formatFileSize(storageUsed)} used of {formatFileSize(TOTAL_STORAGE)}
                                     </p>
                                 </motion.section>
                             </div>
                         </aside>
                         <section className="flex-1 flex flex-col overflow-hidden">
-                            <div className="p-6 border-b border-[#6B7280]/20 bg-[#F3F4F6]">
+                            <div className="p-6 border-b border-[#6B7280]/20 dark:border-gray-700 bg-[#F3F4F6] dark:bg-gray-800">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
-                                        <nav className="flex items-center gap-2 text-sm text-[#1E40AF]">
+                                        <nav className="flex items-center gap-2 text-sm text-[#1E40AF] dark:text-blue-400">
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1485,7 +1323,7 @@ const FileStorage = () => {
                                                     setFiles([]);
                                                     fetchFilesAndFolders(1, true);
                                                 }}
-                                                className="hover:text-[#16A34A]"
+                                                className="hover:text-[#16A34A] dark:hover:text-green-400"
                                                 aria-label="Root folder"
                                             >
                                                 Home
@@ -1501,7 +1339,7 @@ const FileStorage = () => {
                                                             setFiles([]);
                                                             fetchFilesAndFolders(1, true);
                                                         }}
-                                                        className="hover:text-[#16A34A] truncate max-w-[150px]"
+                                                        className="hover:text-[#16A34A] dark:hover:text-green-400 truncate max-w-[150px]"
                                                         aria-label={`Folder ${folder.name}`}
                                                     >
                                                         {folder.name}
@@ -1514,7 +1352,7 @@ const FileStorage = () => {
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('grid')}
-                                            className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-[#E5E7EB] text-[#1E40AF]' : 'text-[#1E40AF] hover:bg-[#E5E7EB]'}`}
+                                            className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700'}`}
                                             aria-label="Grid view"
                                         >
                                             <Grid className="w-5 h-5" />
@@ -1522,7 +1360,7 @@ const FileStorage = () => {
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('list')}
-                                            className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-[#E5E7EB] text-[#1E40AF]' : 'text-[#1E40AF] hover:bg-[#E5E7EB]'}`}
+                                            className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700'}`}
                                             aria-label="List view"
                                         >
                                             <List className="w-5 h-5" />
@@ -1530,12 +1368,12 @@ const FileStorage = () => {
                                     </div>
                                 </div>
                                 {selectedItems.size > 0 && (
-                                    <div className="flex items-center gap-3 bg-[#E5E7EB] p-3 rounded-lg relative">
-                                        <p className="text-sm text-[#1E40AF]">{selectedItems.size} item(s) selected</p>
+                                    <div className="flex items-center gap-3 bg-[#E5E7EB] dark:bg-gray-700 p-3 rounded-lg relative">
+                                        <p className="text-sm text-[#1E40AF] dark:text-blue-400">{selectedItems.size} item(s) selected</p>
                                         <button
                                             type="button"
                                             onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                            className="px-3 py-1 text-sm bg-[#1E40AF] text-white rounded-lg hover:bg-[#1E40AF]/90 flex items-center gap-1"
+                                            className="px-3 py-1 text-sm bg-[#1E40AF] dark:bg-blue-700 text-white rounded-lg hover:bg-[#1E40AF]/90 dark:hover:bg-blue-600 flex items-center gap-1"
                                             aria-label="Show actions menu"
                                         >
                                             Actions {showActionsMenu ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1543,12 +1381,12 @@ const FileStorage = () => {
                                         {showActionsMenu && (
                                             <div
                                                 ref={actionsMenuRef}
-                                                className="absolute top-full mt-2 left-40 bg-[#F3F4F6] border border-[#6B7280]/20 rounded-lg shadow-lg z-10"
+                                                className="absolute top-full mt-2 left-40 bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg shadow-lg z-10"
                                             >
                                                 <button
                                                     type="button"
                                                     onClick={handleBulkDelete}
-                                                    className="w-full px-4 py-2 text-sm text-red-500 hover:bg-[#E5E7EB] text-left"
+                                                    className="w-full px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-600 text-left"
                                                     aria-label={showTrash ? 'Permanently delete selected items' : 'Move selected items to trash'}
                                                 >
                                                     {showTrash ? 'Permanently Delete' : 'Move to Trash'}
@@ -1557,7 +1395,7 @@ const FileStorage = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => setMoveFilesModal(true)}
-                                                        className="w-full px-4 py-2 text-sm text-[#1E40AF] hover:bg-[#E5E7EB] text-left"
+                                                        className="w-full px-4 py-2 text-sm text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-600 text-left"
                                                         aria-label="Move selected items to folder"
                                                     >
                                                         Move to Folder
@@ -1571,7 +1409,7 @@ const FileStorage = () => {
                                                                 if (!folders.find(f => f._id === id)) handleRestore(id);
                                                             });
                                                         }}
-                                                        className="w-full px-4 py-2 text-sm text-[#1E40AF] hover:bg-[#E5E7EB] text-left"
+                                                        className="w-full px-4 py-2 text-sm text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-600 text-left"
                                                         aria-label="Restore selected items"
                                                     >
                                                         Restore
@@ -1585,7 +1423,7 @@ const FileStorage = () => {
                                                 setSelectedItems(new Set());
                                                 setShowActionsMenu(false);
                                             }}
-                                            className="px-3 py-1 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                                            className="px-3 py-1 text-sm bg-gray-500 dark:bg-gray-600 text-white rounded-lg hover:bg-gray-600 dark:hover:bg-gray-500"
                                             aria-label="Clear selection"
                                         >
                                             Clear
@@ -1597,7 +1435,7 @@ const FileStorage = () => {
                                         <button
                                             type="button"
                                             onClick={handleClearTrash}
-                                            className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                            className="px-4 py-2 text-sm bg-red-500 dark:bg-red-600 text-white rounded-lg hover:bg-red-600 dark:hover:bg-red-500"
                                             aria-label="Clear trash"
                                         >
                                             Clear Trash
@@ -1607,7 +1445,7 @@ const FileStorage = () => {
                             </div>
                             <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
                                 {filteredItems.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center h-full text-[#1E40AF]">
+                                    <div className="flex flex-col items-center justify-center h-full text-[#1E40AF] dark:text-blue-400">
                                         <Folder className="w-16 h-16 mb-4" />
                                         <p className="text-lg font-medium">
                                             {showTrash ? 'Trash is empty' : 'No files or folders found'}
@@ -1639,13 +1477,13 @@ const FileStorage = () => {
                             </div>
                         </section>
                         {detailsPanel && (
-                            <aside className="w-80 bg-[#F3F4F6] border-l border-[#6B7280]/20 p-6 overflow-y-auto scrollbar-thin">
+                            <aside className="w-80 bg-[#F3F4F6] dark:bg-gray-800 border-l border-[#6B7280]/20 dark:border-gray-700 p-6 overflow-y-auto scrollbar-thin">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-sm font-semibold text-[#1E40AF]">Details</h3>
+                                    <h3 className="text-sm font-semibold text-[#1E40AF] dark:text-blue-400">Details</h3>
                                     <button
                                         type="button"
                                         onClick={() => setDetailsPanel(null)}
-                                        className="p-1 text-[#1E40AF] hover:bg-[#E5E7EB] rounded-full"
+                                        className="p-1 text-[#1E40AF] dark:text-blue-400 hover:bg-[#E5E7EB] dark:hover:bg-gray-700 rounded-full"
                                         aria-label="Close details panel"
                                     >
                                         <X className="w-5 h-5" />
@@ -1653,29 +1491,29 @@ const FileStorage = () => {
                                 </div>
                                 <div className="space-y-4">
                                     <div>
-                                        <p className="text-xs font-medium text-[#1E40AF]">Name</p>
-                                        <p className="text-sm text-[#1F2937] truncate">{detailsPanel.fileName || detailsPanel.name}</p>
+                                        <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Name</p>
+                                        <p className="text-sm text-[#1F2937] dark:text-gray-200 truncate">{detailsPanel.fileName || detailsPanel.name}</p>
                                     </div>
                                     {!detailsPanel.isFolder && (
                                         <>
                                             <div>
-                                                <p className="text-xs font-medium text-[#1E40AF]">Size</p>
-                                                <p className="text-sm text-[#1F2937]">{formatFileSize(detailsPanel.size)}</p>
+                                                <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Size</p>
+                                                <p className="text-sm text-[#1F2937] dark:text-gray-200">{formatFileSize(detailsPanel.size)}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs font-medium text-[#1E40AF]">Type</p>
-                                                <p className="text-sm text-[#1F2937]">{detailsPanel.type?.toUpperCase()}</p>
+                                                <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Type</p>
+                                                <p className="text-sm text-[#1F2937] dark:text-gray-200">{detailsPanel.type?.toUpperCase()}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs font-medium text-[#1E40AF]">Uploaded</p>
-                                                <p className="text-sm text-[#1F2937]">{new Date(detailsPanel.uploadedAt).toLocaleString()}</p>
+                                                <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Uploaded</p>
+                                                <p className="text-sm text-[#1F2937] dark:text-gray-200">{new Date(detailsPanel.uploadedAt).toLocaleString()}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs font-medium text-[#1E40AF]">Task</p>
+                                                <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Task</p>
                                                 <select
                                                     value={detailsPanel.taskId || ''}
                                                     onChange={(e) => handleAssociateTask(detailsPanel._id, e.target.value)}
-                                                    className="w-full p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF]"
+                                                    className="w-full p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400"
                                                     aria-label="Associate task"
                                                 >
                                                     <option value="">No Task</option>
@@ -1685,12 +1523,12 @@ const FileStorage = () => {
                                                 </select>
                                             </div>
                                             <div>
-                                                <p className="text-xs font-medium text-[#1E40AF]">Tags</p>
+                                                <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Tags</p>
                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                     {detailsPanel.tags?.map((tag, i) => (
                                                         <span
                                                             key={i}
-                                                            className="px-1.5 py-0.5 text-xs bg-[#E5E7EB] text-[#1F2937] rounded"
+                                                            className="px-1.5 py-0.5 text-xs bg-[#E5E7EB] dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 rounded"
                                                         >
                                                             {tag}
                                                         </span>
@@ -1706,7 +1544,7 @@ const FileStorage = () => {
                                                                 e.target.value = '';
                                                             }
                                                         }}
-                                                        className="flex-1 p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937] focus:ring-2 focus:ring-[#1E40AF]"
+                                                        className="flex-1 p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300 focus:ring-2 focus:ring-[#1E40AF] dark:focus:ring-blue-400"
                                                         aria-label="Add tag"
                                                     />
                                                     <button
@@ -1718,7 +1556,7 @@ const FileStorage = () => {
                                                                 input.value = '';
                                                             }
                                                         }}
-                                                        className="p-2 bg-[#1E40AF] text-white rounded-xl"
+                                                        className="p-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-xl"
                                                         aria-label="Add tag"
                                                     >
                                                         <Plus className="w-4 h-4" />
@@ -1727,13 +1565,13 @@ const FileStorage = () => {
                                             </div>
                                             {detailsPanel.shareLink && (
                                                 <div>
-                                                    <p className="text-xs font-medium text-[#1E40AF]">Share Link</p>
+                                                    <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Share Link</p>
                                                     <div className="flex gap-2">
                                                         <input
                                                             type="text"
                                                             value={detailsPanel.shareLink}
                                                             readOnly
-                                                            className="flex-1 p-2 text-sm bg-[#F3F4F6] border border-[#6B7280]/20 rounded-xl text-[#1F2937]"
+                                                            className="flex-1 p-2 text-sm bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-xl text-[#1F2937] dark:text-gray-300"
                                                             aria-label="Share link"
                                                         />
                                                         <button
@@ -1742,13 +1580,13 @@ const FileStorage = () => {
                                                                 navigator.clipboard.writeText(detailsPanel.shareLink);
                                                                 toast.success('Link copied!');
                                                             }}
-                                                            className="p-2 bg-[#1E40AF] text-white rounded-xl"
+                                                            className="p-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-xl"
                                                             aria-label="Copy share link"
                                                         >
                                                             <Link2 className="w-4 h-4" />
                                                         </button>
                                                     </div>
-                                                    <p className="text-xs text-[#1E40AF] mt-1">
+                                                    <p className="text-xs text-[#1E40AF] dark:text-blue-400 mt-1">
                                                         Expires: {new Date(detailsPanel.shareExpires).toLocaleDateString()}
                                                     </p>
                                                 </div>
@@ -1757,8 +1595,8 @@ const FileStorage = () => {
                                     )}
                                     {detailsPanel.isFolder && (
                                         <div>
-                                            <p className="text-xs font-medium text-[#1E40AF]">Created</p>
-                                            <p className="text-sm text-[#1F2937]">{new Date(detailsPanel.createdAt).toLocaleString()}</p>
+                                            <p className="text-xs font-medium text-[#1E40AF] dark:text-blue-400">Created</p>
+                                            <p className="text-sm text-[#1F2937] dark:text-gray-200">{new Date(detailsPanel.createdAt).toLocaleString()}</p>
                                         </div>
                                     )}
                                 </div>

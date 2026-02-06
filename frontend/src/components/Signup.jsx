@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { UserPlus, User, Mail, Lock, Shield } from 'lucide-react';
 import axios from 'axios';
+import { toast, ToastContainer } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const INITIAL_FORM = { name: '', email: '', password: '', role: 'standard' };
@@ -9,6 +11,7 @@ const Signup = ({ onSwitchMode }) => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,14 +19,26 @@ const Signup = ({ onSwitchMode }) => {
     setMessage({ text: '', type: '' });
     try {
       const { data } = await axios.post(`${API_URL}/api/user/register`, formData);
-      setMessage({ text: 'Registration successful! You can now log in.', type: 'success' });
-      setFormData(INITIAL_FORM);
-    } catch (err) {
-      console.error('Signup error:', err);
-      setMessage({
-        text: err.response?.data?.message || 'An error occurred. Please try again later.',
-        type: 'error',
+      toast.success('Registration successful! Logging you in...');
+
+      // Automatically log in the user
+      const loginResponse = await axios.post(`${API_URL}/api/user/login`, {
+        email: formData.email,
+        password: formData.password,
       });
+
+      if (!loginResponse.data.success || !loginResponse.data.token) {
+        throw new Error(loginResponse.data.message || 'Auto-login failed');
+      }
+
+      localStorage.setItem('token', loginResponse.data.token);
+      localStorage.setItem('userId', loginResponse.data.user.id);
+      toast.success('Login successful! Redirecting to dashboard...');
+      setFormData(INITIAL_FORM);
+      setTimeout(() => navigate('/'), 1000);
+    } catch (err) {
+      console.error('Signup or auto-login error:', err);
+      toast.error(err.response?.data?.message || 'An error occurred. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -65,6 +80,7 @@ const Signup = ({ onSwitchMode }) => {
 
   return (
     <div className="min-h-screen w-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden">
+      <ToastContainer position="top-center" autoClose={3000} hideProgressBar />
       <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6 sm:p-8 border border-blue-200">
         {/* Logo & Title */}
         <div className="mb-10 text-center">

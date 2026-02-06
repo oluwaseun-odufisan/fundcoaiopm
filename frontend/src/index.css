@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  zoom: 85%;
+}
+
+body {
+  background-color: white;
+  color: black;
+}
+
+.dark body {
+  background-color: #1f2937; /* gray-800 */
+  color: white;
+}
