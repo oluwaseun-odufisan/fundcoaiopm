@@ -23,14 +23,16 @@ const SocialFeed = () => {
     const [isPosting, setIsPosting] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     const [selectedDoc, setSelectedDoc] = useState(null);
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showCreateEmojiPicker, setShowCreateEmojiPicker] = useState(false);
+    const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false);
     const [editingPost, setEditingPost] = useState(null);
     const [editContent, setEditContent] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
     const fileInputRef = useRef(null);
     const observer = useRef();
     const modalRef = useRef(null);
-    const emojiButtonRef = useRef(null);
+    const createEmojiButtonRef = useRef(null);
+    const editEmojiButtonRef = useRef(null);
     const feedRef = useRef(null);
     const fetchedPages = useRef(new Set());
     const fetchTimeout = useRef(null);
@@ -105,27 +107,36 @@ const SocialFeed = () => {
             if (e.key === 'Escape') {
                 setSelectedImage(null);
                 setSelectedDoc(null);
-                setShowEmojiPicker(false);
+                setShowCreateEmojiPicker(false);
+                setShowEditEmojiPicker(false);
                 setEditingPost(null);
                 setShowDeleteConfirm(null);
             }
         };
-        if (selectedImage || selectedDoc || showEmojiPicker || editingPost || showDeleteConfirm) {
+        if (selectedImage || selectedDoc || editingPost || showDeleteConfirm || showCreateEmojiPicker || showEditEmojiPicker) {
             modalRef.current?.focus();
             window.addEventListener('keydown', handleKeyDown);
         }
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedImage, selectedDoc, showEmojiPicker, editingPost, showDeleteConfirm]);
+    }, [selectedImage, selectedDoc, showCreateEmojiPicker, showEditEmojiPicker, editingPost, showDeleteConfirm]);
     // Close emoji picker, edit modal, or delete confirm when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (
-                showEmojiPicker &&
-                emojiButtonRef.current &&
-                !emojiButtonRef.current.contains(e.target) &&
+                showCreateEmojiPicker &&
+                createEmojiButtonRef.current &&
+                !createEmojiButtonRef.current.contains(e.target) &&
                 !e.target.closest('.emoji-picker-react')
             ) {
-                setShowEmojiPicker(false);
+                setShowCreateEmojiPicker(false);
+            }
+            if (
+                showEditEmojiPicker &&
+                editEmojiButtonRef.current &&
+                !editEmojiButtonRef.current.contains(e.target) &&
+                !e.target.closest('.emoji-picker-react')
+            ) {
+                setShowEditEmojiPicker(false);
             }
             if (
                 editingPost &&
@@ -145,7 +156,7 @@ const SocialFeed = () => {
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showEmojiPicker, editingPost, showDeleteConfirm]);
+    }, [showCreateEmojiPicker, showEditEmojiPicker, editingPost, showDeleteConfirm]);
     const getAuthHeaders = useCallback(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -252,9 +263,12 @@ const SocialFeed = () => {
         [getAuthHeaders]
     );
     const handleEmojiClick = useCallback((emojiObject) => {
-        setNewPost((prev) => prev + emojiObject.emoji);
         if (editingPost) {
             setEditContent((prev) => prev + emojiObject.emoji);
+            setShowEditEmojiPicker(false);
+        } else {
+            setNewPost((prev) => prev + emojiObject.emoji);
+            setShowCreateEmojiPicker(false);
         }
     }, [editingPost]);
     const handleCreatePost = useCallback(async () => {
@@ -285,7 +299,7 @@ const SocialFeed = () => {
             setNewPost('');
             setFile(null);
             setFilePreview(null);
-            setShowEmojiPicker(false);
+            setShowCreateEmojiPicker(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
             toast.success('Post created!', { style: { background: '#16a34a', color: '#fff' } });
             feedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -383,6 +397,11 @@ const SocialFeed = () => {
         visible: { opacity: 1, scale: 1 },
         exit: { opacity: 0, scale: 0.9 },
     };
+    const pickerVariants = {
+        hidden: { opacity: 0, y: -10, scale: 0.95 },
+        visible: { opacity: 1, y: 0, scale: 1 },
+        exit: { opacity: 0, y: -10, scale: 0.95 },
+    };
     if (!user || !localStorage.getItem('token')) {
         return null;
     }
@@ -479,17 +498,38 @@ const SocialFeed = () => {
                                     )}
                                     <div className="flex items-center justify-between mt-4">
                                         <div className="flex gap-2">
-                                            <button
-                                                ref={emojiButtonRef}
-                                                onClick={() => setShowEmojiPicker((prev) => !prev)}
-                                                className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-xl transition-colors duration-200"
-                                                data-tooltip-id="add-emoji"
-                                                data-tooltip-content="Add Emoji"
-                                                aria-label="Add Emoji"
-                                            >
-                                                <Smile className="w-5 h-5" />
-                                                <Tooltip id="add-emoji" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
-                                            </button>
+                                            <div className="relative">
+                                                <button
+                                                    ref={createEmojiButtonRef}
+                                                    onClick={() => setShowCreateEmojiPicker((prev) => !prev)}
+                                                    className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-xl transition-colors duration-200"
+                                                    data-tooltip-id="add-emoji"
+                                                    data-tooltip-content="Add Emoji"
+                                                    aria-label="Add Emoji"
+                                                >
+                                                    <Smile className="w-5 h-5" />
+                                                    <Tooltip id="add-emoji" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
+                                                </button>
+                                                <AnimatePresence>
+                                                    {showCreateEmojiPicker && (
+                                                        <motion.div
+                                                            variants={pickerVariants}
+                                                            initial="hidden"
+                                                            animate="visible"
+                                                            exit="hidden"
+                                                            className="absolute left-0 top-full mt-2 z-30"
+                                                        >
+                                                            <EmojiPicker
+                                                                onEmojiClick={handleEmojiClick}
+                                                                theme="auto"
+                                                                emojiStyle="native"
+                                                                skinTonesDisabled
+                                                                className="shadow-xl rounded-xl border border-gray-200 dark:border-gray-700"
+                                                            />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
                                             <button
                                                 onClick={() => fileInputRef.current?.click()}
                                                 className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-xl transition-colors duration-200"
@@ -545,24 +585,6 @@ const SocialFeed = () => {
                                             <Tooltip id="post" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
                                         </button>
                                     </div>
-                                    <AnimatePresence>
-                                        {showEmojiPicker && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: -10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                className="absolute left-0 top-full mt-2 z-30"
-                                            >
-                                                <EmojiPicker
-                                                    onEmojiClick={handleEmojiClick}
-                                                    theme="light"
-                                                    emojiStyle="native"
-                                                    skinTonesDisabled
-                                                    className="shadow-xl rounded-xl border border-gray-200 dark:border-gray-700"
-                                                />
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
                                 </div>
                             </div>
                         </motion.div>
@@ -849,17 +871,38 @@ const SocialFeed = () => {
                                             accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
                                             onChange={handleFileChange}
                                         />
-                                        <button
-                                            ref={emojiButtonRef}
-                                            onClick={() => setShowEmojiPicker((prev) => !prev)}
-                                            className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-xl transition-colors duration-200"
-                                            data-tooltip-id="add-emoji-edit"
-                                            data-tooltip-content="Emoji"
-                                            aria-label="Add Emoji"
-                                        >
-                                            <Smile className="w-5 h-5" />
-                                            <Tooltip id="add-emoji-edit" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
-                                        </button>
+                                        <div className="relative">
+                                            <button
+                                                ref={editEmojiButtonRef}
+                                                onClick={() => setShowEditEmojiPicker((prev) => !prev)}
+                                                className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-xl transition-colors duration-200"
+                                                data-tooltip-id="add-emoji-edit"
+                                                data-tooltip-content="Emoji"
+                                                aria-label="Add Emoji"
+                                            >
+                                                <Smile className="w-5 h-5" />
+                                                <Tooltip id="add-emoji-edit" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
+                                            </button>
+                                            <AnimatePresence>
+                                                {showEditEmojiPicker && (
+                                                    <motion.div
+                                                        variants={pickerVariants}
+                                                        initial="hidden"
+                                                        animate="visible"
+                                                        exit="hidden"
+                                                        className="absolute left-0 top-full mt-2 z-30"
+                                                    >
+                                                        <EmojiPicker
+                                                            onEmojiClick={handleEmojiClick}
+                                                            theme="auto"
+                                                            emojiStyle="native"
+                                                            skinTonesDisabled
+                                                            className="shadow-xl rounded-xl border border-gray-200 dark:border-gray-700"
+                                                        />
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
                                     </div>
                                     <div className="flex gap-3">
                                         <button
@@ -886,24 +929,6 @@ const SocialFeed = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <AnimatePresence>
-                                    {showEmojiPicker && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute left-0 top-full mt-2 z-30"
-                                        >
-                                            <EmojiPicker
-                                                onEmojiClick={handleEmojiClick}
-                                                theme="light"
-                                                emojiStyle="native"
-                                                skinTonesDisabled
-                                                className="shadow-xl rounded-xl border border-gray-200 dark:border-gray-700"
-                                            />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
                                 <button
                                     onClick={() => {
                                         setEditingPost(null);

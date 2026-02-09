@@ -19,10 +19,11 @@ import reminderRouter from './routes/reminderRoutes.js';
 import goalRouter from './routes/goalRoutes.js';
 import performanceRouter from './routes/performanceRoutes.js';
 import meetingRouter from './routes/meetingRoutes.js';
-import learningRouter from './routes/learningRoutes.js'; // New
+import learningRouter from './routes/learningRoutes.js'; 
+import feedbackRouter from './routes/feedbackRoutes.js';
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
-import User from './models/userModel.js';  // Added: Import User for updating lastActive
+import User from './models/userModel.js';  
 import './models/userModel.js';
 import './models/chatModel.js';
 import './models/messageModel.js';
@@ -32,6 +33,7 @@ import './models/reminderModel.js';
 import './models/goalModel.js';
 import './models/meetingModel.js';
 import './models/learningMaterialModel.js'; // New
+import './models/feedbackModel.js';
 import grokRouter from './routes/grokRoutes.js'
 const app = express();
 const httpServer = createServer(app);
@@ -70,7 +72,8 @@ app.use('/api/chats', fileUpload());
 app.use('/api/bot', fileUpload());
 app.use('/api/posts', fileUpload());
 app.use('/api/user', userRouter);
-// Environment variable validation
+app.use('/api/feedback', feedbackRouter)
+;// Environment variable validation
 const requiredEnvVars = [
   'MONGO_URI',
   'JWT_SECRET',
