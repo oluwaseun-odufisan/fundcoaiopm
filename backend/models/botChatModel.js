@@ -1,5 +1,5 @@
+// botChatModel.js
 import mongoose from 'mongoose';
-
 const botChatSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -22,5 +22,4 @@ const botChatSchema = new mongoose.Schema({
         },
     }],
 });
-
 export default mongoose.model('BotChat', botChatSchema);

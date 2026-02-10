@@ -1,4 +1,4 @@
-// backend/server.js
+// server.js (Added emits for task events)
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -19,7 +19,7 @@ import reminderRouter from './routes/reminderRoutes.js';
 import goalRouter from './routes/goalRoutes.js';
 import performanceRouter from './routes/performanceRoutes.js';
 import meetingRouter from './routes/meetingRoutes.js';
-import learningRouter from './routes/learningRoutes.js'; 
+import learningRouter from './routes/learningRoutes.js';
 import feedbackRouter from './routes/feedbackRoutes.js';
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
@@ -118,7 +118,7 @@ io.use(async (socket, next) => {
 // Socket.IO connection handlers
 io.on('connection', async (socket) => {
   console.log(`Socket connected: ${socket.id}`);
-  
+ 
   // Added: Update lastActive on socket connection (page load/refresh)
   try {
     const user = await User.findById(socket.user.id);
@@ -129,7 +129,7 @@ io.on('connection', async (socket) => {
   } catch (err) {
     console.error('Error updating lastActive on socket connect:', err);
   }
-
+ 
   // Chat-related events (original)
   socket.on('joinChat', (chatId) => {
     if (typeof chatId === 'string') {

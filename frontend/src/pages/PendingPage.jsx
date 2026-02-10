@@ -1,11 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { layoutClasses, SORT_OPTIONS } from '../assets/cssConstants';
-import { Clock, Filter, ListChecks, Plus } from 'lucide-react';
+// PendingPage.jsx
+import React, { useMemo, useState, useCallback } from 'react';
+import { Filter, ListChecks, Plus, Clock } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
+import axios from 'axios';
+
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
+
 const PendingPage = () => {
-  const { tasks = [], refreshTasks } = useOutletContext();
+  const { user, tasks = [], fetchTasks: refreshTasks, onLogout } = useOutletContext();
   const [sortBy, setSortBy] = useState('newest');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -20,6 +24,47 @@ const PendingPage = () => {
       return (order[b.priority?.toLowerCase()] || 0) - (order[a.priority?.toLowerCase()] || 0);
     });
   }, [tasks, sortBy]);
+
+  const handleTaskSave = useCallback(
+    async (taskData) => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("No authentication token found");
+        const payload = {
+          title: taskData.title?.trim() || "",
+          description: taskData.description || "",
+          priority: taskData.priority || "Low",
+          dueDate: taskData.dueDate || undefined,
+          checklist: taskData.checklist || [],
+        };
+        if (!payload.title) {
+          console.error("Task title is required");
+          return;
+        }
+        if (taskData._id) {
+          await axios.put(`${API_BASE_URL}/${taskData._id}/gp`, payload, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } else {
+          await axios.post(
+            `${API_BASE_URL}/gp`,
+            { ...payload, userId: user?.id || null },
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+        }
+        await refreshTasks();
+        setShowModal(false);
+        setSelectedTask(null);
+      } catch (error) {
+        console.error("Error saving task:", error.response?.data || error.message);
+        if (error.response?.status === 401) onLogout?.();
+      }
+    },
+    [refreshTasks, user, onLogout]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans">
       {/* === Main Container === */}
@@ -122,11 +167,12 @@ const PendingPage = () => {
       </div>
       {/* === Task Modal === */}
       <TaskModal
-        isOpen={!!selectedTask || showModal}
+        isOpen={showModal}
         onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks(); }}
         taskToEdit={selectedTask}
+        onSave={handleTaskSave}
+        onLogout={onLogout}
       />
-      {/* === Scrollbar for Hover (Hidden when not needed) === */}
       <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;

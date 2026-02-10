@@ -1,3 +1,4 @@
+// Dashboard.jsx (Updated to handle task clicks for view/edit, removed action modal for simplicity)
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Star, Flag, CircleDot, Clock, Filter, Plus, Rocket, Search, ArrowUpDown, PieChart, CircleCheck, Layers, CheckCircle, Pen, Trash2 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
@@ -8,56 +9,6 @@ import TaskModal from '../components/TaskModal';
 import io from 'socket.io-client';
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
 const USER_API_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:4001';
-const TaskActionModal = ({ isOpen, onClose, onAction }) => {
-    if (!isOpen) return null;
-    return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6"
-            onClick={onClose}
-            role="dialog"
-            aria-label="Task Actions Modal"
-        >
-            <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm md:max-w-md border border-blue-200/50 dark:border-gray-700/50 shadow-xl"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Task Actions</h3>
-                <div className="space-y-2 sm:space-y-3">
-                    <button
-                        onClick={() => onAction('complete')}
-                        className="w-full flex items-center gap-2 sm:gap-3 bg-green-100/50 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-green-200/70 dark:hover:bg-green-800/70 transition-all duration-200 text-sm sm:text-base"
-                    >
-                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Mark as Done
-                    </button>
-                    <button
-                        onClick={() => onAction('edit')}
-                        className="w-full flex items-center gap-2 sm:gap-3 bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-blue-200/70 dark:hover:bg-blue-800/70 transition-all duration-200 text-sm sm:text-base"
-                    >
-                        <Pen className="w-4 h-4 sm:w-5 sm:h-5" /> Edit Task
-                    </button>
-                    <button
-                        onClick={() => onAction('delete')}
-                        className="w-full flex items-center gap-2 sm:gap-3 bg-red-100/50 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-red-200/70 dark:hover:bg-red-800/70 transition-all duration-200 text-sm sm:text-base"
-                    >
-                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /> Delete Task
-                    </button>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="mt-3 sm:mt-4 w-full text-gray-600 dark:text-gray-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
-                >
-                    Cancel
-                </button>
-            </motion.div>
-        </motion.div>
-    );
-};
 const DeleteConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
     if (!isOpen) return null;
     return (
@@ -101,7 +52,6 @@ const Dashboard = () => {
     const { user, tasks, fetchTasks: refreshTasks, onLogout } = useOutletContext();
     const [showModal, setShowModal] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
-    const [showActionModal, setShowActionModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [filter, setFilter] = useState('all');
     const [search, setSearch] = useState('');
@@ -187,11 +137,11 @@ const Dashboard = () => {
                 case 'low':
                     return task.priority?.toLowerCase() === filter && matchesSearch;
                 case 'done':
-                    return (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
+                    return (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && t.completed.toLowerCase() === 'yes')) && matchesSearch;
                 case 'undone':
-                    return (task.completed === false || task.completed === 0 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'no')) && matchesSearch;
+                    return (task.completed === false || task.completed === 0 || (typeof task.completed === 'string' && t.completed.toLowerCase() === 'no')) && matchesSearch;
                 case 'overdue':
-                    return dueDate && dueDate < today && !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
+                    return dueDate && dueDate < today && !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && t.completed.toLowerCase() === 'yes')) && matchesSearch;
                 default:
                     return matchesSearch;
             }
@@ -216,19 +166,6 @@ const Dashboard = () => {
         if (!token) throw new Error('No auth token found');
         return { Authorization: `Bearer ${token}` };
     };
-    // Handle Task Completion
-    const handleComplete = async (task) => {
-        try {
-            const headers = getAuthHeaders();
-            await axios.put(`${API_BASE_URL}/${task._id}/gp`, { completed: 'Yes' }, { headers });
-            await refreshTasks();
-            setShowActionModal(false);
-            setSelectedTask(null);
-        } catch (error) {
-            console.error('Error marking task as done:', error.response?.data || error.message);
-            if (error.response?.status === 401) onLogout?.();
-        }
-    };
     // Handle Task Deletion
     const handleDelete = async () => {
         try {
@@ -236,7 +173,7 @@ const Dashboard = () => {
             await axios.delete(`${API_BASE_URL}/${selectedTask._id}/gp`, { headers });
             await refreshTasks();
             setShowDeleteConfirm(false);
-            setShowActionModal(false);
+            setShowModal(false);
             setSelectedTask(null);
         } catch (error) {
             console.error('Error deleting task:', error.response?.data || error.message);
@@ -254,7 +191,7 @@ const Dashboard = () => {
                     description: taskData.description || "",
                     priority: taskData.priority || "Low",
                     dueDate: taskData.dueDate || undefined,
-                    completed: taskData.completed === "Yes" || taskData.completed === true,
+                    checklist: taskData.checklist || [],
                 };
                 if (!payload.title) {
                     console.error("Task title is required");
@@ -283,17 +220,6 @@ const Dashboard = () => {
         },
         [refreshTasks, user, onLogout]
     );
-    // Handle Task Action Selection
-    const handleAction = (action) => {
-        if (action === 'complete') {
-            handleComplete(selectedTask);
-        } else if (action === 'edit') {
-            setShowActionModal(false);
-            setShowModal(true);
-        } else if (action === 'delete') {
-            setShowDeleteConfirm(true);
-        }
-    };
     const FILTER_LABELS = {
         all: 'All',
         today: 'Today',
@@ -511,7 +437,7 @@ const Dashboard = () => {
                                                         animate={{ opacity: 1, y: 0 }}
                                                         transition={{ delay: index * 0.05 }}
                                                         className={`relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer ${
-                                                            task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
+                                                            task.completed
                                                                 ? 'border-green-300/50 dark:border-green-700/50'
                                                                 : 'border-red-300/50 dark:border-red-700/50'
                                                         } ${
@@ -519,14 +445,13 @@ const Dashboard = () => {
                                                             task.priority?.toLowerCase() === 'medium' ? 'border-amber-300/50 dark:border-amber-700/50' :
                                                             task.priority?.toLowerCase() === 'low' ? 'border-gray-300/50 dark:border-gray-700/50' : 'border-blue-200/50 dark:border-blue-700/50'
                                                         }`}
-                                                        onClick={() => { setSelectedTask(task); setShowActionModal(true); }}
+                                                        onClick={() => { setSelectedTask(task); setShowModal(true); }}
                                                     >
                                                         <div className="p-4 sm:p-5 md:p-6">
                                                             <TaskItem
                                                                 task={task}
                                                                 onRefresh={refreshTasks}
                                                                 showCompleteCheckbox
-                                                                onAction={() => { setSelectedTask(task); setShowActionModal(true); }}
                                                                 onLogout={onLogout}
                                                             />
                                                         </div>
@@ -566,11 +491,6 @@ const Dashboard = () => {
                     taskToEdit={selectedTask}
                     onSave={handleTaskSave}
                     onLogout={onLogout}
-                />
-                <TaskActionModal
-                    isOpen={showActionModal}
-                    onClose={() => { setShowActionModal(false); setSelectedTask(null); }}
-                    onAction={handleAction}
                 />
                 <DeleteConfirmationModal
                     isOpen={showDeleteConfirm}
