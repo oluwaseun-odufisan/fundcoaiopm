@@ -9,13 +9,14 @@ import {
   Sprout, Globe2, Calculator, FileCheck, LeafyGreen, PlugZap, BarChart3,
   ShieldCheck, TrendingUp as Forecast, Cpu as Automate, Search as Research,
   Bell, Target, Users as Team, FileText as Doc, Cpu as AutoBuild, Calendar as CalOpt,
-  Moon, Sun, Loader2, Copy, Download, Send, RefreshCw, Check
+  Moon, Sun, Loader2, Copy, Download, Send, RefreshCw, Check, Paperclip
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import debounce from 'lodash/debounce';
 // Professional Palette with dark mode
 const LIGHT_THEME = {
   primary: '#1E40AF',
@@ -161,6 +162,7 @@ const AiTools = () => {
   const [globalHistories, setGlobalHistories] = useState([]); // All histories for search
   const [searchQuery, setSearchQuery] = useState('');
   const [inputs, setInputs] = useState({});
+  const [selectedFiles, setSelectedFiles] = useState({});
   const [isResponding, setIsResponding] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -182,6 +184,7 @@ const AiTools = () => {
   const [theme, setTheme] = useState('light'); // 'light' or 'dark'
   const currentTheme = theme === 'light' ? LIGHT_THEME : DARK_THEME;
   const recognitionRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [activeListeningTool, setActiveListeningTool] = useState(null);
   useEffect(() => {
@@ -231,19 +234,34 @@ const AiTools = () => {
       toast.error('Please login first');
       return;
     }
+    const hasFiles = selectedFiles[toolId]?.length > 0 || false;
+    let body;
+    if (hasFiles) {
+      const formData = new FormData();
+      formData.append('messages', JSON.stringify(messages));
+      formData.append('taskContext', JSON.stringify(getTaskContext()));
+      formData.append('toolId', toolId);
+      selectedFiles[toolId].forEach(file => formData.append('files', file));
+      body = formData;
+    } else {
+      body = JSON.stringify({
+        messages,
+        taskContext: JSON.stringify(getTaskContext()),
+        toolId
+      });
+    }
+    const headers = {
+      'Authorization': `Bearer ${token}`
+    };
+    if (!hasFiles) {
+      headers['Content-Type'] = 'application/json';
+    }
     setIsResponding(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/grok/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          messages,
-          taskContext: JSON.stringify(getTaskContext()),
-          toolId
-        })
+        headers,
+        body
       });
       if (!response.ok) throw new Error('API error');
       const reader = response.body.getReader();
@@ -270,6 +288,7 @@ const AiTools = () => {
         }
       }
       toast.success('FundCo AI responded!');
+      setSelectedFiles(prev => ({...prev, [toolId]: []}));
       return fullContent; // Return for title generation
     } catch (err) {
       toast.error(err.message || 'Failed to get response');
@@ -303,7 +322,7 @@ const AiTools = () => {
   }, []);
   const handleSend = (toolId) => async () => {
     const input = inputs[toolId] || '';
-    if (!input.trim()) return;
+    if (!input.trim() && !selectedFiles[toolId]?.length) return;
     const userMessage = { role: 'user', content: input };
     setChatHistories(prev => ({...prev, [toolId]: [...(prev[toolId] || []), userMessage]}));
     setInputs(prev => ({...prev, [toolId]: ''}));
@@ -449,15 +468,53 @@ const AiTools = () => {
     setActiveTab('chat');
     toast.success('Chat resumed!');
   };
+  const removeFile = (toolId, index) => {
+    setSelectedFiles(prev => ({
+      ...prev,
+      [toolId]: prev[toolId].filter((_, i) => i !== index)
+    }));
+  };
+  const renderMessageContent = (content) => {
+    if (Array.isArray(content)) {
+      return content.map((part, index) => {
+        if (part.type === 'text') {
+          return <ReactMarkdown key={index} remarkPlugins={[remarkGfm]} components={{
+            p: ({node, ...props}) => <p className={`${currentTheme.text} dark:${DARK_THEME.text}`} {...props} />,
+            // Add more components as needed for styling
+          }}>{part.text}</ReactMarkdown>;
+        } else if (part.type === 'image_url') {
+          return <img key={index} src={part.image_url.url} alt="Attached image" className="max-w-full h-auto rounded-lg my-2" />;
+        } else {
+          return <p key={index} className="text-blue-500 dark:text-blue-300">[Attached File]</p>;
+        }
+      });
+    } else {
+      return <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+        p: ({node, ...props}) => <p className={`${currentTheme.text} dark:${DARK_THEME.text}`} {...props} />,
+        // Add more components as needed for styling
+      }}>{content}</ReactMarkdown>;
+    }
+  };
   const filteredHistories = useMemo(() => {
     return globalHistories.filter(h =>
       h.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       h.summary.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [globalHistories, searchQuery]);
+  const debouncedSetSearchQuery = debounce(setSearchQuery, 300);
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
   };
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistories[selectedTool]]);
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory(selectedTool);
+    }
+  }, [activeTab, selectedTool]);
   return (
     <>
       <Toaster position="top-center" toastOptions={{ style: { background: currentTheme.primary, color: 'white', fontWeight: '600' } }} />
@@ -491,7 +548,7 @@ const AiTools = () => {
             </div>
             <div className="flex gap-4">
               <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
-                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                {theme === 'light' ? <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" /> : <Sun className="w-5 h-5 text-gray-700 dark:text-gray-300" />}
               </button>
               <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg">
                 <ArrowLeft className="w-5 h-5" /> Dashboard
@@ -529,7 +586,7 @@ const AiTools = () => {
                     type="text"
                     placeholder="Search histories..."
                     value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    onChange={e => debouncedSetSearchQuery(e.target.value)}
                     className={`px-3 py-2 border ${currentTheme.neutral.border} dark:${DARK_THEME.neutral.border} rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-transparent ${currentTheme.text} dark:${DARK_THEME.text}`}
                   />
                 </div>
@@ -603,7 +660,10 @@ const AiTools = () => {
                           </button>
                           {prioritizeOutput && (
                             <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg relative">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{prioritizeOutput}</ReactMarkdown>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                                p: ({node, ...props}) => <p className={`${currentTheme.text} dark:${DARK_THEME.text}`} {...props} />,
+                                // Add more components as needed for styling
+                              }}>{prioritizeOutput}</ReactMarkdown>
                               <div className="absolute top-2 right-2 flex gap-2">
                                 <button onClick={() => handleCopy(prioritizeOutput)}>{copied ? <Check /> : <Copy />}</button>
                                 <button onClick={() => downloadContent(prioritizeOutput, 'prioritized_tasks.md')}><Download /></button>
@@ -629,7 +689,10 @@ const AiTools = () => {
                           </button>
                           {estimateOutput && (
                             <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg relative">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{estimateOutput}</ReactMarkdown>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                                p: ({node, ...props}) => <p className={`${currentTheme.text} dark:${DARK_THEME.text}`} {...props} />,
+                                // Add more components as needed for styling
+                              }}>{estimateOutput}</ReactMarkdown>
                               <div className="absolute top-2 right-2 flex gap-2">
                                 <button onClick={() => handleCopy(estimateOutput)}>{copied ? <Check /> : <Copy />}</button>
                                 <button onClick={() => downloadContent(estimateOutput, 'effort_estimate.md')}><Download /></button>
@@ -640,16 +703,52 @@ const AiTools = () => {
                       )}
                     </motion.div>
                   )}
-                  <div className="max-h-96 overflow-y-auto space-y-4 scrollbar-thin">
+                  <div className="max-h-96 overflow-y-auto space-y-4 scrollbar-thin" ref={chatContainerRef}>
                     <AnimatePresence>
                       {(chatHistories[selectedTool] || []).map((msg, i) => (
                         <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-4 rounded-lg ${msg.role === 'user' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100' : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100'}`}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                          {renderMessageContent(msg.content)}
                         </motion.div>
                       ))}
                     </AnimatePresence>
                   </div>
+                  {selectedFiles[selectedTool] && selectedFiles[selectedTool].length > 0 && (
+                    <div className="space-y-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <p className="text-sm font-medium">Attached Files:</p>
+                      {selectedFiles[selectedTool].map((file, index) => (
+                        <div key={index} className="flex items-center gap-3">
+                          {file.type.startsWith('image/') && <img src={URL.createObjectURL(file)} alt={file.name} className="w-12 h-12 rounded object-cover border" />}
+                          {file.type.startsWith('video/') && <video src={URL.createObjectURL(file)} className="w-12 h-12 rounded" controls />}
+                          <p className={`text-sm ${currentTheme.text} dark:${DARK_THEME.text}`}>{file.name}</p>
+                          <button onClick={() => removeFile(selectedTool, index)} className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById(`file-input-${selectedTool}`).click()}
+                      className="p-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </button>
+                    <input
+                      type="file"
+                      id={`file-input-${selectedTool}`}
+                      multiple
+                      accept="*/*"
+                      hidden
+                      onChange={(e) => {
+                        const newFiles = Array.from(e.target.files);
+                        setSelectedFiles(prev => ({
+                          ...prev,
+                          [selectedTool]: [...(prev[selectedTool] || []), ...newFiles]
+                        }));
+                      }}
+                    />
                     <textarea
                       value={inputs[selectedTool] || ''}
                       onChange={e => setInputs(prev => ({ ...prev, [selectedTool]: e.target.value }))}
@@ -677,7 +776,12 @@ const AiTools = () => {
                       const isOpen = openHistories.has(hist._id);
                       return (
                         <motion.div key={hist._id} className={`rounded-lg overflow-hidden shadow-md ${currentTheme.cardBg} dark:${DARK_THEME.cardBg}`}>
-                          <button onClick={() => toggleHistory(hist._id)} className={`w-full p-3 flex items-center justify-between text-left hover:opacity-90 ${currentTheme.text} dark:${DARK_THEME.text}`}>
+                          <button onClick={() => setOpenHistories(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(hist._id)) newSet.delete(hist._id);
+                            else newSet.add(hist._id);
+                            return newSet;
+                          })} className={`w-full p-3 flex items-center justify-between text-left hover:opacity-90 ${currentTheme.text} dark:${DARK_THEME.text}`}>
                             <div>
                               <p className="font-medium">{hist.title || 'Untitled Chat'}</p>
                               <p className="text-xs text-current opacity-70">{hist.summary} • {format(new Date(hist.createdAt), 'MMM d, yyyy HH:mm')}</p>
@@ -690,7 +794,7 @@ const AiTools = () => {
                                 <div className="p-4 space-y-4 max-h-60 overflow-y-auto">
                                   {hist.messages.map((msg, i) => (
                                     <div key={i} className={`p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-gray-50 dark:bg-gray-700'}`}>
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]} className={currentTheme.text} dark={DARK_THEME.text}>{msg.content}</ReactMarkdown>
+                                      {renderMessageContent(msg.content)}
                                     </div>
                                   ))}
                                 </div>

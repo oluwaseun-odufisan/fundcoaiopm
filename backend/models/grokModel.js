@@ -1,6 +1,5 @@
 // backend/models/grokModel.js
 import mongoose from 'mongoose';
-
 const grokChatSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,7 +12,7 @@ const grokChatSchema = new mongoose.Schema({
   },
   messages: [{
     role: { type: String, enum: ['system', 'user', 'assistant'] },
-    content: { type: String }
+    content: { type: mongoose.Schema.Types.Mixed }
   }],
   taskContext: {
     type: String
@@ -38,9 +37,6 @@ const grokChatSchema = new mongoose.Schema({
     default: Date.now
   }
 });
-
 grokChatSchema.index({ title: 'text', summary: 'text' }); // For search
-
 const GrokChat = mongoose.models.GrokChat || mongoose.model('GrokChat', grokChatSchema);
-
 export default GrokChat;

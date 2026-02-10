@@ -1,12 +1,17 @@
 // backend/controllers/grokController.js
 import OpenAI from 'openai';
 import GrokChat from '../models/grokModel.js'; // Import the GrokChat model for persisting chats
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+const XLSX = require('xlsx');
+import mongoose from 'mongoose';
 
 const openai = new OpenAI({
   apiKey: process.env.GROK_API_KEY,
   baseURL: 'https://api.x.ai/v1',
 });
-
 // Company knowledge summary (embedded for all prompts to make AI stronger)
 const COMPANY_KNOWLEDGE = `
 FundCo Capital Managers: Alternative asset manager focusing on sustainable infrastructure. Sectors: Clean Energy (CEF, Electrify MicroGrid, GroSolar), Housing (HSF), Agriculture (Agronomie), E-Mobility (SSM).
@@ -19,25 +24,24 @@ Green Kiosk: Solar-powered kiosks for rural energy/comms.
 Black Soldier Fly: Sustainable job replacement.
 All data from provided docs must be used accurately for responses.
 `;
-
 // Enhanced Tool-specific prompts with COMPANY_KNOWLEDGE
 const TOOL_PROMPTS = {
-  'general': `${COMPANY_KNOWLEDGE} You are FundCo AI, a maximally truth-seeking AI specialized in FundCo Capital Managers' ecosystem. Be concise, accurate, professional. Use markdown. Address user as "you". Offer help for undone tasks. Personalize based on user role/location (e.g., Lagos, WAT).`,
+  'general': `${COMPANY_KNOWLEDGE} You are FundCo AI, a maximally truth-seeking AI specialized in FundCo Capital Managers' ecosystem. Be concise, accurate, professional. Use markdown. Address user as "you". Offer help for undone tasks. Personalize based on user role/location (e.g., Lagos, WAT). You can analyze attached files like images (describe them), PDFs (extract and summarize content), text files (read content), Word docs (extract text), Excel (extract sheets), and note videos or other files. When a file is attached, always read and analyze its full content before responding, referencing specific details from it.`,
   'report-generator': `${COMPANY_KNOWLEDGE} You are a professional report writer for FundCo AI. Incorporate FundCo terms/SOPs (e.g., E&S DD, BoQ, kWh/kWp). If no tasks, output "**No Tasks Found**". Generate reports in Markdown based ONLY on provided context. For personal: address "you", suggest help. For submission: formal. Analyze for sectors like clean energy (LCOE), housing (ROI), agriculture (PuE).`,
   'task-prioritizer': `${COMPANY_KNOWLEDGE} You are a task management expert for FundCo AI. Analyze and prioritize tasks using Eisenhower matrix, MoSCoW method, or similar frameworks. Output a sorted list with reasons, scores, and potential dependencies. Suggest optimizations. Be intelligent: if tasks are undone, suggest why and how to prioritize them higher. Allow for prioritizing all tasks or specific ones. Address the user as "you". Incorporate FundCo SOPs for project management.`,
-  'effort-estimator': `${COMPANY_KNOWLEDGE} You are a project estimation specialist for FundCo AI. Provide realistic time estimates in hours/days, considering complexity, skills, dependencies, and risks. Break down into phases and suggest buffers. Be intelligent: factor in user\'s past performance if available in context, and offer tips to reduce effort. Address the user as "you". Use FundCo terms like CAPEX/OPEX.`,
+  'effort-estimator': `${COMPANY_KNOWLEDGE} You are a project estimation specialist for FundCo AI. Provide realistic time estimates in hours/days, considering complexity, skills, dependencies, and risks. Break down into phases and suggest buffers. Be intelligent: factor in user's past performance if available in context, and offer tips to reduce effort. Address the user as "you". Use FundCo terms like CAPEX/OPEX.`,
   'task-breaker': `${COMPANY_KNOWLEDGE} You are a task decomposition expert for FundCo AI. Break down given tasks into atomic sub-tasks with dependencies, estimates, assignments, and potential automation opportunities. Be intelligent: suggest integrations with other tools or reminders for sub-tasks. Address the user as "you". Align with FundCo unit responsibilities.`,
   'email-writer': `${COMPANY_KNOWLEDGE} You are a professional communicator for FundCo AI. Draft clear, concise emails with proper structure: subject, greeting, body, closing. Adapt tone (formal, casual) and include task-related details. Be intelligent: suggest follow-ups or attachments if relevant. Address the user as "you". Use FundCo templates if applicable.`,
   'summary-generator': `${COMPANY_KNOWLEDGE} You are a summarization expert for FundCo AI. Create concise summaries highlighting key points, actions, deadlines, and decisions. Use bullet points and highlight risks. Be intelligent: point out inconsistencies or potential issues in summaries. Address the user as "you". Incorporate ESG risks.`,
-  'brainstormer': `${COMPANY_KNOWLEDGE} You are a creative brainstormer for FundCo AI. Generate diverse, innovative ideas with pros/cons, feasibility scores. Tie to task management and suggest implementation steps. Be intelligent: tailor ideas to user\'s context and past tasks. Address the user as "you". Brainstorm for sectors like PuE in agriculture.`,
+  'brainstormer': `${COMPANY_KNOWLEDGE} You are a creative brainstormer for FundCo AI. Generate diverse, innovative ideas with pros/cons, feasibility scores. Tie to task management and suggest implementation steps. Be intelligent: tailor ideas to user's context and past tasks. Address the user as "you". Brainstorm for sectors like PuE in agriculture.`,
   'performance-analyzer': `${COMPANY_KNOWLEDGE} You are a performance analytics expert for FundCo AI. Analyze metrics like completion rate, overdue tasks, productivity trends. Provide text-based charts, insights, and improvement recommendations. Be intelligent: compare to benchmarks and suggest personalized improvements. Address the user as "you". Use FundCo KPIs.`,
-  'research-assistant': `${COMPANY_KNOWLEDGE} You are a research assistant for FundCo AI. Provide factual, well-sourced information on task management topics. Use markdown for structure and suggest applications to user tasks. Be intelligent: cross-reference with user\'s tasks for relevance. Address the user as "you". Research FundCo sectors like clean energy standards.`,
+  'research-assistant': `${COMPANY_KNOWLEDGE} You are a research assistant for FundCo AI. Provide factual, well-sourced information on task management topics. Use markdown for structure and suggest applications to user tasks. Be intelligent: cross-reference with user's tasks for relevance. Address the user as "you". Research FundCo sectors like clean energy standards.`,
   'reminder-optimizer': `${COMPANY_KNOWLEDGE} You are a reminder system expert for FundCo AI. Analyze tasks and suggest personalized reminder schedules, channels (email, push), and escalation rules based on priorities and habits. Be intelligent: learn from past reminders if context provided. Address the user as "you". Tie to SOP deadlines.`,
-  'goal-planner': `${COMPANY_KNOWLEDGE} You are a goal-setting coach for FundCo AI. Transform ideas into SMART goals with milestones, KPIs, timelines, and alignment to existing tasks. Be intelligent: suggest adjustments based on user\'s workload. Address the user as "you". Align with FundCo objectives like SDG impact.`,
+  'goal-planner': `${COMPANY_KNOWLEDGE} You are a goal-setting coach for FundCo AI. Transform ideas into SMART goals with milestones, KPIs, timelines, and alignment to existing tasks. Be intelligent: suggest adjustments based on user's workload. Address the user as "you". Align with FundCo objectives like SDG impact.`,
   'team-collaborator': `${COMPANY_KNOWLEDGE} You are a team collaboration expert for FundCo AI. Suggest task delegations, meeting agendas, and conflict resolution based on team roles and task dependencies. Be intelligent: consider team dynamics if mentioned. Address the user as "you". Use FundCo unit responsibilities.`,
-  'document-analyzer': `${COMPANY_KNOWLEDGE} You are a document analysis AI for FundCo AI. Extract key information from files, link to tasks, and suggest actions or integrations. Be intelligent: detect anomalies or missing data. Address the user as "you". Analyze SOPs, BoQs, etc.`,
+  'document-analyzer': `${COMPANY_KNOWLEDGE} You are a document analysis AI for FundCo AI. Extract key information from files, link to tasks, and suggest actions or integrations. Be intelligent: detect anomalies or missing data. Address the user as "you". Analyze SOPs, BoQs, etc. Use attached file content for analysis.`,
   'automation-builder': `${COMPANY_KNOWLEDGE} You are an automation architect for FundCo AI. Design step-by-step workflows for task automation using tools like Zapier patterns, with triggers, actions, and conditions. Be intelligent: suggest scalable and error-resistant designs. Address the user as "you". Automate FundCo processes like procurement.`,
-  'calendar-optimizer': `${COMPANY_KNOWLEDGE} You are a time management expert for FundCo AI. Suggest optimal time blocks, calendar integrations, and scheduling based on task priorities, durations, and energy levels. Be intelligent: factor in user\'s preferences if provided. Address the user as "you". Consider WAT timezone.`,
+  'calendar-optimizer': `${COMPANY_KNOWLEDGE} You are a time management expert for FundCo AI. Suggest optimal time blocks, calendar integrations, and scheduling based on task priorities, durations, and energy levels. Be intelligent: factor in user's preferences if provided. Address the user as "you". Consider WAT timezone.`,
   'mini-grid-planner': `${COMPANY_KNOWLEDGE} You are a mini-grid planning expert for FundCo's Clean Energy AssetCo. Use SOPs for site survey, design (PV, BESS), installation (earthing, grounding). Factor in PuE (agro-processing). Output plans with BoQ, timelines, risks (ESG). Use code_execution for simulations if needed.`,
   'lcoe-calculator': `${COMPANY_KNOWLEDGE} Calculate LCOE for clean energy projects using FundCo formulas: incorporate CAPEX/OPEX, energy yield, depreciation. Use code_execution for math. Provide breakdowns, comparisons to grid/diesel.`,
   'ppa-drafter': `${COMPANY_KNOWLEDGE} Draft Power Purchase Agreements (PPAs) based on FundCo SOPs. Include tariff rates, terms, carbon credits. Adapt for mini-grids, GroSolar SaaS.`,
@@ -87,13 +91,90 @@ const TOOL_PROMPTS = {
   'sop-query': `${COMPANY_KNOWLEDGE} Query specific SOPs (e.g., procurement, installation).`,
   'team-profile-query': `${COMPANY_KNOWLEDGE} Query team profiles for collaboration suggestions.`
 };
-
 export const grokChat = async (req, res) => {
-  const { messages, taskContext, toolId } = req.body;
+  let { messages, taskContext, toolId } = req.body;
+  // Parse JSON strings if from formData
+  if (typeof messages === 'string') {
+    try {
+      messages = JSON.parse(messages);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid messages format' });
+    }
+  }
+  if (typeof taskContext === 'string') {
+    try {
+      taskContext = JSON.parse(taskContext);
+    } catch (e) {
+      // If not JSON, keep as string
+    }
+  }
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   try {
+    // Process attached files
+    if (req.files && req.files.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      let contentParts = typeof lastMessage.content === 'string' ? [{ type: 'text', text: lastMessage.content }] : lastMessage.content;
+      for (const file of req.files) {
+        const mime = file.mimetype;
+        let extractedText = '';
+        if (mime.startsWith('image/')) {
+          contentParts.push({
+            type: 'image_url',
+            image_url: {
+              url: `data:${mime};base64,${file.buffer.toString('base64')}`
+            }
+          });
+          extractedText = '[Image attached: Describe and analyze it based on the query.]';
+        } else if (mime === 'application/pdf') {
+          const data = await pdfParse(file.buffer);
+          extractedText = data.text;
+          contentParts.push({
+            type: 'text',
+            text: `Attached PDF file "${file.originalname}":\n${extractedText}`
+          });
+        } else if (mime.startsWith('text/')) {
+          extractedText = file.buffer.toString('utf-8');
+          contentParts.push({
+            type: 'text',
+            text: `Attached text file "${file.originalname}":\n${extractedText}`
+          });
+        } else if (mime.startsWith('video/')) {
+          contentParts.push({
+            type: 'text',
+            text: `Attached video file "${file.originalname}". Note: Video analysis may be limited.`
+          });
+          extractedText = '[Video attached: Note limitations in analysis.]';
+        } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          const result = await mammoth.extractRawText({buffer: file.buffer});
+          extractedText = result.value;
+          contentParts.push({
+            type: 'text',
+            text: `Attached Word file "${file.originalname}":\n${extractedText}`
+          });
+        } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+          const workbook = XLSX.read(file.buffer, {type: 'buffer'});
+          let text = '';
+          workbook.SheetNames.forEach(sheetName => {
+            const sheet = XLSX.utils.sheet_to_txt(workbook.Sheets[sheetName]);
+            text += `Sheet ${sheetName}:\n${sheet}\n\n`;
+          });
+          extractedText = text;
+          contentParts.push({
+            type: 'text',
+            text: `Attached Excel file "${file.originalname}":\n${extractedText}`
+          });
+        } else {
+          extractedText = '[Unsupported file type: Limited analysis available.]';
+          contentParts.push({
+            type: 'text',
+            text: `Attached file "${file.originalname}" of type ${mime}. Analysis may be limited.\n${extractedText}`
+          });
+        }
+      }
+      lastMessage.content = contentParts;
+    }
     const systemPrompt = TOOL_PROMPTS[toolId] || TOOL_PROMPTS['general'];
     const stream = await openai.chat.completions.create({
       model: 'grok-4',
@@ -117,7 +198,6 @@ export const grokChat = async (req, res) => {
       }
     }
     res.write(`data: [DONE]\n\n`);
-
     // Auto-generate title and summary for new chat
     const summaryMessages = [{ role: 'user', content: `Summarize this chat in 1 sentence and suggest a title: ${fullContent}` }];
     const summaryResponse = await openai.chat.completions.create({
@@ -134,7 +214,6 @@ export const grokChat = async (req, res) => {
     } else if (lines.length === 1) {
       title = lines[0].trim();
     }
-
     // Persist chat
     const newChat = await GrokChat.create({
       userId: req.user._id,
@@ -153,7 +232,6 @@ export const grokChat = async (req, res) => {
     res.end();
   }
 };
-
 export const getChatHistory = async (req, res) => {
   const { toolId, search } = req.query;
   const filter = { userId: req.user._id };
@@ -166,7 +244,6 @@ export const getChatHistory = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch history' });
   }
 };
-
 export const updateChat = async (req, res) => {
   const { chatId, title, tags } = req.body;
   try {
@@ -181,7 +258,6 @@ export const updateChat = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to update chat' });
   }
 };
-
 export const deleteChat = async (req, res) => {
   const { chatId } = req.params;
   try {
@@ -192,16 +268,23 @@ export const deleteChat = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to delete chat' });
   }
 };
-
 export const summarizeChat = async (req, res) => {
   const { chatId } = req.params;
   try {
     const chat = await GrokChat.findOne({ _id: chatId, userId: req.user._id });
     if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
-    const messages = chat.messages.map(m => `${m.role}: ${m.content}`).join('\n');
+    const messagesStr = chat.messages.map(m => {
+      let content = '';
+      if (Array.isArray(m.content)) {
+        content = m.content.map(part => part.type === 'text' ? part.text : (part.type === 'image_url' ? '[Image attached]' : '[File attached]')).join('\n');
+      } else {
+        content = m.content;
+      }
+      return `${m.role}: ${content}`;
+    }).join('\n');
     const response = await openai.chat.completions.create({
       model: 'grok-4',
-      messages: [{ role: 'user', content: `Summarize this chat: ${messages}` }],
+      messages: [{ role: 'user', content: `Summarize this chat: ${messagesStr}` }],
     });
     const summary = response.choices[0].message.content;
     await GrokChat.updateOne({ _id: chatId }, { summary });

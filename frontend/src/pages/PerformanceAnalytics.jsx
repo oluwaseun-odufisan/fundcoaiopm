@@ -8,9 +8,7 @@ import { TrendingUp, PieChart, BarChart, LineChart, Filter, Clock, Download, Tro
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
-
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
-
 const PerformanceAnalytics = () => {
     const { user, tasks } = useOutletContext();
     const [dateRange, setDateRange] = useState('30');
@@ -22,7 +20,6 @@ const PerformanceAnalytics = () => {
     const [exporting, setExporting] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
     const scrollContainerRef = useRef(null);
-
     // Scroll handler for Back to Top
     useEffect(() => {
         const handleScroll = () => {
@@ -36,7 +33,6 @@ const PerformanceAnalytics = () => {
             return () => container.removeEventListener('scroll', handleScroll);
         }
     }, []);
-
     // Stats
     const stats = useMemo(() => {
         const completedTasks = tasks.filter(
@@ -52,7 +48,6 @@ const PerformanceAnalytics = () => {
         ).length;
         const productivityScore = Math.min(100, completionPercentage + highPriorityCompleted * 5);
         const overdueCount = tasks.filter((task) => task.dueDate && !task.completed && new Date(task.dueDate) < new Date()).length;
-
         return {
             totalCount,
             completedTasks,
@@ -62,7 +57,6 @@ const PerformanceAnalytics = () => {
             overdueCount,
         };
     }, [tasks]);
-
     // Filtered tasks
     const filteredTasks = useMemo(() => {
         const now = new Date();
@@ -75,7 +69,6 @@ const PerformanceAnalytics = () => {
             startDate.setDate(now.getDate() - 30);
         }
         const endDate = customEndDate || now;
-
         return tasks.filter((task) => {
             const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
             const matchesDate = taskDate >= startDate && taskDate <= endDate;
@@ -90,12 +83,10 @@ const PerformanceAnalytics = () => {
             return matchesDate && matchesPriority && matchesStatus && matchesCategory;
         });
     }, [tasks, dateRange, customStartDate, customEndDate, priorityFilter, statusFilter, categoryFilter]);
-
     // Categories
     const categories = useMemo(() => {
         return ['all', ...new Set(tasks.map((task) => task.category || 'Uncategorized'))];
     }, [tasks]);
-
     // Completion trend
     const completionTrendData = useMemo(() => {
         const labels = [];
@@ -103,26 +94,21 @@ const PerformanceAnalytics = () => {
         const pendingData = [];
         const days = dateRange === 'custom' && customStartDate && customEndDate ? Math.ceil((customEndDate - customStartDate) / (1000 * 60 * 60 * 24)) : parseInt(dateRange);
         const now = new Date();
-
         for (let i = days - 1; i >= 0; i--) {
             const date = new Date(now);
             date.setDate(now.getDate() - i);
             const dateString = date.toLocaleDateString();
             labels.push(dateString);
-
             const tasksOnDate = filteredTasks.filter((task) => {
                 const taskDate = task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '';
                 return taskDate === dateString;
             });
-
             const completed = tasksOnDate.filter(
                 (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
             ).length;
-
             completedData.push(completed);
             pendingData.push(tasksOnDate.length - completed);
         }
-
         return {
             labels,
             datasets: [
@@ -131,12 +117,10 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks, dateRange, customStartDate, customEndDate]);
-
     // Priority breakdown
     const priorityBreakdownData = useMemo(() => {
         const priorities = ['high', 'medium', 'low'];
         const counts = priorities.map((priority) => filteredTasks.filter((task) => task.priority?.toLowerCase() === priority).length);
-
         return {
             labels: ['High', 'Medium', 'Low'],
             datasets: [
@@ -149,14 +133,12 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks]);
-
     // Status breakdown
     const statusBreakdownData = useMemo(() => {
         const completed = filteredTasks.filter(
             (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
         ).length;
         const pending = filteredTasks.length - completed;
-
         return {
             labels: ['Completed', 'Pending'],
             datasets: [
@@ -169,11 +151,9 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks]);
-
     // Category breakdown
     const categoryBreakdownData = useMemo(() => {
         const counts = categories.slice(1).map((category) => filteredTasks.filter((task) => (task.category || 'Uncategorized') === category).length);
-
         return {
             labels: categories.slice(1),
             datasets: [
@@ -186,23 +166,19 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks, categories]);
-
     // Activity heatmap
     const dailyActivityData = useMemo(() => {
         const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const data = days.map(() => Array(24).fill(0));
-
         filteredTasks.forEach((task) => {
             const date = task.createdAt ? new Date(task.createdAt) : new Date();
             const day = date.getDay();
             const hour = date.getHours();
             data[day][hour]++;
         });
-
         return { days, hours, data };
     }, [filteredTasks]);
-
     // Task velocity
     const taskVelocityData = useMemo(() => {
         const labels = [];
@@ -210,26 +186,21 @@ const PerformanceAnalytics = () => {
         const completedData = [];
         const days = dateRange === 'custom' && customStartDate && customEndDate ? Math.ceil((customEndDate - customStartDate) / (1000 * 60 * 60 * 24)) : parseInt(dateRange);
         const now = new Date();
-
         for (let i = days - 1; i >= 0; i--) {
             const date = new Date(now);
             date.setDate(now.getDate() - i);
             const dateString = date.toLocaleDateString();
             labels.push(dateString);
-
             const tasksOnDate = filteredTasks.filter((task) => {
                 const taskDate = task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '';
                 return taskDate === dateString;
             });
-
             const completed = tasksOnDate.filter(
                 (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
             ).length;
-
             createdData.push(tasksOnDate.length);
             completedData.push(completed);
         }
-
         return {
             labels,
             datasets: [
@@ -238,7 +209,6 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks, dateRange, customStartDate, customEndDate]);
-
     // Category effort
     const categoryEffortData = useMemo(() => {
         const effortMap = { high: 4, medium: 2, low: 1 };
@@ -247,7 +217,6 @@ const PerformanceAnalytics = () => {
                 .filter((task) => (task.category || 'Uncategorized') === category)
                 .reduce((acc, task) => acc + (effortMap[task.priority?.toLowerCase()] || 1), 0)
         );
-
         return {
             labels: categories.slice(1),
             datasets: [
@@ -260,7 +229,6 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks, categories]);
-
     // Completion time by priority
     const priorityCompletionTimeData = useMemo(() => {
         const priorities = ['high', 'medium', 'low'];
@@ -273,7 +241,6 @@ const PerformanceAnalytics = () => {
             }, 0);
             return tasksByPriority.length ? totalTime / tasksByPriority.length : 0;
         });
-
         return {
             labels: ['High', 'Medium', 'Low'],
             datasets: [
@@ -286,7 +253,6 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks]);
-
     // Weekly productivity
     const weeklyProductivityData = useMemo(() => {
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -298,7 +264,6 @@ const PerformanceAnalytics = () => {
                     (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes'))
             ).length
         );
-
         return {
             labels: days,
             datasets: [
@@ -312,7 +277,6 @@ const PerformanceAnalytics = () => {
             ],
         };
     }, [filteredTasks]);
-
     // Insights and badges
     const { insights, badges } = useMemo(() => {
         const highPriorityCount = filteredTasks.filter((task) => task.priority?.toLowerCase() === 'high').length;
@@ -327,7 +291,6 @@ const PerformanceAnalytics = () => {
             },
             { hour: 0, count: 0 }
         );
-
         const insights = [];
         const badges = [];
         if (highPriorityCount > 5) insights.push('Many high-priority tasks. Focus on these first.');
@@ -335,15 +298,13 @@ const PerformanceAnalytics = () => {
         if (overdueCount > 3) insights.push('Overdue tasks detected. Address them soon.');
         if (stats.completionPercentage > 80) {
             insights.push('Great completion rate! Keep it up.');
-            badges.push({ name: 'Productivity Pro', icon: Trophy, color: 'text-amber-500' });
+            badges.push({ name: 'Productivity Pro', icon: Trophy, color: 'text-amber-500 dark:text-amber-400' });
         }
-        if (stats.productivityScore > 90) badges.push({ name: 'Task Master', icon: Trophy, color: 'text-purple-500' });
+        if (stats.productivityScore > 90) badges.push({ name: 'Task Master', icon: Trophy, color: 'text-purple-500 dark:text-purple-400' });
         if (peakHours.count > 5) insights.push(`Most active at ${peakHours.hour}:00. Schedule key tasks then.`);
         if (!insights.length) insights.push('Solid progress! Stay organized.');
-
         return { insights, badges };
     }, [filteredTasks, stats, dailyActivityData]);
-
     // Reset filters
     const resetFilters = () => {
         setDateRange('30');
@@ -353,7 +314,6 @@ const PerformanceAnalytics = () => {
         setStatusFilter('all');
         setCategoryFilter('all');
     };
-
     // Export to CSV
     const exportToCSV = async () => {
         try {
@@ -369,7 +329,6 @@ const PerformanceAnalytics = () => {
                 task.dueDate && !isNaN(new Date(task.dueDate)) ? new Date(task.dueDate).toLocaleString() : 'N/A',
                 (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) ? 'Yes' : 'No',
             ]);
-
             const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -387,7 +346,6 @@ const PerformanceAnalytics = () => {
             setExporting(false);
         }
     };
-
     // Export to PDF
     const exportToPDF = async () => {
         try {
@@ -396,7 +354,6 @@ const PerformanceAnalytics = () => {
             if (!dashboard) {
                 throw new Error('Dashboard element not found');
             }
-
             const canvas = await html2canvas(dashboard, {
                 scale: 2,
                 useCORS: true,
@@ -413,17 +370,14 @@ const PerformanceAnalytics = () => {
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             let heightLeft = imgHeight;
             let position = 10;
-
             pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
             heightLeft -= pageHeight;
-
             while (heightLeft > 0) {
                 position = heightLeft - imgHeight + 10;
                 pdf.addPage();
                 pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
                 heightLeft -= pageHeight;
             }
-
             pdf.save(`analytics_${new Date().toISOString()}.pdf`);
         } catch (error) {
             console.error('Failed to export PDF:', error);
@@ -432,32 +386,30 @@ const PerformanceAnalytics = () => {
             setExporting(false);
         }
     };
-
     // Scroll to top
     const scrollToTop = () => {
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-teal-100 to-blue-100 flex flex-col font-sans">
+        <div className="min-h-screen bg-gradient-to-br from-teal-100 to-blue-100 dark:from-gray-900 dark:to-blue-900 flex flex-col font-sans">
             {/* Title Section */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="sticky top-0 z-20 bg-white/90 backdrop-blur-md shadow-md flex items-center justify-between px-6 py-4 h-16"
+                className="sticky top-0 z-20 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-md flex items-center justify-between px-6 py-4 h-16"
             >
                 <div className="flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6 text-teal-600" />
-                    <h1 className="text-xl font-bold text-gray-900">Analytics Dashboard</h1>
+                    <TrendingUp className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Analytics Dashboard</h1>
                 </div>
                 <div className="flex gap-2">
                     <button
                         onClick={exportToCSV}
                         disabled={exporting}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50 focus:ring-2 focus:ring-teal-500"
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-teal-600 dark:bg-teal-700 text-white rounded-md hover:bg-teal-700 dark:hover:bg-teal-600 disabled:opacity-50 focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400"
                         aria-label="Export to CSV"
                     >
                         <Download className="w-4 h-4" /> CSV
@@ -465,28 +417,27 @@ const PerformanceAnalytics = () => {
                     <button
                         onClick={exportToPDF}
                         disabled={exporting}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                         aria-label="Export to PDF"
                     >
                         <Download className="w-4 h-4" /> PDF
                     </button>
                 </div>
             </motion.div>
-
             {/* Scrollable Content */}
-            <div ref={scrollContainerRef} className="flex-1 scrollbar-thin scrollbar-teal-600 scrollbar-track-teal-100 scrollbar-rounded px-6 py-6" id="dashboard">
+            <div ref={scrollContainerRef} className="flex-1 scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800 scrollbar-rounded px-6 py-6" id="dashboard">
                 {/* Filter Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.1 }}
-                    className="bg-white/90 backdrop-blur-md rounded-lg p-4 mb-6 sticky top-16 z-10 shadow-md"
+                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 mb-6 sticky top-16 z-10 shadow-md"
                 >
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <select
                             value={dateRange}
                             onChange={(e) => setDateRange(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                             aria-label="Date range"
                         >
                             <option value="7">Last 7 Days</option>
@@ -509,7 +460,7 @@ const PerformanceAnalytics = () => {
                                         startDate={customStartDate}
                                         endDate={customEndDate}
                                         placeholderText="Start Date"
-                                        className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                                        className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                                         aria-label="Start date"
                                     />
                                     <DatePicker
@@ -520,7 +471,7 @@ const PerformanceAnalytics = () => {
                                         endDate={customEndDate}
                                         minDate={customStartDate}
                                         placeholderText="End Date"
-                                        className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                                        className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                                         aria-label="End date"
                                     />
                                 </motion.div>
@@ -529,7 +480,7 @@ const PerformanceAnalytics = () => {
                         <select
                             value={priorityFilter}
                             onChange={(e) => setPriorityFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                             aria-label="Priority"
                         >
                             <option value="all">All Priorities</option>
@@ -540,7 +491,7 @@ const PerformanceAnalytics = () => {
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                             aria-label="Status"
                         >
                             <option value="all">All Statuses</option>
@@ -550,7 +501,7 @@ const PerformanceAnalytics = () => {
                         <select
                             value={categoryFilter}
                             onChange={(e) => setCategoryFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 min-w-[120px]"
+                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
                             aria-label="Category"
                         >
                             {categories.map((category) => (
@@ -561,14 +512,13 @@ const PerformanceAnalytics = () => {
                         </select>
                         <button
                             onClick={resetFilters}
-                            className="px-4 py-2 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 focus:ring-2 focus:ring-amber-500"
+                            className="px-4 py-2 text-sm bg-amber-600 dark:bg-amber-700 text-white rounded-md hover:bg-amber-700 dark:hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
                             aria-label="Reset filters"
                         >
                             Reset Filters
                         </button>
                     </div>
                 </motion.div>
-
                 {/* Stats Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -577,28 +527,27 @@ const PerformanceAnalytics = () => {
                     className="grid grid-cols-3 lg:grid-cols-6 gap-4 mb-6"
                 >
                     {[
-                        { label: 'Total Tasks', value: stats.totalCount, icon: PieChart, color: 'teal-600' },
-                        { label: 'Completed', value: stats.completedTasks, icon: PieChart, color: 'blue-600' },
-                        { label: 'Pending', value: stats.pendingCount, icon: PieChart, color: 'amber-600' },
-                        { label: 'Overdue', value: stats.overdueCount, icon: Clock, color: 'red-600' },
-                        { label: 'Completion', value: `${stats.completionPercentage}%`, icon: Trophy, color: 'purple-600' },
-                        { label: 'Productivity', value: `${stats.productivityScore}%`, icon: TrendingUp, color: 'green-600' },
+                        { label: 'Total Tasks', value: stats.totalCount, icon: PieChart, color: 'teal-600 dark:teal-400' },
+                        { label: 'Completed', value: stats.completedTasks, icon: PieChart, color: 'blue-600 dark:blue-400' },
+                        { label: 'Pending', value: stats.pendingCount, icon: PieChart, color: 'amber-600 dark:amber-400' },
+                        { label: 'Overdue', value: stats.overdueCount, icon: Clock, color: 'red-600 dark:red-400' },
+                        { label: 'Completion', value: `${stats.completionPercentage}%`, icon: Trophy, color: 'purple-600 dark:purple-400' },
+                        { label: 'Productivity', value: `${stats.productivityScore}%`, icon: TrendingUp, color: 'green-600 dark:green-400' },
                     ].map(({ label, value, icon: Icon, color }) => (
                         <div
                             key={label}
-                            className="bg-white/90 backdrop-blur-md rounded-lg p-4 shadow-md hover:scale-105 transition-transform duration-300"
+                            className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md hover:scale-105 transition-transform duration-300"
                         >
                             <div className="flex items-center gap-2">
                                 <Icon className={`w-5 h-5 text-${color}`} />
                                 <div>
                                     <p className={`text-sm font-semibold text-${color}`}>{value}</p>
-                                    <p className="text-xs text-gray-600">{label}</p>
+                                    <p className="text-xs text-gray-600 dark:text-gray-400">{label}</p>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </motion.div>
-
                 {/* Visual Insights Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -606,10 +555,10 @@ const PerformanceAnalytics = () => {
                     transition={{ duration: 0.5, delay: 0.3 }}
                     className="mb-6"
                 >
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 sticky top-16 bg-white/90 backdrop-blur-md py-2 z-10 mb-4">
-                        <BarChart className="w-6 h-6 text-teal-600" /> Visual Insights
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 sticky top-16 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md py-2 z-10 mb-4">
+                        <BarChart className="w-6 h-6 text-teal-600 dark:text-teal-400" /> Visual Insights
                     </h2>
-                    <div className="bg-white/90 backdrop-blur-md rounded-lg p-6 shadow-md overflow-y-auto scrollbar-thin scrollbar-teal-600 scrollbar-track-teal-100 max-h-[70vh]">
+                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-6 shadow-md overflow-y-auto scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800 max-h-[70vh]">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {[
                                 {
@@ -623,7 +572,7 @@ const PerformanceAnalytics = () => {
                                         scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
                                     },
                                     icon: LineChart,
-                                    color: 'teal-600',
+                                    color: 'teal-600 dark:teal-400',
                                 },
                                 {
                                     title: 'Priority Breakdown',
@@ -635,7 +584,7 @@ const PerformanceAnalytics = () => {
                                         plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
                                     },
                                     icon: PieChart,
-                                    color: 'blue-600',
+                                    color: 'blue-600 dark:blue-400',
                                 },
                                 {
                                     title: 'Status Breakdown',
@@ -648,7 +597,7 @@ const PerformanceAnalytics = () => {
                                         scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
                                     },
                                     icon: BarChart,
-                                    color: 'amber-600',
+                                    color: 'amber-600 dark:amber-400',
                                 },
                                 {
                                     title: 'Category Breakdown',
@@ -660,7 +609,7 @@ const PerformanceAnalytics = () => {
                                         plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
                                     },
                                     icon: PieChart,
-                                    color: 'purple-600',
+                                    color: 'purple-600 dark:purple-400',
                                 },
                                 {
                                     title: 'Task Velocity',
@@ -673,7 +622,7 @@ const PerformanceAnalytics = () => {
                                         scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
                                     },
                                     icon: LineChart,
-                                    color: 'cyan-600',
+                                    color: 'cyan-600 dark:cyan-400',
                                 },
                                 {
                                     title: 'Category Effort',
@@ -685,7 +634,7 @@ const PerformanceAnalytics = () => {
                                         plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
                                     },
                                     icon: PieChart,
-                                    color: 'green-600',
+                                    color: 'green-600 dark:green-400',
                                 },
                                 {
                                     title: 'Priority Time',
@@ -698,7 +647,7 @@ const PerformanceAnalytics = () => {
                                         scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
                                     },
                                     icon: BarChart,
-                                    color: 'red-600',
+                                    color: 'red-600 dark:red-400',
                                 },
                                 {
                                     title: 'Weekly Productivity',
@@ -711,29 +660,29 @@ const PerformanceAnalytics = () => {
                                         scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
                                     },
                                     icon: BarChart,
-                                    color: 'orange-600',
+                                    color: 'orange-600 dark:orange-400',
                                 },
                                 {
                                     title: 'Activity Heatmap',
                                     Component: () => (
-                                        <div className="grid grid-cols-[auto_repeat(24,1fr)] gap-1 bg-gray-50 rounded-lg overflow-x-auto">
+                                        <div className="grid grid-cols-[auto_repeat(24,1fr)] gap-1 bg-gray-50 dark:bg-gray-700 rounded-lg overflow-x-auto">
                                             <div className="h-6" />
                                             {dailyActivityData.hours.map((hour) => (
-                                                <div key={`hour-${hour}`} className="text-xs text-gray-600 text-center h-6">
+                                                <div key={`hour-${hour}`} className="text-xs text-gray-600 dark:text-gray-400 text-center h-6">
                                                     {hour}
                                                 </div>
                                             ))}
                                             {dailyActivityData.days.map((day, dayIdx) => (
                                                 <React.Fragment key={`day-${dayIdx}`}>
-                                                    <div className="text-xs text-gray-600 h-6 flex items-center pl-2">{day}</div>
+                                                    <div className="text-xs text-gray-600 dark:text-gray-400 h-6 flex items-center pl-2">{day}</div>
                                                     {dailyActivityData.data[dayIdx].map((count, hourIdx) => (
                                                         <div
                                                             key={`cell-${dayIdx}-${hourIdx}`}
-                                                            className={`h-6 w-full bg-teal-50 ${count > 0 ? `bg-opacity-${Math.min(count * 20, 100)}` : ''} relative group`}
+                                                            className={`h-6 w-full bg-teal-50 dark:bg-teal-900/30 ${count > 0 ? `bg-opacity-${Math.min(count * 20, 100)} dark:bg-opacity-${Math.min(count * 20, 100)}` : ''} relative group`}
                                                             aria-label={`${count} tasks on ${day} at ${dailyActivityData.hours[hourIdx]}`}
                                                         >
                                                             {count > 0 && (
-                                                                <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs p-1 rounded z-10 top-full left-1/2 -translate-x-1/2 mt-2">
+                                                                <div className="absolute hidden group-hover:block bg-gray-800 dark:bg-gray-900 text-white dark:text-gray-200 text-xs p-1 rounded z-10 top-full left-1/2 -translate-x-1/2 mt-2">
                                                                     {count} tasks
                                                                 </div>
                                                             )}
@@ -745,11 +694,11 @@ const PerformanceAnalytics = () => {
                                     ),
                                     options: {},
                                     icon: Calendar,
-                                    color: 'teal-600',
+                                    color: 'teal-600 dark:teal-400',
                                 },
                             ].map(({ title, Component, data, options, icon: Icon, color }, idx) => (
-                                <div key={`chart-${idx}`} className="bg-white rounded-lg p-4 shadow-md h-[300px] hover:bg-gray-50 transition-colors duration-300">
-                                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-2">
+                                <div key={`chart-${idx}`} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md h-[300px] hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-300">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
                                         <Icon className={`w-5 h-5 text-${color}`} />
                                         {title}
                                     </h3>
@@ -761,7 +710,6 @@ const PerformanceAnalytics = () => {
                         </div>
                     </div>
                 </motion.div>
-
                 {/* Insights & Badges Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -769,52 +717,51 @@ const PerformanceAnalytics = () => {
                     transition={{ duration: 0.5, delay: 0.4 }}
                     className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6"
                 >
-                    <div className="bg-white/90 backdrop-blur-md rounded-lg p-4 shadow-md">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2">
-                            <Clock className="w-6 h-6 text-teal-600" /> Insights
+                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
+                            <Clock className="w-6 h-6 text-teal-600 dark:text-teal-400" /> Insights
                         </h3>
                         <ul className="space-y-2">
                             {insights.map((insight, idx) => (
-                                <li key={`insight-${idx}`} className="flex items-start gap-2 text-sm text-gray-700">
-                                    <span className="w-2 h-2 bg-teal-600 rounded-full mt-2" />
+                                <li key={`insight-${idx}`} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <span className="w-2 h-2 bg-teal-600 dark:bg-teal-400 rounded-full mt-2" />
                                     {insight}
                                 </li>
                             ))}
                         </ul>
                     </div>
-                    <div className="bg-white/90 backdrop-blur-md rounded-lg p-4 shadow-md">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2">
-                            <Trophy className="w-6 h-6 text-amber-600" /> Achievements
+                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
+                            <Trophy className="w-6 h-6 text-amber-600 dark:text-amber-400" /> Achievements
                         </h3>
                         {badges.length ? (
                             <div className="grid grid-cols-2 gap-2">
                                 {badges.map(({ name, icon: Icon, color }, idx) => (
-                                    <div key={`badge-${idx}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded-md text-sm">
+                                    <div key={`badge-${idx}`} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-md text-sm">
                                         <Icon className={`w-5 h-5 ${color}`} />
-                                        <span>{name}</span>
+                                        <span className="text-gray-800 dark:text-gray-200">{name}</span>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-700">No badges yet!</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">No badges yet!</p>
                         )}
                     </div>
                 </motion.div>
-
                 {/* Timeline Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.5 }}
-                    className="bg-white/90 backdrop-blur-md rounded-lg p-4 shadow-md mb-6"
+                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md mb-6"
                 >
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2 sticky top-16 bg-white/90 backdrop-blur-md z-10">
-                        <Calendar className="w-6 h-6 text-blue-600" /> Task History
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2 sticky top-16 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md z-10">
+                        <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Task History
                     </h3>
-                    <div className="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-teal-600 scrollbar-track-teal-100">
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800">
                         {filteredTasks.length ? (
                             <div className="relative pl-4">
-                                <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-300" />
+                                <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-600" />
                                 {filteredTasks.slice(0, 5).map((task, idx) => (
                                     <motion.div
                                         key={task._id || `task-${idx}`}
@@ -823,10 +770,10 @@ const PerformanceAnalytics = () => {
                                         transition={{ delay: idx * 0.1 }}
                                         className="relative mb-3"
                                     >
-                                        <div className="absolute left-[-6px] top-2 w-3 h-3 bg-teal-600 rounded-full border-2 border-white" />
-                                        <div className="bg-gray-50 p-3 rounded-md">
-                                            <p className="text-sm font-medium text-gray-900 truncate">{task.title || 'Untitled'}</p>
-                                            <p className="text-xs text-gray-600">
+                                        <div className="absolute left-[-6px] top-2 w-3 h-3 bg-teal-600 dark:bg-teal-400 rounded-full border-2 border-white dark:border-gray-800" />
+                                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{task.title || 'Untitled'}</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">
                                                 {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'N/A'} • {task.priority || 'None'} • {task.completed ? 'Done' : 'Pending'}
                                             </p>
                                         </div>
@@ -834,11 +781,10 @@ const PerformanceAnalytics = () => {
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-700 text-center">No tasks found.</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 text-center">No tasks found.</p>
                         )}
                     </div>
                 </motion.div>
-
                 {/* Back to Top */}
                 <AnimatePresence>
                     {showBackToTop && (
@@ -847,7 +793,7 @@ const PerformanceAnalytics = () => {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0 }}
                             onClick={scrollToTop}
-                            className="fixed bottom-6 right-6 p-3 bg-teal-600 text-white rounded-full shadow-md hover:bg-teal-700 focus:ring-2 focus:ring-teal-500"
+                            className="fixed bottom-6 right-6 p-3 bg-teal-600 dark:bg-teal-700 text-white rounded-full shadow-md hover:bg-teal-700 dark:hover:bg-teal-600 focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400"
                             aria-label="Back to top"
                         >
                             <ChevronUp className="w-6 h-6" />
@@ -858,5 +804,4 @@ const PerformanceAnalytics = () => {
         </div>
     );
 };
-
 export default PerformanceAnalytics;
