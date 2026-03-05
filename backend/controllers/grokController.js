@@ -7,7 +7,6 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const XLSX = require('xlsx');
 import mongoose from 'mongoose';
-
 const openai = new OpenAI({
   apiKey: process.env.GROK_API_KEY,
   baseURL: 'https://api.x.ai/v1',
@@ -89,7 +88,9 @@ const TOOL_PROMPTS = {
   'unit-responsibility-query': `${COMPANY_KNOWLEDGE} Query FundCo unit responsibilities.`,
   'term-definer': `${COMPANY_KNOWLEDGE} Define FundCo terms (e.g., CEF, HSF).`,
   'sop-query': `${COMPANY_KNOWLEDGE} Query specific SOPs (e.g., procurement, installation).`,
-  'team-profile-query': `${COMPANY_KNOWLEDGE} Query team profiles for collaboration suggestions.`
+  'team-profile-query': `${COMPANY_KNOWLEDGE} Query team profiles for collaboration suggestions.`,
+  'pdf-extractor': `${COMPANY_KNOWLEDGE} Extract meaningful content from PDFs. Use search_pdf_attachment or browse_pdf_attachment tools on the file. Summarize key sections, tables, entities intelligently. Output clean text or structured JSON if requested.`,
+  'ppt-generator': `${COMPANY_KNOWLEDGE} Generate PowerPoint slide structures from text/prompts. Output as JSON {slides: [{title, content, layout (e.g., title+bullet, image+text)}]}. Make intelligent, concise slides based on content length (e.g., 20 pages). Suggest designs aligning with templates if mentioned.`
 };
 export const grokChat = async (req, res) => {
   let { messages, taskContext, toolId } = req.body;
@@ -147,14 +148,14 @@ export const grokChat = async (req, res) => {
           });
           extractedText = '[Video attached: Note limitations in analysis.]';
         } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          const result = await mammoth.extractRawText({buffer: file.buffer});
+          const result = await mammoth.extractRawText({ buffer: file.buffer });
           extractedText = result.value;
           contentParts.push({
             type: 'text',
             text: `Attached Word file "${file.originalname}":\n${extractedText}`
           });
         } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-          const workbook = XLSX.read(file.buffer, {type: 'buffer'});
+          const workbook = XLSX.read(file.buffer, { type: 'buffer' });
           let text = '';
           workbook.SheetNames.forEach(sheetName => {
             const sheet = XLSX.utils.sheet_to_txt(workbook.Sheets[sheetName]);

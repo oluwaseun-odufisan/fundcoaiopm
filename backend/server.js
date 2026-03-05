@@ -19,11 +19,12 @@ import reminderRouter from './routes/reminderRoutes.js';
 import goalRouter from './routes/goalRoutes.js';
 import performanceRouter from './routes/performanceRoutes.js';
 import meetingRouter from './routes/meetingRoutes.js';
-import learningRouter from './routes/learningRoutes.js'; 
+import learningRouter from './routes/learningRoutes.js';
 import feedbackRouter from './routes/feedbackRoutes.js';
+import documentRoutes from './routes/documentRoutes.js';
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
-import User from './models/userModel.js';  
+import User from './models/userModel.js';
 import './models/userModel.js';
 import './models/chatModel.js';
 import './models/messageModel.js';
@@ -71,9 +72,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/chats', fileUpload());
 app.use('/api/bot', fileUpload());
 app.use('/api/posts', fileUpload());
+//app.use('/api/documents', fileUpload());
 app.use('/api/user', userRouter);
 app.use('/api/feedback', feedbackRouter)
-;// Environment variable validation
+  ;// Environment variable validation
 const requiredEnvVars = [
   'MONGO_URI',
   'JWT_SECRET',
@@ -118,7 +120,7 @@ io.use(async (socket, next) => {
 // Socket.IO connection handlers
 io.on('connection', async (socket) => {
   console.log(`Socket connected: ${socket.id}`);
-  
+
   // Added: Update lastActive on socket connection (page load/refresh)
   try {
     const user = await User.findById(socket.user.id);
@@ -129,7 +131,6 @@ io.on('connection', async (socket) => {
   } catch (err) {
     console.error('Error updating lastActive on socket connect:', err);
   }
-
   // Chat-related events (original)
   socket.on('joinChat', (chatId) => {
     if (typeof chatId === 'string') {
@@ -231,6 +232,7 @@ app.use('/api/performance', performanceRouter);
 app.use('/api/grok', grokRouter);
 app.use('/api/meetings', meetingRouter);
 app.use('/api/learning', learningRouter);
+app.use('/api/documents', documentRoutes);
 // Emit endpoint for admin
 app.post('/api/emit', (req, res) => {
   const { event, data } = req.body;

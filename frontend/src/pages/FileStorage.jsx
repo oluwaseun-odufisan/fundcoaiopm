@@ -17,12 +17,15 @@ import mammoth from 'mammoth';
 import DOMPurify from 'dompurify';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
+
 // Configure pdfjs worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_TYPES = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'mp4', 'webm', 'xls', 'xlsx'];
 const TOTAL_STORAGE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+
 // Error Boundary for react-pdf
 class ErrorBoundary extends React.Component {
     state = { hasError: false, error: null };
@@ -39,13 +42,15 @@ class ErrorBoundary extends React.Component {
         }
         return this.props.children;
     }
-}
+};
+
 const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }) => {
     const [numPages, setNumPages] = useState(null);
     const [pageNumber, setPageNumber] = useState(1);
     const [zoom, setZoom] = useState(1);
     const [docContent, setDocContent] = useState(null);
     const [error, setError] = useState(null);
+
     useEffect(() => {
         if (!isOpen || !file) {
             setNumPages(null);
@@ -72,17 +77,22 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
             fetchDoc();
         }
     }, [isOpen, file]);
+
     if (!isOpen || !file) return null;
+
     const onDocumentLoadSuccess = ({ numPages }) => {
         setNumPages(numPages);
         setPageNumber(1);
     };
+
     const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.2, 2));
     const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.2, 0.5));
     const handlePrevPage = () => setPageNumber(prev => Math.max(prev - 1, 1));
     const handleNextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages));
+
     const url = `https://gateway.pinata.cloud/ipfs/${file.cid}`;
     const type = file.type?.toLowerCase() || file.name?.split('.').pop().toLowerCase();
+
     const renderPreview = () => {
         if (error) {
             return (
@@ -91,112 +101,124 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
                 </div>
             );
         }
-        if (['jpg', 'jpeg', 'png'].includes(type)) return <img src={url} alt={file.fileName} className="w-full h-auto rounded-lg max-h-[70vh] object-contain" />;
-        if (['mp4', 'webm'].includes(type)) return (
-            <video
-                controls
-                autoPlay
-                muted
-                loop
-                className="w-full max-h-[70vh] rounded-lg"
-                onError={() => setError('Failed to load video')}
-                aria-label={`Video player for ${file.fileName}`}
-            >
-                <source src={url} type={`video/${type}`} />
-                Your browser does not support video playback.
-            </video>
-        );
-        if (type === 'pdf') return (
-            <ErrorBoundary>
-                <div className="relative">
-                    <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handleZoomOut}
-                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
-                                aria-label="Zoom Out"
-                            >
-                                <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="text-sm text-gray-300 dark:text-gray-400">{(zoom * 100).toFixed(0)}%</span>
-                            <button
-                                onClick={handleZoomIn}
-                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
-                                aria-label="Zoom In"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
+        if (['jpg', 'jpeg', 'png'].includes(type)) {
+            return <img src={url} alt={file.fileName} className="w-full h-auto rounded-lg max-h-[70vh] object-contain" />;
+        }
+        if (['mp4', 'webm'].includes(type)) {
+            return (
+                <video
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    className="w-full max-h-[70vh] rounded-lg"
+                    onError={() => setError('Failed to load video')}
+                    aria-label={`Video player for ${file.fileName}`}
+                >
+                    <source src={url} type={`video/${type}`} />
+                    Your browser does not support video playback.
+                </video>
+            );
+        }
+        if (type === 'pdf') {
+            return (
+                <ErrorBoundary>
+                    <div className="relative">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleZoomOut}
+                                    className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
+                                    aria-label="Zoom Out"
+                                >
+                                    <Minus className="w-4 h-4" />
+                                </button>
+                                <span className="text-sm text-gray-300 dark:text-gray-400">{(zoom * 100).toFixed(0)}%</span>
+                                <button
+                                    onClick={handleZoomIn}
+                                    className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300"
+                                    aria-label="Zoom In"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handlePrevPage}
+                                    disabled={pageNumber <= 1}
+                                    className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
+                                    aria-label="Previous Page"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="text-sm text-gray-300 dark:text-gray-400">
+                                    Page {pageNumber} of {numPages || '?'}
+                                </span>
+                                <button
+                                    onClick={handleNextPage}
+                                    disabled={pageNumber >= numPages}
+                                    className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
+                                    aria-label="Next Page"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handlePrevPage}
-                                disabled={pageNumber <= 1}
-                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
-                                aria-label="Previous Page"
+                        <div className="h-[70vh] overflow-y-auto scrollbar-thin">
+                            <Document
+                                file={url}
+                                onLoadSuccess={onDocumentLoadSuccess}
+                                onLoadError={(err) => {
+                                    console.error('Error loading PDF:', err);
+                                    setError('Failed to load PDF');
+                                }}
+                                className="flex justify-center"
+                                loading={<Loader2 className="w-8 h-8 animate-spin text-cyan-500 dark:text-cyan-400" />}
                             >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <span className="text-sm text-gray-300 dark:text-gray-400">
-                                Page {pageNumber} of {numPages || '?'}
-                            </span>
-                            <button
-                                onClick={handleNextPage}
-                                disabled={pageNumber >= numPages}
-                                className="p-1 text-gray-300 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-300 disabled:text-gray-500 dark:disabled:text-gray-600"
-                                aria-label="Next Page"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
+                                <Page
+                                    pageNumber={pageNumber}
+                                    scale={zoom}
+                                    renderTextLayer={true}
+                                    renderAnnotationLayer={true}
+                                    className="shadow-md"
+                                />
+                            </Document>
                         </div>
                     </div>
-                    <div className="h-[70vh] overflow-y-auto scrollbar-thin">
-                        <Document
-                            file={url}
-                            onLoadSuccess={onDocumentLoadSuccess}
-                            onLoadError={(err) => {
-                                console.error('Error loading PDF:', err);
-                                setError('Failed to load PDF');
-                            }}
-                            className="flex justify-center"
-                            loading={<Loader2 className="w-8 h-8 animate-spin text-cyan-500 dark:text-cyan-400" />}
-                        >
-                            <Page
-                                pageNumber={pageNumber}
-                                scale={zoom}
-                                renderTextLayer={true}
-                                renderAnnotationLayer={true}
-                                className="shadow-md"
-                            />
-                        </Document>
-                    </div>
+                </ErrorBoundary>
+            );
+        }
+        if (type === 'docx') {
+            return (
+                <div className="h-[70vh] overflow-y-auto scrollbar-thin bg-gray-900/10 dark:bg-gray-800/10 p-4 rounded-lg">
+                    {docContent ? (
+                        <div
+                            dangerouslySetInnerHTML={{ __html: docContent }}
+                            className="doc-content max-w-none text-sm leading-relaxed text-gray-200 dark:text-gray-300"
+                            style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.6' }}
+                        />
+                    ) : (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="w-6 h-6 text-cyan-500 dark:text-cyan-400 animate-spin" />
+                        </div>
+                    )}
                 </div>
-            </ErrorBoundary>
-        );
-        if (type === 'docx') return (
-            <div className="h-[70vh] overflow-y-auto scrollbar-thin bg-gray-900/10 dark:bg-gray-800/10 p-4 rounded-lg">
-                {docContent ? (
-                    <div
-                        dangerouslySetInnerHTML={{ __html: docContent }}
-                        className="doc-content max-w-none text-sm leading-relaxed text-gray-200 dark:text-gray-300"
-                        style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.6' }}
-                    />
-                ) : (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="w-6 h-6 text-cyan-500 dark:text-cyan-400 animate-spin" />
-                    </div>
-                )}
-            </div>
-        );
-        if (type === 'doc') return (
-            <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
-                <p className="text-gray-400 dark:text-gray-500">Preview not supported for .doc files</p>
-            </div>
-        );
-        if (['xls', 'xlsx'].includes(type)) return (
-            <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
-                <p className="text-gray-400 dark:text-gray-500">Preview not supported for Excel files</p>
-            </div>
-        );
+            );
+        }
+        if (type === 'doc') {
+            return (
+                <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-400 dark:text-gray-500">Preview not supported for .doc files</p>
+                </div>
+            );
+        }
+        if (['xls', 'xlsx'].includes(type)) {
+            return (
+                <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-400 dark:text-gray-500">Preview not supported for Excel files</p>
+                </div>
+            );
+        }
         return (
             <div className="h-96 bg-gray-900/20 dark:bg-gray-800/20 rounded-lg flex items-center justify-center">
                 <File className="w-12 h-12 text-cyan-500 dark:text-cyan-400" />
@@ -204,6 +226,7 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
             </div>
         );
     };
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -257,23 +280,26 @@ const FilePreviewModal = ({ isOpen, onClose, file, handleDownload, handleShare }
         </motion.div>
     );
 };
+
 const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUploading, setIsUploading }) => {
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [taskId, setTaskId] = useState('');
     const [tags, setTags] = useState('');
     const [error, setError] = useState(null);
     const fileInputRef = useRef(null);
+
     const validateTaskId = (id) => {
-        if (!id) return true; // Allow no task
+        if (!id) return true;
         return tasks.some(task => task._id === id);
     };
+
     const validateTags = (tagString) => {
         const tagArray = tagString.split(',').map(t => t.trim()).filter(t => t);
-        return tagArray.every(tag => tag.length <= 50 && /^[a-zA-Z0-9._\-]+$/.test(tag));
+        return tagArray.every(tag => tag.length <= 50 && /^[a-zA-Z0-9._-]+$/.test(tag));
     };
+
     const handleFileChange = useCallback((e) => {
-        console.log('File input changed:', e.target.files);
-        const files = Array.from(e.target.files);
+        const files = Array.from(e.target.files || e.dataTransfer?.files || []);
         const validFiles = files.filter(file => {
             const fileType = file.name.split('.').pop().toLowerCase();
             if (!ALLOWED_TYPES.includes(fileType)) {
@@ -289,15 +315,10 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
         setSelectedFiles(validFiles);
         setError(validFiles.length ? null : files.length ? 'Some files are invalid' : null);
     }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Form submitted:', {
-            files: selectedFiles.map(f => f.name),
-            taskId,
-            tags,
-            folderId: currentFolderId,
-        });
         if (!selectedFiles.length) {
             setError('Please select files to upload.');
             toast.error('No files selected.');
@@ -331,7 +352,9 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
             setIsUploading(false);
         }
     };
+
     if (!isOpen) return null;
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -436,6 +459,7 @@ const UploadModal = ({ isOpen, onClose, onUpload, tasks, currentFolderId, isUplo
         </motion.div>
     );
 };
+
 const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) => {
     const [selectedFolderId, setSelectedFolderId] = useState('');
     const folderTree = useMemo(() => {
@@ -450,8 +474,9 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
         };
         return buildTree(null);
     }, [folders]);
-    const renderFolderOptions = (folders, indent = 0) => {
-        return folders.map(folder => (
+
+    const renderFolderOptions = (foldersList, indent = 0) => {
+        return foldersList.map(folder => (
             <React.Fragment key={folder._id}>
                 <option value={folder._id} disabled={folder._id === currentFolderId}>
                     {'-'.repeat(indent * 2)} {folder.name}
@@ -460,12 +485,15 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
             </React.Fragment>
         ));
     };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         onMove(selectedFolderId || null);
         onClose();
     };
+
     if (!isOpen) return null;
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -519,13 +547,19 @@ const MoveFilesModal = ({ isOpen, onClose, folders, onMove, currentFolderId }) =
         </motion.div>
     );
 };
+
 const FolderNode = ({ folder, onSelect, selectedFolderId, folders, level = 0 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const childFolders = folders.filter((f) => f.parentId === folder._id);
+
     return (
         <div style={{ paddingLeft: `${level * 16}px` }}>
             <div
-                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 ${selectedFolderId === folder._id ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400' : 'text-[#1F2937] dark:text-gray-200'}`}
+                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 ${
+                    selectedFolderId === folder._id
+                        ? 'bg-[#E5E7EB] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400'
+                        : 'text-[#1F2937] dark:text-gray-200'
+                }`}
                 onClick={() => {
                     setIsOpen(!isOpen);
                     onSelect(folder._id);
@@ -548,9 +582,11 @@ const FolderNode = ({ folder, onSelect, selectedFolderId, folders, level = 0 }) 
         </div>
     );
 };
+
 const FileStorage = () => {
     const { user, tasks = [], onLogout } = useOutletContext();
     const navigate = useNavigate();
+
     const [files, setFiles] = useState([]);
     const [folders, setFolders] = useState([]);
     const [currentFolder, setCurrentFolder] = useState(null);
@@ -575,11 +611,14 @@ const FileStorage = () => {
     const [hasMore, setHasMore] = useState(true);
     const [showActionsMenu, setShowActionsMenu] = useState(false);
     const [displayItems, setDisplayItems] = useState([]);
+
     const searchTimeoutRef = useRef(null);
     const observerRef = useRef();
     const actionsMenuRef = useRef();
+
     const storageUsed = useMemo(() => files.reduce((sum, file) => sum + (file.size || 0), 0), [files]);
     const uniqueTags = useMemo(() => [...new Set(files.flatMap(f => f.tags || []))], [files]);
+
     const getAuthHeaders = useCallback(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -590,12 +629,13 @@ const FileStorage = () => {
         }
         return { Authorization: `Bearer ${token}` };
     }, [onLogout]);
+
     const fetchFilesAndFolders = useCallback(async (pageNum = 1, reset = false) => {
         try {
             const headers = getAuthHeaders();
             const params = {
                 page: pageNum,
-                limit: 10,
+                limit: 20,
                 searchQuery: searchQuery || undefined,
                 type: filterType !== 'all' ? filterType : undefined,
                 taskId: filterTask !== 'all' ? filterTask : undefined,
@@ -603,16 +643,19 @@ const FileStorage = () => {
                 trashed: showTrash,
                 folderId: currentFolder || undefined,
             };
+
             const [filesResponse, foldersResponse] = await Promise.all([
                 axios.get(`${API_BASE_URL}/api/files`, { headers, params }),
                 axios.get(`${API_BASE_URL}/api/files/folders`, { headers, params: { parentId: currentFolder || undefined } }),
             ]);
+
             if (filesResponse.data.success) {
                 setFiles(prev => reset ? filesResponse.data.files : [...prev, ...filesResponse.data.files]);
                 setHasMore(filesResponse.data.hasMore);
             } else {
                 throw new Error(filesResponse.data.message || 'Failed to fetch files');
             }
+
             if (foldersResponse.data.success) {
                 setFolders(foldersResponse.data.folders || []);
             } else {
@@ -624,15 +667,18 @@ const FileStorage = () => {
             if (error.response?.status === 401) onLogout?.();
         }
     }, [currentFolder, showTrash, searchQuery, filterType, filterTask, filterTags, getAuthHeaders, onLogout]);
+
     useEffect(() => {
         if (user) fetchFilesAndFolders(1, true);
         return () => {
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         };
     }, [fetchFilesAndFolders, user]);
+
     useEffect(() => {
         if (page > 1) fetchFilesAndFolders(page, false);
     }, [page, fetchFilesAndFolders]);
+
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) {
@@ -642,6 +688,7 @@ const FileStorage = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
     const debouncedSearch = useCallback((query) => {
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         searchTimeoutRef.current = setTimeout(() => {
@@ -651,6 +698,7 @@ const FileStorage = () => {
             fetchFilesAndFolders(1, true);
         }, 300);
     }, [fetchFilesAndFolders]);
+
     const filteredItems = useMemo(() => {
         const lowerQuery = searchQuery.toLowerCase();
         const items = [
@@ -662,6 +710,7 @@ const FileStorage = () => {
                 item.name?.toLowerCase().includes(lowerQuery) ||
                 item.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
         );
+
         return items.sort((a, b) => {
             if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
             switch (sortBy) {
@@ -678,9 +727,11 @@ const FileStorage = () => {
             }
         });
     }, [files, folders, searchQuery, sortBy, showTrash]);
+
     useEffect(() => {
         setDisplayItems(filteredItems);
     }, [filteredItems]);
+
     const breadcrumbPath = useMemo(() => {
         const path = [];
         let folderId = currentFolder;
@@ -692,6 +743,7 @@ const FileStorage = () => {
         }
         return path;
     }, [currentFolder, folders]);
+
     const lastFileRef = useCallback(node => {
         if (observerRef.current) observerRef.current.disconnect();
         observerRef.current = new IntersectionObserver(entries => {
@@ -701,29 +753,20 @@ const FileStorage = () => {
         });
         if (node) observerRef.current.observe(node);
     }, [hasMore]);
+
+    // ==================== WORKING LOGIC (from second version) ====================
     const handleFileUpload = useCallback(
         async (selectedFiles, taskId, tags, folderId) => {
-            console.log('handleFileUpload called:', {
-                files: selectedFiles.map(f => f.name),
-                taskId,
-                tags,
-                folderId,
-            });
             try {
                 const headers = getAuthHeaders();
                 const formData = new FormData();
-                const fileIds = selectedFiles.map(() => `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
-                setUploadProgress(prev => fileIds.reduce((acc, id) => ({ ...acc, [id]: 0 }), {}));
-                selectedFiles.forEach((file, index) => {
+                selectedFiles.forEach((file) => {
                     formData.append('files', file);
-                    console.log(`Appending file ${index}:`, file.name, file.size, file.type);
                 });
                 if (taskId) formData.append('taskId', taskId);
                 if (tags?.length) formData.append('tags', JSON.stringify(tags));
                 if (folderId) formData.append('folderId', folderId);
-                for (let pair of formData.entries()) {
-                    console.log(`FormData entry: ${pair[0]}`, pair[1]);
-                }
+
                 const response = await axios.post(`${API_BASE_URL}/api/files/pinFileToIPFS`, formData, {
                     headers: {
                         ...headers,
@@ -731,12 +774,16 @@ const FileStorage = () => {
                     },
                     onUploadProgress: (progressEvent) => {
                         const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-                        setUploadProgress(prev => fileIds.reduce((acc, id) => ({ ...acc, [id]: percent }), {}));
+                        setUploadProgress({ overall: percent });
                     },
                     timeout: 60000,
                 });
+
                 if (response.data.success) {
-                    setFiles(prev => [...response.data.files, ...prev]);
+                    // Immediate UI update (key fix from working version)
+                    if (response.data.files?.length) {
+                        setFiles(prev => [...response.data.files, ...prev]);
+                    }
                     toast.success('Files uploaded successfully!');
                     await fetchFilesAndFolders(1, true);
                 } else {
@@ -744,10 +791,9 @@ const FileStorage = () => {
                 }
             } catch (error) {
                 console.error('Upload error:', error);
-                console.error('Error response:', error.response?.data);
                 toast.error(error.response?.data?.message || error.message || 'Failed to upload files');
                 if (error.response?.status === 401) onLogout?.();
-                throw error;
+                throw error; // Let modal catch it
             } finally {
                 setIsUploading(false);
                 setUploadProgress({});
@@ -755,6 +801,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, onLogout, fetchFilesAndFolders]
     );
+
     const handleCreateFolder = useCallback(
         async () => {
             const folderName = newFolderName.trim();
@@ -762,7 +809,7 @@ const FileStorage = () => {
                 toast.error('Folder name is required');
                 return;
             }
-            if (folderName.length > 100 || !folderName.match(/^[a-zA-Z0-9._\-\s]+$/)) {
+            if (folderName.length > 100 || !/^[a-zA-Z0-9._-\s]+$/.test(folderName)) {
                 toast.error('Invalid folder name (max 100 chars, alphanumeric, spaces, dots, hyphens, underscores)');
                 return;
             }
@@ -787,20 +834,20 @@ const FileStorage = () => {
                 if (error.response?.status === 401) onLogout?.();
             }
         },
-        [newFolderName, currentFolder, getAuthHeaders, onLogout, fetchFilesAndFolders]);
+        [newFolderName, currentFolder, getAuthHeaders, onLogout, fetchFilesAndFolders]
+    );
+
     const handleDelete = useCallback(
         async (id, isFolder, permanent = false) => {
             if (!window.confirm(permanent ? 'Permanently delete this item?' : 'Move to trash?')) return;
             try {
                 const headers = getAuthHeaders();
-                console.log('Deleting item:', { id, isFolder, permanent, headers });
                 const endpoint = isFolder
                     ? `${API_BASE_URL}/api/files/folders/${id}`
                     : permanent
                         ? `${API_BASE_URL}/api/files/permanent/${id}`
                         : `${API_BASE_URL}/api/files/${id}`;
-                const method = isFolder || permanent ? 'delete' : 'delete';
-                const response = await axios[method](endpoint, { headers });
+                const response = await axios.delete(endpoint, { headers });
                 if (response.data.success) {
                     if (isFolder) {
                         setFolders(prev => prev.filter(f => f._id !== id));
@@ -824,8 +871,6 @@ const FileStorage = () => {
                     if (detailsPanel?._id === id) setDetailsPanel(null);
                     toast.success(permanent ? 'Permanently deleted' : 'Moved to trash');
                     await fetchFilesAndFolders(1, true);
-                } else {
-                    throw new Error(response.data.message || 'Failed to delete item');
                 }
             } catch (error) {
                 console.error('Delete error:', error);
@@ -835,6 +880,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, detailsPanel, onLogout, fetchFilesAndFolders]
     );
+
     const handleMoveFiles = useCallback(
         async (destinationFolderId) => {
             const fileIds = Array.from(selectedItems).filter(id => !folders.find(f => f._id === id));
@@ -860,8 +906,6 @@ const FileStorage = () => {
                     setSelectedItems(new Set());
                     toast.success('Files moved successfully');
                     await fetchFilesAndFolders(1, true);
-                } else {
-                    throw new Error(response.data.message || 'Failed to move files');
                 }
             } catch (error) {
                 console.error('Move files error:', error);
@@ -871,15 +915,12 @@ const FileStorage = () => {
         },
         [selectedItems, folders, getAuthHeaders, onLogout, fetchFilesAndFolders]
     );
+
     const handleRestore = useCallback(
         async (id) => {
             try {
                 const headers = getAuthHeaders();
-                await axios.patch(
-                    `${API_BASE_URL}/api/files/${id}/restore`,
-                    {},
-                    { headers }
-                );
+                await axios.patch(`${API_BASE_URL}/api/files/${id}/restore`, {}, { headers });
                 setFiles(prev =>
                     prev.map(file =>
                         file._id === id ? { ...file, deleted: false, deletedAt: null } : file
@@ -901,6 +942,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, detailsPanel, onLogout, fetchFilesAndFolders]
     );
+
     const handleClearTrash = useCallback(
         async () => {
             if (!window.confirm('Permanently delete all trashed items?')) return;
@@ -908,7 +950,7 @@ const FileStorage = () => {
                 const headers = getAuthHeaders();
                 await axios.delete(`${API_BASE_URL}/api/files/trash/clear`, { headers });
                 setFiles(prev => prev.filter(file => !file.deleted));
-                setSelectedItems(new Set);
+                setSelectedItems(new Set());
                 setDetailsPanel(null);
                 toast.success('Trash cleared');
                 await fetchFilesAndFolders(1, true);
@@ -920,6 +962,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, onLogout, fetchFilesAndFolders]
     );
+
     const handleBulkDelete = useCallback(() => {
         const promises = Array.from(selectedItems).map((id) => {
             const isFolder = folders.find(f => f._id === id);
@@ -931,6 +974,7 @@ const FileStorage = () => {
             fetchFilesAndFolders(1, true);
         });
     }, [selectedItems, folders, showTrash, handleDelete, fetchFilesAndFolders]);
+
     const handleShare = useCallback(
         async (file) => {
             try {
@@ -950,8 +994,6 @@ const FileStorage = () => {
                     );
                     await navigator.clipboard.writeText(response.data.shareLink);
                     toast.success('Share link copied to clipboard!');
-                } else {
-                    throw new Error(response.data.message || 'Failed to share file');
                 }
             } catch (error) {
                 console.error('Share error:', error);
@@ -961,6 +1003,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, onLogout]
     );
+
     const handleDownload = useCallback(
         (file) => {
             try {
@@ -979,10 +1022,12 @@ const FileStorage = () => {
         },
         []
     );
+
     const handlePreview = useCallback((file) => {
         setSelectedFileId(file);
         setPreviewModal(true);
     }, []);
+
     const handleAssociateTask = useCallback(
         async (fileId, taskId) => {
             try {
@@ -1003,8 +1048,6 @@ const FileStorage = () => {
                     setDetailsPanel(prev => (prev?._id === fileId ? { ...prev, taskId: response.data.taskId, taskTitle: response.data.taskTitle } : prev));
                     toast.success('Task associated successfully');
                     await fetchFilesAndFolders(1, true);
-                } else {
-                    throw new Error(response.data.message || 'Failed to associate task');
                 }
             } catch (error) {
                 console.error('Error associating task:', error);
@@ -1014,6 +1057,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, onLogout, fetchFilesAndFolders]
     );
+
     const handleAddTag = useCallback(
         async (fileId, tag) => {
             if (!tag?.trim()) return;
@@ -1033,8 +1077,6 @@ const FileStorage = () => {
                     setDetailsPanel(prev => (prev?._id === fileId ? { ...prev, tags: response.data.tags } : prev));
                     toast.success('Tag added successfully');
                     await fetchFilesAndFolders(1, true);
-                } else {
-                    toast.error(response.data.message || 'Failed to add tag');
                 }
             } catch (error) {
                 console.error('Error adding tag:', error);
@@ -1044,6 +1086,7 @@ const FileStorage = () => {
         },
         [getAuthHeaders, onLogout, fetchFilesAndFolders]
     );
+
     const formatFileSize = (bytes) => {
         if (!bytes || bytes < 0) return '-';
         if (bytes < 1024) return `${bytes} B`;
@@ -1051,15 +1094,112 @@ const FileStorage = () => {
         if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(2)} MB`;
         return `${(bytes / 1073741824).toFixed(2)} GB`;
     };
+
     const getFileIcon = (type) => {
         type = type?.toLowerCase();
-        if (['jpg', 'jpeg', 'png'].includes(type)) return <Image className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />;
-        if (['mp4', 'webm'].includes(type)) return <Video className="w-6 h-6 text-violet-500 dark:text-violet-400" />;
-        if (type === 'pdf') return <FileText className="w-6 h-6 text-rose-500 dark:text-rose-400" />;
-        if (['docx', 'doc'].includes(type)) return <FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" />;
-        if (['xls', 'xlsx'].includes(type)) return <FileText className="w-6 h-6 text-green-500 dark:text-green-400" />;
-        return <File className="w-6 h-6 text-gray-400 dark:text-gray-500" />;
+        if (['jpg', 'jpeg', 'png'].includes(type)) return <Image className="w-12 h-12 text-emerald-500 dark:text-emerald-400" />;
+        if (['mp4', 'webm'].includes(type)) return <Video className="w-12 h-12 text-violet-500 dark:text-violet-400" />;
+        if (type === 'pdf') return <FileText className="w-12 h-12 text-rose-500 dark:text-rose-400" />;
+        if (['docx', 'doc'].includes(type)) return <FileText className="w-12 h-12 text-blue-500 dark:text-blue-400" />;
+        if (['xls', 'xlsx'].includes(type)) return <FileText className="w-12 h-12 text-green-500 dark:text-green-400" />;
+        return <File className="w-12 h-12 text-gray-400 dark:text-gray-500" />;
     };
+
+    // ==================== UPDATED DESIGN renderItem (from first version) ====================
+    const renderItem = useCallback((item, index, isLast) => {
+        const isFolderItem = !!item.isFolder;
+        const isSelected = selectedItems.has(item._id);
+        const itemType = isFolderItem ? '' : (item.type || item.name?.split('.').pop()?.toLowerCase() || '');
+
+        const handleSelect = (e) => {
+            e.stopPropagation();
+            const newSet = new Set(selectedItems);
+            if (isSelected) newSet.delete(item._id);
+            else newSet.add(item._id);
+            setSelectedItems(newSet);
+        };
+
+        const handleClick = () => {
+            if (isFolderItem) {
+                setCurrentFolder(item._id);
+                setSelectedItems(new Set());
+            } else {
+                handlePreview(item);
+            }
+        };
+
+        const baseClass = `group relative bg-white dark:bg-gray-800 rounded-2xl border border-[#F3F4F6] dark:border-gray-700 hover:border-[#1E40AF] dark:hover:border-blue-400 transition-all duration-200 overflow-hidden flex ${viewMode === 'list' ? 'flex-row items-center p-4 gap-4' : 'flex-col p-4 aspect-[4/3.2] justify-between'}`;
+
+        return (
+            <motion.div
+                ref={isLast ? lastFileRef : null}
+                key={item._id}
+                whileHover={{ y: -2 }}
+                className={`${baseClass} ${isSelected ? 'ring-2 ring-[#1E40AF] dark:ring-blue-400' : ''}`}
+                onClick={handleClick}
+            >
+                {/* Checkbox */}
+                <div className={`absolute top-3 right-3 z-20 ${viewMode === 'list' ? 'relative top-auto right-auto flex-shrink-0' : ''}`} onClick={(e) => e.stopPropagation()}>
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={handleSelect}
+                        className="w-4 h-4 accent-[#1E40AF] dark:accent-blue-400 cursor-pointer"
+                    />
+                </div>
+
+                {/* Icon */}
+                <div className={`flex-shrink-0 flex items-center justify-center ${viewMode === 'list' ? 'w-12 h-12' : 'w-20 h-20 mx-auto'}`}>
+                    {isFolderItem ? (
+                        <Folder className="w-12 h-12 text-[#1E40AF] dark:text-blue-400" />
+                    ) : (
+                        getFileIcon(itemType)
+                    )}
+                </div>
+
+                {/* Info */}
+                <div className={`flex-1 min-w-0 ${viewMode === 'list' ? 'text-left' : 'text-center mt-3'}`}>
+                    <p className="font-semibold text-[#1F2937] dark:text-white truncate text-base">
+                        {isFolderItem ? item.name : item.fileName}
+                    </p>
+                    {!isFolderItem && (
+                        <p className="text-xs text-[#6B7280] dark:text-gray-400 mt-1">
+                            {formatFileSize(item.size)} • {new Date(item.uploadedAt || item.createdAt).toLocaleDateString()}
+                        </p>
+                    )}
+                    {isFolderItem && <p className="text-xs text-[#6B7280] dark:text-gray-400">Folder</p>}
+                    {!isFolderItem && item.tags?.length > 0 && (
+                        <div className={`flex flex-wrap gap-1 mt-2 ${viewMode === 'grid' ? 'justify-center' : ''}`}>
+                            {item.tags.slice(0, 3).map((tag, i) => (
+                                <span key={i} className="px-2 py-0.5 text-[10px] bg-[#E5E7EB] dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 rounded-full">
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Quick actions */}
+                <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${viewMode === 'list' ? 'ml-auto' : 'absolute bottom-3 right-3'}`}>
+                    {!isFolderItem && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setDetailsPanel(item); }}
+                            className="p-2 text-[#6B7280] hover:text-[#1E40AF] dark:hover:text-blue-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <Info className="w-4 h-4" />
+                        </button>
+                    )}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item._id, isFolderItem, showTrash); }}
+                        className="p-2 text-red-500 hover:text-red-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+            </motion.div>
+        );
+    }, [selectedItems, viewMode, handlePreview, handleDelete, setCurrentFolder, setDetailsPanel, showTrash, lastFileRef]);
+
     if (!user) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-950 dark:bg-gray-900">
@@ -1067,7 +1207,7 @@ const FileStorage = () => {
             </div>
         );
     }
-    console.log('Rendering FileStorage, passing to UploadModal:', { isUploading, setIsUploadingType: typeof setIsUploading });
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -1123,11 +1263,14 @@ const FileStorage = () => {
                             </button>
                         </div>
                     </header>
+
                     <main className="flex-1 flex overflow-hidden">
+                        {/* Sidebar */}
                         <aside
                             className={`fixed inset-y-0 left-0 z-30 w-72 bg-[#F3F4F6] dark:bg-gray-800 border-r border-[#6B7280]/20 dark:border-gray-700 transform transition-transform duration-300 md:static md:transform-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 flex flex-col`}
                         >
                             <div className="flex-1 p-6 overflow-y-auto scrollbar-thin">
+                                {/* Upload */}
                                 <motion.section
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1148,6 +1291,8 @@ const FileStorage = () => {
                                         Upload Files
                                     </button>
                                 </motion.section>
+
+                                {/* New Folder */}
                                 <motion.section
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1177,6 +1322,8 @@ const FileStorage = () => {
                                         </button>
                                     </div>
                                 </motion.section>
+
+                                {/* Folders Tree */}
                                 <motion.section
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1203,6 +1350,8 @@ const FileStorage = () => {
                                         <p className="text-sm text-[#1E40AF] dark:text-blue-400">No folders created</p>
                                     )}
                                 </motion.section>
+
+                                {/* Filters & Search */}
                                 <motion.section
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1289,6 +1438,8 @@ const FileStorage = () => {
                                         )}
                                     </div>
                                 </motion.section>
+
+                                {/* Storage */}
                                 <motion.section
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -1300,7 +1451,7 @@ const FileStorage = () => {
                                     </h3>
                                     <div className="relative h-2 bg-[#F3F4F6] dark:bg-gray-700 rounded-full overflow-hidden">
                                         <div
-                                            className="absolute h-full bg-[#1E40AF] dark:bg-blue-700"
+                                            className="absolute h-full bg-[#1E40AF] dark:bg-blue-700 transition-all"
                                             style={{ width: `${Math.min((storageUsed / TOTAL_STORAGE) * 100, 100)}%` }}
                                         />
                                     </div>
@@ -1310,6 +1461,8 @@ const FileStorage = () => {
                                 </motion.section>
                             </div>
                         </aside>
+
+                        {/* Main Content */}
                         <section className="flex-1 flex flex-col overflow-hidden">
                             <div className="p-6 border-b border-[#6B7280]/20 dark:border-gray-700 bg-[#F3F4F6] dark:bg-gray-800">
                                 <div className="flex items-center justify-between mb-4">
@@ -1367,6 +1520,8 @@ const FileStorage = () => {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Selection bar */}
                                 {selectedItems.size > 0 && (
                                     <div className="flex items-center gap-3 bg-[#E5E7EB] dark:bg-gray-700 p-3 rounded-lg relative">
                                         <p className="text-sm text-[#1E40AF] dark:text-blue-400">{selectedItems.size} item(s) selected</p>
@@ -1381,7 +1536,7 @@ const FileStorage = () => {
                                         {showActionsMenu && (
                                             <div
                                                 ref={actionsMenuRef}
-                                                className="absolute top-full mt-2 left-40 bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg shadow-lg z-10"
+                                                className="absolute top-full mt-2 left-40 bg-[#F3F4F6] dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg shadow-lg z-10 py-1"
                                             >
                                                 <button
                                                     type="button"
@@ -1430,6 +1585,7 @@ const FileStorage = () => {
                                         </button>
                                     </div>
                                 )}
+
                                 {showTrash && (
                                     <div className="flex justify-end mt-3">
                                         <button
@@ -1443,6 +1599,8 @@ const FileStorage = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Items Grid / List */}
                             <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
                                 {filteredItems.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-[#1E40AF] dark:text-blue-400">
@@ -1476,6 +1634,8 @@ const FileStorage = () => {
                                 )}
                             </div>
                         </section>
+
+                        {/* Details Panel */}
                         {detailsPanel && (
                             <aside className="w-80 bg-[#F3F4F6] dark:bg-gray-800 border-l border-[#6B7280]/20 dark:border-gray-700 p-6 overflow-y-auto scrollbar-thin">
                                 <div className="flex justify-between items-center mb-4">
@@ -1605,6 +1765,8 @@ const FileStorage = () => {
                     </main>
                 </motion.div>
             </div>
+
+            {/* Modals */}
             <FilePreviewModal
                 isOpen={previewModal}
                 onClose={() => setPreviewModal(false)}
@@ -1631,4 +1793,5 @@ const FileStorage = () => {
         </motion.div>
     );
 };
+
 export default FileStorage;

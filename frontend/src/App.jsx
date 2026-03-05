@@ -25,6 +25,7 @@ import Appraisals from './pages/Appraisals';
 import Meeting from './pages/Meeting';
 import Training from './pages/Training';
 import Feedback from './pages/Feedback';
+import DocumentConverter from './pages/DocumentConverter';
 import { ThemeProvider } from './context/ThemeContext';
 
 const App = () => {
@@ -106,6 +107,7 @@ const App = () => {
           <Route path="/meeting" element={<Meeting />} />
           <Route path="/training" element={<Training />} />
           <Route path="/feedback" element={<Feedback />} />
+          <Route path="/document-converter" element={<DocumentConverter />} />
         </Route>
 
         <Route path="/" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />

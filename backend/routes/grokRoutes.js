@@ -3,10 +3,8 @@ import express from 'express';
 import { grokChat, getChatHistory, updateChat, deleteChat, summarizeChat } from '../controllers/grokController.js';
 import authMiddleware from '../middleware/auth.js';
 import multer from 'multer';
-
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // Increase file size limit if needed
-
 router.post('/chat', authMiddleware, upload.any(), grokChat);
 router.get('/chat-history', authMiddleware, getChatHistory);
 router.put('/chat/:chatId', authMiddleware, updateChat);
@@ -78,3 +76,6 @@ router.post('/term-definer', authMiddleware, upload.any(), (req, res) => { req.b
 router.post('/sop-query', authMiddleware, upload.any(), (req, res) => { req.body.toolId = 'sop-query'; grokChat(req, res); });
 router.post('/team-profile-query', authMiddleware, upload.any(), (req, res) => { req.body.toolId = 'team-profile-query'; grokChat(req, res); });
 export default router;
+router.post('/pdf-extractor', authMiddleware, upload.any(), (req, res) => { req.body.toolId = 'pdf-extractor'; grokChat(req, res); });
+router.post('/ppt-generator', authMiddleware, upload.any(), (req, res) => { req.body.toolId = 'ppt-generator'; grokChat(req, res); });
+
