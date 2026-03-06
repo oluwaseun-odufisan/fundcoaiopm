@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import GrokChat from '../models/grokModel.js'; // Import the GrokChat model for persisting chats
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const XLSX = require('xlsx');
 import mongoose from 'mongoose';
@@ -128,13 +127,6 @@ export const grokChat = async (req, res) => {
             }
           });
           extractedText = '[Image attached: Describe and analyze it based on the query.]';
-        } else if (mime === 'application/pdf') {
-          const data = await pdfParse(file.buffer);
-          extractedText = data.text;
-          contentParts.push({
-            type: 'text',
-            text: `Attached PDF file "${file.originalname}":\n${extractedText}`
-          });
         } else if (mime.startsWith('text/')) {
           extractedText = file.buffer.toString('utf-8');
           contentParts.push({
