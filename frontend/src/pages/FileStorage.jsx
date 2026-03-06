@@ -23,7 +23,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pd
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-const ALLOWED_TYPES = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'mp4', 'webm', 'xls', 'xlsx'];
+const ALLOWED_TYPES = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'mp4', 'webm', 'xls', 'xlsx', 'ppt', 'pptx']; 
 const TOTAL_STORAGE = 2 * 1024 * 1024 * 1024; // 2GB in bytes
 
 // Error Boundary for react-pdf

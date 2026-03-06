@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import async from 'async'; // For concurrency control
 
-const ALLOWED_TYPES = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'mp4', 'webm', 'xls', 'xlsx'];
+const ALLOWED_TYPES = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'mp4', 'webm', 'xls', 'xlsx', 'ppt', 'pptx']; 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const TOTAL_STORAGE = 2 * 1024 * 1024 * 1024; // 2GB
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'your_jwt_secret_here';
@@ -356,57 +356,50 @@ export const adminUploadFile = async (req, res) => {
 };
 
 // Get files with pagination and filtering
+// backend/controllers/fileController.js (update getFiles to handle comma-separated types)
 export const getFiles = async (req, res) => {
-    try {
-        const { page = 1, limit = 10, search, type, taskId, tags, trashed, folderId } = req.query;
-        const query = { owner: req.user._id };
-
-        if (trashed === 'true') {
-            query.deleted = true;
-        } else {
-            query.deleted = false;
-        }
-
-        if (search) {
-            query.$or = [
-                { fileName: { $regex: search, $options: 'i' } },
-                { tags: { $regex: search, $options: 'i' } },
-            ];
-        }
-
-        if (type && type !== 'all') {
-            query.type = type;
-        }
-
-        if (taskId && taskId !== 'all') {
-            query.taskId = taskId;
-        }
-
-        if (tags) {
-            const tagArray = JSON.parse(tags);
-            query.tags = { $all: tagArray };
-        }
-
-        if (folderId) {
-            query.folderId = folderId;
-        } else {
-            query.folderId = null;
-        }
-
-        const files = await File.find(query)
-            .sort({ uploadedAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(Number(limit))
-            .lean();
-
-        const total = await File.countDocuments(query);
-        const hasMore = total > page * limit;
-
-        res.json({ success: true, files, hasMore });
-    } catch (err) {
-        console.error('Fetch files error:', err.message, err.stack);
-        res.status(500).json({ success: false, message: err.message });
+  try {
+    const { page = 1, limit = 10, search, type, taskId, tags, trashed, folderId } = req.query;
+    const query = { owner: req.user._id };
+    if (trashed === 'true') {
+      query.deleted = true;
+    } else {
+      query.deleted = false;
     }
+    if (search) {
+      query.$or = [
+        { fileName: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (type && type !== 'all') {
+      const typeArray = type.split(',').map(t => t.trim()); // Split comma-separated
+      query.type = { $in: typeArray }; // Use $in for multiple types
+    }
+    if (taskId && taskId !== 'all') {
+      query.taskId = taskId;
+    }
+    if (tags) {
+      const tagArray = JSON.parse(tags);
+      query.tags = { $all: tagArray };
+    }
+    if (folderId) {
+      query.folderId = folderId;
+    } else {
+      query.folderId = null;
+    }
+    const files = await File.find(query)
+      .sort({ uploadedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+    const total = await File.countDocuments(query);
+    const hasMore = total > page * limit;
+    res.json({ success: true, files, hasMore });
+  } catch (err) {
+    console.error('Fetch files error:', err.message, err.stack);
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 // Admin: Get files for a specific user

@@ -53,7 +53,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'File Storage', path: '/file-storage', icon: <File className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Write Report', path: '/generate-report', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'AI Tools', path: '/ai-tools', icon: <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" /> },
-    { text: 'Document Studio', path: '/document-converter', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
+    { text: 'Deck Prep', path: '/document-converter', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Reminders', path: '/reminders', icon: <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Goals', path: '/goals', icon: <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     // { text: 'Appraisals', path: '/appraisals', icon: <Award className="w-5 h-5 text-green-600 dark:text-green-400" /> },

@@ -1,5 +1,5 @@
 // src/pages/DocumentConverter.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -8,6 +8,7 @@ import {
   Upload, FileText, Zap, Edit2, Image as ImageIcon, Eye, History as HistoryIcon,
   ArrowLeft, Sun, Moon, Loader2, Download, ChevronRight, ChevronLeft, AlertCircle, Plus
 } from 'lucide-react';
+import { ThemeContext } from '../context/ThemeContext';
 import DocumentUpload from '../components/DocumentUpload';
 import AIExtractionPanel from '../components/AIExtractionPanel';
 import ExtractedTextEditor from '../components/ExtractedTextEditor';
@@ -15,53 +16,11 @@ import TemplateSelector from '../components/TemplateSelector';
 import EditablePPTPreview from '../components/EditablePPTPreview';
 import HistoryList from '../components/HistoryList';
 
-// Professional Palette with dark mode
-const LIGHT_THEME = {
-  primary: '#1E40AF',
-  secondary: '#16A34A',
-  accent: '#F59E0B',
-  danger: '#DC2626',
-  neutral: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    200: '#E5E7EB',
-    300: '#D1D5DB',
-    500: '#6B7280',
-    700: '#374151',
-    900: '#111827',
-    border: '#E5E7EB'
-  },
-  bg: 'bg-gray-50',
-  cardBg: 'bg-white',
-  text: 'text-gray-900',
-  subText: 'text-gray-500'
-};
-const DARK_THEME = {
-  primary: '#60A5FA',
-  secondary: '#4ADE80',
-  accent: '#FBBF24',
-  danger: '#EF4444',
-  neutral: {
-    50: '#111827',
-    100: '#1F2937',
-    200: '#374151',
-    300: '#4B5563',
-    500: '#9CA3AF',
-    700: '#D1D5DB',
-    900: '#F3F4F6',
-    border: '#374151'
-  },
-  bg: 'bg-gray-900',
-  cardBg: 'bg-gray-800',
-  text: 'text-gray-100',
-  subText: 'text-gray-400'
-};
-
 const DocumentConverter = () => {
   const { user } = useOutletContext();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState('light');
-  const currentTheme = theme === 'light' ? LIGHT_THEME : DARK_THEME;
+  const { theme, toggleTheme } = useContext(ThemeContext);
+
   const [step, setStep] = useState(1); // 1: Upload/Select, 2: Raw Extract, 3: Edit Full Text, 4: Meaningful Prompt, 5: Edit Meaningful, 6: Select Template, 7: Editable Preview & Save
   const [documentId, setDocumentId] = useState(null);
   const [fullText, setFullText] = useState('');
@@ -75,9 +34,6 @@ const DocumentConverter = () => {
   const [history, setHistory] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [showConvertModal, setShowConvertModal] = useState(false);
-
-  const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
-
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -91,15 +47,12 @@ const DocumentConverter = () => {
       setIsLoading(false);
     }
   }, []);
-
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
-
   const handleDocumentReady = () => {
     setShowConvertModal(true);
   };
-
   const handleConfirmConvert = (convert) => {
     setShowConvertModal(false);
     if (convert) {
@@ -108,7 +61,6 @@ const DocumentConverter = () => {
       setStep(3);
     }
   };
-
   const handleSelectExisting = async (hist) => {
     setDocumentId(hist._id);
     setFileId(hist.originalFileId._id);
@@ -120,7 +72,6 @@ const DocumentConverter = () => {
     handleDocumentReady(); // Show modal
     toast.success('Selected existing document!');
   };
-
   const handleUploadSuccess = async (uploadedFileId) => {
     setIsLoading(true);
     try {
@@ -138,7 +89,6 @@ const DocumentConverter = () => {
       setIsLoading(false);
     }
   };
-
   const handleRawExtract = async () => {
     if (!documentId) return toast.error('No document selected.');
     setIsLoading(true);
@@ -163,13 +113,11 @@ const DocumentConverter = () => {
       setIsLoading(false);
     }
   };
-
   const handleSaveFullText = (editedText) => {
     setFullText(editedText);
     setStep(4);
     toast.success('Full text saved! Proceed to meaningful extraction.');
   };
-
   const handleMeaningfulExtract = async () => {
     if (!documentId) return toast.error('No document selected.');
     if (!fullText.trim()) return toast.error('No full text available. Perform raw extraction first.');
@@ -189,29 +137,27 @@ const DocumentConverter = () => {
       setIsLoading(false);
     }
   };
-
   const handleSaveExtracted = (editedText) => {
     setExtractedText(editedText);
     setStep(6);
     toast.success('Meaningful text saved! Select template.');
   };
-
-  const handleTemplateSelect = (selectedTemplateId) => {
-    setTemplateId(selectedTemplateId);
+  const handleTemplateSelect = (data) => {
+    setTemplateId(data.templateId);
+    setCleanedJson(data.cleanedJson);
     setStep(7);
-    toast.success('Template selected! Generate and adjust PPT.');
+    toast.success('Template prepared! Generate PPT.');
   };
-
   const handleGeneratePPT = async () => {
     if (!documentId) return toast.error('No document selected.');
     if (!extractedText.trim()) return toast.error('No meaningful text available. Perform extraction first.');
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/documents/generate-ppt`, { documentId, prompt: pptPrompt, templateId }, {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/documents/generate-ppt`, { documentId, prompt: pptPrompt, templateId, templateJson: cleanedJson }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setPptJson(res.data.pptJson);
+      setPptJson(res.data.pptJson || {slides: []}); // Ensure pptJson is object with slides array
       toast.success('PPT generated! Adjust and save.');
     } catch (error) {
       setErrorMessage(error.response?.data?.message || 'PPT generation failed.');
@@ -220,9 +166,8 @@ const DocumentConverter = () => {
       setIsLoading(false);
     }
   };
-
   const handleExportPPT = () => {
-    if (!pptJson) return toast.error('No PPT to save.');
+    if (!pptJson || !pptJson.slides || pptJson.slides.length === 0) return toast.error('No PPT to save.');
     import('pptxgenjs').then(PptxGenJS => {
       const pptx = new PptxGenJS.default();
       pptJson.slides.forEach((slide) => {
@@ -237,7 +182,6 @@ const DocumentConverter = () => {
       console.error(error);
     });
   };
-
   const stepConfig = [
     { id: 1, icon: Upload, title: 'Upload / Select PDF' },
     { id: 2, icon: FileText, title: 'Raw PDF Extraction' },
@@ -247,136 +191,162 @@ const DocumentConverter = () => {
     { id: 6, icon: ImageIcon, title: 'Select Template' },
     { id: 7, icon: Eye, title: 'Preview & Adjust PPT' },
   ];
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`min-h-screen ${currentTheme.bg} flex flex-col p-6`}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col font-sans"
     >
       <Toaster position="top-right" />
-      <header className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <FileText className={`w-8 h-8 text-${currentTheme.primary}`} />
-          <div>
-            <h1 className={`text-2xl font-bold ${currentTheme.text}`}>Document Converter & PPT Generator</h1>
-            <p className={`text-sm ${currentTheme.subText}`}>Upload PDF, extract full text, edit, extract meaningful content, generate PPT.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
-            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </button>
-          <button onClick={() => navigate(-1)} className={`flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 ${currentTheme.text}`}>
-            <ArrowLeft className="w-5 h-5" /> Back
-          </button>
-        </div>
-      </header>
-      <nav className="flex flex-wrap gap-2 mb-8">
-        {stepConfig.map(s => (
-          <button
-            key={s.id}
-            onClick={() => setStep(s.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${step === s.id ? `bg-${currentTheme.primary} text-white` : `bg-${currentTheme.cardBg} hover:bg-gray-200 dark:hover:bg-gray-700`}`}
-          >
-            <s.icon className="w-5 h-5" /> {s.title}
-          </button>
-        ))}
-      </nav>
-      <main className={`flex-1 ${currentTheme.cardBg} rounded-2xl p-6 shadow-lg`}>
-        <AnimatePresence mode="wait">
-          {isLoading ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-64">
-              <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
-              <p className="mt-4 text-lg">Processing...</p>
-            </motion.div>
-          ) : (
-            <>
-              {step === 1 && <DocumentUpload onSuccess={handleUploadSuccess} history={history} onSelectExisting={handleSelectExisting} />}
-              {step === 2 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                  <h2 className="text-xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Raw PDF Extraction</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Click to convert the entire PDF to text using AI. This is required for further processing.</p>
-                  <button
-                    onClick={handleRawExtract}
-                    className={`w-full p-3 bg-${currentTheme.primary} text-white rounded-lg flex items-center justify-center gap-2 hover:bg-${currentTheme.primary}/90`}
-                  >
-                    <FileText className="w-5 h-5" /> Convert PDF to Full Text
-                  </button>
-                  {errorMessage && (
-                    <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-500 rounded-lg flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-                      <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-              {step === 3 && <ExtractedTextEditor initialText={fullText} onSave={handleSaveFullText} title="Edit Full PDF Text" />}
-              {step === 4 && <AIExtractionPanel onExtract={handleMeaningfulExtract} prompt={extractionPrompt} setPrompt={setExtractionPrompt} />}
-              {step === 5 && <ExtractedTextEditor initialText={extractedText} onSave={handleSaveExtracted} title="Edit Meaningful Extracted Text" />}
-              {step === 6 && <TemplateSelector onSelect={handleTemplateSelect} />}
-              {step === 7 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                  <h2 className="text-xl font-bold flex items-center gap-2"><Eye className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Preview & Adjust PPT</h2>
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${currentTheme.text}`}>PPT Generation Prompt (Re-generate if needed)</label>
-                    <textarea
-                      value={pptPrompt}
-                      onChange={e => setPptPrompt(e.target.value)}
-                      className="w-full h-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-transparent resize-none"
-                    />
-                  </div>
-                  <div className="flex gap-4">
-                    <button onClick={handleGeneratePPT} className={`flex-1 p-3 bg-${currentTheme.primary} text-white rounded-lg flex items-center justify-center gap-2 hover:bg-${currentTheme.primary}/90`}>
-                      <Plus className="w-5 h-5" /> Generate / Re-generate PPT
-                    </button>
-                    <button onClick={handleExportPPT} disabled={!pptJson} className={`flex-1 p-3 bg-${currentTheme.secondary} text-white rounded-lg flex items-center justify-center gap-2 hover:bg-${currentTheme.secondary}/90 disabled:opacity-50`}>
-                      <Save className="w-5 h-5" /> Save & Export PPT
-                    </button>
-                  </div>
-                  {pptJson ? (
-                    <EditablePPTPreview pptJson={pptJson} setPptJson={setPptJson} />
-                  ) : (
-                    <p className="text-center text-gray-500 dark:text-gray-400">Generate PPT to preview and adjust.</p>
-                  )}
-                  {errorMessage && (
-                    <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-500 rounded-lg flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
-                      <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </>
-          )}
-        </AnimatePresence>
-      </main>
-      {showConvertModal && (
+      <div className="flex-1 max-w-[1600px] mx-auto w-full px-8 py-12">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-blue-100/50 dark:border-gray-700/50 rounded-3xl shadow-lg flex flex-col overflow-hidden"
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`${currentTheme.cardBg} p-6 rounded-lg shadow-xl max-w-sm w-full`}
-          >
-            <h3 className="text-lg font-bold mb-4">Convert PDF to Text?</h3>
-            <p className="text-sm mb-6">Do you want to convert this PDF to full text using Grok AI? This is recommended for extraction.</p>
-            <div className="flex gap-4">
-              <button onClick={() => handleConfirmConvert(true)} className={`flex-1 p-2 bg-${currentTheme.primary} text-white rounded hover:bg-${currentTheme.primary}/90`}>
-                Yes, Convert
+          {/* Header */}
+          <header className="bg-blue-50/50 dark:bg-blue-900/30 border-b border-blue-200/50 dark:border-gray-700/50 px-6 py-4 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-xl md:text-2xl font-bold text-indigo-900 dark:text-indigo-100 tracking-tight truncate">Document Converter & PPT Generator</h1>
+                <p className="text-sm text-blue-600 dark:text-blue-400 tracking-tight line-clamp-1">Upload PDF, extract, generate PPT</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-blue-100/50 dark:hover:bg-blue-900/50 transition-all duration-200">
+                {theme === 'light' ? <Moon className="w-5 h-5 text-blue-600 dark:text-blue-400" /> : <Sun className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
               </button>
-              <button onClick={() => handleConfirmConvert(false)} className={`flex-1 p-2 bg-gray-500 text-white rounded hover:bg-gray-600`}>
-                No, Skip
+              <button onClick={() => navigate(-1)} className="flex items-center gap-2 px-4 py-2 bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm">
+                <ArrowLeft className="w-5 h-5" /> Back
               </button>
             </div>
-          </motion.div>
+          </header>
+          <main className="flex-1 p-8 space-y-8 overflow-y-auto custom-scrollbar">
+            <nav className="flex flex-wrap gap-3">
+              {stepConfig.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setStep(s.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105 ${step === s.id ? 'bg-blue-500 dark:bg-blue-600 text-white' : 'bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/50'}`}
+                >
+                  <s.icon className="w-5 h-5" /> {s.title}
+                </button>
+              ))}
+            </nav>
+            <AnimatePresence mode="wait">
+              {isLoading ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-64">
+                  <Loader2 className="w-12 h-12 animate-spin text-blue-600 dark:text-blue-400" />
+                  <p className="mt-4 text-lg text-gray-900 dark:text-gray-100">Processing...</p>
+                </motion.div>
+              ) : (
+                <>
+                  {step === 1 && <DocumentUpload onSuccess={handleUploadSuccess} history={history} onSelectExisting={handleSelectExisting} />}
+                  {step === 2 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2"><FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Raw PDF Extraction</h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Click to convert the entire PDF to text using AI. This is required for further processing.</p>
+                      <button
+                        onClick={handleRawExtract}
+                        className="w-full px-4 py-3 bg-blue-500 dark:bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-200"
+                      >
+                        <FileText className="w-5 h-5" /> Convert PDF to Full Text
+                      </button>
+                      {errorMessage && (
+                        <div className="p-4 bg-red-100/50 dark:bg-red-900/50 border border-red-200/50 dark:border-red-700/50 rounded-lg flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                          <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                  {step === 3 && <ExtractedTextEditor initialText={fullText} onSave={handleSaveFullText} title="Edit Full PDF Text" />}
+                  {step === 4 && <AIExtractionPanel onExtract={handleMeaningfulExtract} prompt={extractionPrompt} setPrompt={setExtractionPrompt} />}
+                  {step === 5 && <ExtractedTextEditor initialText={extractedText} onSave={handleSaveExtracted} title="Edit Meaningful Extracted Text" />}
+                  {step === 6 && <TemplateSelector onSelect={handleTemplateSelect} />}
+                  {step === 7 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2"><Eye className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Preview & Adjust PPT</h2>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PPT Generation Prompt (Re-generate if needed)</label>
+                        <textarea
+                          value={pptPrompt}
+                          onChange={e => setPptPrompt(e.target.value)}
+                          className="w-full h-32 bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-4 py-3 text-sm text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-200 resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-4">
+                        <button onClick={handleGeneratePPT} className="flex-1 px-4 py-3 bg-blue-500 dark:bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-200">
+                          <Plus className="w-5 h-5" /> Generate / Re-generate PPT
+                        </button>
+                        <button onClick={handleExportPPT} disabled={!pptJson} className="flex-1 px-4 py-3 bg-green-500 dark:bg-green-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-green-600 dark:hover:bg-green-500 transition-all duration-200 disabled:opacity-50">
+                          <Download className="w-5 h-5" /> Save & Export PPT
+                        </button>
+                      </div>
+                      {pptJson ? (
+                        <EditablePPTPreview pptJson={pptJson} setPptJson={setPptJson} templateStyles={cleanedJson?.templateStyles || {}} />
+                      ) : (
+                        <p className="text-center text-gray-600 dark:text-gray-400">Generate PPT to preview and adjust.</p>
+                      )}
+                      {errorMessage && (
+                        <div className="p-4 bg-red-100/50 dark:bg-red-900/50 border border-red-200/50 dark:border-red-700/50 rounded-lg flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                          <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </>
+              )}
+            </AnimatePresence>
+          </main>
         </motion.div>
-      )}
+        {showConvertModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-6 w-full max-w-sm border border-gray-200/50 dark:border-gray-700/50 shadow-xl"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Convert PDF to Text?</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Do you want to convert this PDF to full text using Grok AI? This is recommended for extraction.</p>
+              <div className="flex gap-4">
+                <button onClick={() => handleConfirmConvert(true)} className="flex-1 px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-200">
+                  Yes, Convert
+                </button>
+                <button onClick={() => handleConfirmConvert(false)} className="flex-1 px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-lg hover:bg-gray-600 dark:hover:bg-gray-500 transition-all duration-200">
+                  No, Skip
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </div>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(59, 130, 246, 0.1);
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #3B82F6;
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #2563EB;
+        }
+      `}</style>
     </motion.div>
   );
 };
-
 export default DocumentConverter;
