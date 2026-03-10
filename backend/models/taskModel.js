@@ -1,5 +1,6 @@
+// taskModel.js
 import mongoose from 'mongoose';
-
+ 
 const taskSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -26,6 +27,30 @@ const taskSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    checklist: [{
+        text: {
+            type: String,
+            required: true,
+        },
+        completed: {
+            type: Boolean,
+            default: false,
+        }
+    }],
+    submissionStatus: {
+        type: String,
+        enum: ['not_submitted', 'submitted', 'approved', 'rejected'],
+        default: 'not_submitted',
+    },
+    appealStatus: {
+        type: String,
+        enum: ['not_appealed', 'accepted', 'rejected'],
+        default: 'not_appealed',
+    },
+    createdByAdmin: {
+        type: Boolean,
+        default: false,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -35,6 +60,6 @@ const taskSchema = new mongoose.Schema({
         ref: 'File',
     }],
 });
-
+ 
 const Task = mongoose.models.Task || mongoose.model('Task', taskSchema);
 export default Task;

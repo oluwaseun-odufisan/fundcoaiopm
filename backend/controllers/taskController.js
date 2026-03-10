@@ -1,3 +1,4 @@
+// taskController.js
 import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
@@ -56,13 +57,17 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
 // CREATE A NEW TASK
 export const createTask = async (req, res) => {
     try {
-        const { title, description, priority, dueDate, completed } = req.body;
+        const { title, description, priority, dueDate, checklist = [] } = req.body;
         const task = new Task({
             title,
             description,
             priority,
             dueDate: dueDate ? new Date(dueDate) : undefined,
-            completed: completed === 'Yes' || completed === true,
+            checklist,
+            completed: checklist.length > 0 ? checklist.every(item => item.completed) : false,
+            submissionStatus: 'not_submitted',
+            appealStatus: 'not_appealed',
+            createdByAdmin: false,
             owner: req.user._id,
         });
         const saved = await task.save();
@@ -71,6 +76,9 @@ export const createTask = async (req, res) => {
         if (task.dueDate) {
             await createOrUpdateTaskReminder(saved, req.user._id, req.io);
         }
+
+        // Emit new task event
+        req.io.to(`user:${req.user._id}`).emit('newTask', saved);
 
         res.status(201).json({ success: true, task: saved });
     } catch (err) {
@@ -108,9 +116,24 @@ export const getTaskById = async (req, res) => {
 export const updateTask = async (req, res) => {
     try {
         const data = { ...req.body };
-        if (data.completed !== undefined) {
+        const existing = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Task not found or not yours' });
+        }
+        if (existing.submissionStatus === 'approved') {
+            return res.status(400).json({ success: false, message: 'Approved tasks cannot be edited' });
+        }
+        let hasChecklist = existing.checklist.length > 0;
+        if (data.checklist) {
+            hasChecklist = data.checklist.length > 0;
+        }
+
+        if (data.completed !== undefined && hasChecklist) {
+            delete data.completed;
+        } else if (data.completed !== undefined) {
             data.completed = data.completed === 'Yes' || data.completed === true;
         }
+
         if (data.dueDate) {
             data.dueDate = new Date(data.dueDate);
         }
@@ -121,16 +144,73 @@ export const updateTask = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        if (!updated) {
-            return res.status(404).json({ success: false, message: 'Task not found or not yours' });
+        // Compute completed based on checklist if present
+        if (updated.checklist && updated.checklist.length > 0) {
+            const allCompleted = updated.checklist.every(item => item.completed);
+            if (updated.completed !== allCompleted) {
+                updated.completed = allCompleted;
+                await updated.save();
+            }
         }
 
         // Update or create reminder
         await createOrUpdateTaskReminder(updated, req.user._id, req.io);
 
+        // Emit update task event
+        req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+
         res.json({ success: true, task: updated });
     } catch (err) {
         console.error('Error updating task:', err.message);
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// SUBMIT TASK FOR APPROVAL
+export const submitTask = async (req, res) => {
+    try {
+        const task = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Task not found or not yours' });
+        }
+        if (!task.completed) {
+            return res.status(400).json({ success: false, message: 'Task must be completed before submission' });
+        }
+        if (task.submissionStatus !== 'not_submitted') {
+            return res.status(400).json({ success: false, message: 'Task already submitted' });
+        }
+        task.submissionStatus = 'submitted';
+        const updated = await task.save();
+        req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+        // Notify admin somehow, perhaps emit to admin socket
+        res.json({ success: true, task: updated });
+    } catch (err) {
+        console.error('Error submitting task:', err.message);
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// APPEAL TASK
+export const appealTask = async (req, res) => {
+    try {
+        const { appealStatus } = req.body;
+        const task = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Task not found or not yours' });
+        }
+        if (!task.createdByAdmin) {
+            return res.status(400).json({ success: false, message: 'Only admin-created tasks can be appealed' });
+        }
+        if (task.appealStatus !== 'not_appealed') {
+            return res.status(400).json({ success: false, message: 'Task appeal status already set' });
+        }
+        task.appealStatus = appealStatus;
+        const updated = await task.save();
+        req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+        // Notify admin
+        res.json({ success: true, task: updated });
+    } catch (err) {
+        console.error('Error appealing task:', err.message);
         res.status(400).json({ success: false, message: err.message });
     }
 };
@@ -146,6 +226,9 @@ export const deleteTask = async (req, res) => {
         // Remove associated reminders
         await Reminder.deleteMany({ targetId: req.params.id, targetModel: 'Task', user: req.user._id });
         req.io.to(`user:${req.user._id}`).emit('reminderDeleted', req.params.id);
+
+        // Emit delete task event
+        req.io.to(`user:${req.user._id}`).emit('deleteTask', req.params.id);
 
         res.json({ success: true, message: 'Task deleted' });
     } catch (err) {

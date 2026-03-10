@@ -1,5 +1,6 @@
+// adminTaskModel.js
 import mongoose from 'mongoose';
-
+ 
 // Reuse the user-side Task model by connecting to the same database
 const Task = mongoose.models.Task || mongoose.model('Task', new mongoose.Schema({
     title: {
@@ -27,6 +28,30 @@ const Task = mongoose.models.Task || mongoose.model('Task', new mongoose.Schema(
         type: Boolean,
         default: false,
     },
+    checklist: [{
+        text: {
+            type: String,
+            required: true,
+        },
+        completed: {
+            type: Boolean,
+            default: false,
+        }
+    }],
+    submissionStatus: {
+        type: String,
+        enum: ['not_submitted', 'submitted', 'approved', 'rejected'],
+        default: 'not_submitted',
+    },
+    appealStatus: {
+        type: String,
+        enum: ['not_appealed', 'accepted', 'rejected'],
+        default: 'not_appealed',
+    },
+    createdByAdmin: {
+        type: Boolean,
+        default: false,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -36,5 +61,5 @@ const Task = mongoose.models.Task || mongoose.model('Task', new mongoose.Schema(
         ref: 'File',
     }],
 }));
-
+ 
 export default Task;

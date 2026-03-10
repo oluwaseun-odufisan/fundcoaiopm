@@ -1,3 +1,4 @@
+// AdminTaskOverview.jsx
 import React, { useState, useEffect } from 'react';
 import {
     FileText,
@@ -7,12 +8,14 @@ import {
     Search,
     ChevronUp,
     ChevronDown,
+    CheckSquare,
     Edit,
     Users,
     Trash2,
     Download,
     PieChart,
     BarChart2,
+    CheckCircle,
     Save,
     X,
 } from 'lucide-react';
@@ -33,13 +36,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import io from 'socket.io-client';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-
+ 
 // Register Chart.js components
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Title, Tooltip, Legend);
-
+ 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 const USER_API_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:4001';
-
+ 
 const AdminTaskOverview = ({ onLogout }) => {
     const [tasks, setTasks] = useState([]);
     const [users, setUsers] = useState([]);
@@ -55,9 +58,10 @@ const AdminTaskOverview = ({ onLogout }) => {
     const [success, setSuccess] = useState('');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editTask, setEditTask] = useState(null);
+    const [newItem, setNewItem] = useState('');
     const [report, setReport] = useState(null);
     const tasksPerPage = 5;
-
+ 
     // Chart data states
     const [taskStatusData, setTaskStatusData] = useState({
         labels: ['Completed', 'Pending', 'Overdue'],
@@ -70,7 +74,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             },
         ],
     });
-
+ 
     const [overdueTasksData, setOverdueTasksData] = useState({
         labels: [],
         datasets: [
@@ -81,7 +85,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             },
         ],
     });
-
+ 
     // Chart options
     const pieChartOptions = {
         responsive: true,
@@ -97,7 +101,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             },
         },
     };
-
+ 
     const barChartOptions = {
         responsive: true,
         plugins: {
@@ -116,7 +120,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             y: { ticks: { color: '#2D3748' } },
         },
     };
-
+ 
     // Calculate days remaining or passed
     const calculateDays = (dueDate, completed) => {
         if (completed || !dueDate) return { days: 'Task Done', color: 'transparent' };
@@ -126,7 +130,7 @@ const AdminTaskOverview = ({ onLogout }) => {
         due.setHours(0, 0, 0, 0); // Normalize to midnight
         const diffTime = due - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+ 
         if (diffDays > 0) {
             return {
                 days: `${diffDays} day${diffDays !== 1 ? 's' : ''} remaining`,
@@ -141,13 +145,13 @@ const AdminTaskOverview = ({ onLogout }) => {
             return { days: 'Due today', color: 'bg-yellow-100 text-yellow-700' };
         }
     };
-
+ 
     // Socket.IO setup
     useEffect(() => {
         const socket = io(USER_API_URL, {
             auth: { token: localStorage.getItem('adminToken') },
         });
-
+ 
         socket.on('connect', () => console.log('Socket connected:', socket.id));
         socket.on('newTask', (task) => {
             setTasks((prev) => [task, ...prev]);
@@ -166,18 +170,18 @@ const AdminTaskOverview = ({ onLogout }) => {
             toast.success('Task deleted!');
             updateChartData(tasks.filter((task) => task._id !== taskId));
         });
-
+ 
         socket.on('connect_error', (err) => {
             console.error('Socket connection error:', err.message);
             toast.error('Failed to connect to real-time updates.');
         });
-
+ 
         return () => {
             socket.disconnect();
             console.log('Socket disconnected');
         };
     }, [tasks]);
-
+ 
     // Fetch tasks
     const fetchTasks = async () => {
         setIsLoading(true);
@@ -187,7 +191,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             if (filterStatus) params.status = filterStatus;
             if (filterPriority) params.priority = filterPriority;
             if (filterUser) params.ownerEmail = filterUser;
-
+ 
             const response = await axios.get(`${API_BASE_URL}/api/admin/tasks`, {
                 headers: { Authorization: `Bearer ${token}` },
                 params,
@@ -207,7 +211,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Fetch users
     const fetchUsers = async () => {
         try {
@@ -221,7 +225,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             toast.error(err.response?.data?.message || 'Failed to fetch users.');
         }
     };
-
+ 
     // Fetch report
     const fetchReport = async () => {
         try {
@@ -235,7 +239,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             toast.error(err.response?.data?.message || 'Failed to fetch report.');
         }
     };
-
+ 
     // Update chart data
     const updateChartData = (taskList) => {
         const today = new Date();
@@ -245,7 +249,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             Overdue: 0,
         };
         const overdueByUser = {};
-
+ 
         taskList.forEach((task) => {
             const dueDate = task.dueDate ? new Date(task.dueDate) : null;
             let status = task.completed ? 'Completed' : 'Pending';
@@ -258,7 +262,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                 overdueByUser[email] = (overdueByUser[email] || 0) + 1;
             }
         });
-
+ 
         setTaskStatusData({
             labels: ['Completed', 'Pending', 'Overdue'],
             datasets: [
@@ -270,7 +274,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                 },
             ],
         });
-
+ 
         setOverdueTasksData({
             labels: Object.keys(overdueByUser),
             datasets: [
@@ -282,14 +286,14 @@ const AdminTaskOverview = ({ onLogout }) => {
             ],
         });
     };
-
+ 
     // Initial fetch
     useEffect(() => {
         fetchTasks();
         fetchUsers();
         fetchReport();
     }, [filterUser, filterStatus, filterPriority]);
-
+ 
     // Handle sorting
     const handleSort = (key) => {
         let direction = 'asc';
@@ -297,7 +301,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             direction = 'desc';
         }
         setSortConfig({ key, direction });
-
+ 
         setTasks((prev) =>
             [...prev].sort((a, b) => {
                 if (key === 'completed') {
@@ -319,21 +323,21 @@ const AdminTaskOverview = ({ onLogout }) => {
             })
         );
     };
-
+ 
     // Handle search and filters
     const filteredTasks = tasks.filter(
         (task) =>
-        (task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            task.owner?.email.toLowerCase().includes(searchQuery.toLowerCase()))
+            (task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                task.owner?.email.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-
+ 
     // Pagination logic
     const totalPages = Math.ceil(filteredTasks.length / tasksPerPage);
     const paginatedTasks = filteredTasks.slice(
         (currentPage - 1) * tasksPerPage,
         currentPage * tasksPerPage
     );
-
+ 
     // Handle bulk selection
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -342,13 +346,13 @@ const AdminTaskOverview = ({ onLogout }) => {
             setSelectedTasks([]);
         }
     };
-
+ 
     const handleSelectTask = (id) => {
         setSelectedTasks((prev) =>
             prev.includes(id) ? prev.filter((taskId) => taskId !== id) : [...prev, id]
         );
     };
-
+ 
     // Handle bulk actions
     const handleBulkAction = async (action, value = null) => {
         setIsLoading(true);
@@ -389,6 +393,18 @@ const AdminTaskOverview = ({ onLogout }) => {
                 );
                 toast.success('Selected tasks deleted successfully!');
                 setSuccess('Selected tasks deleted successfully!');
+            } else if (action === 'approve') {
+                await Promise.all(
+                    selectedTasks.map((id) =>
+                        axios.post(
+                            `${API_BASE_URL}/api/admin/tasks/${id}/approve`,
+                            { action: value },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        )
+                    )
+                );
+                toast.success(`Selected tasks ${value === 'approve' ? 'approved' : 'rejected'} successfully!`);
+                setSuccess(`Selected tasks ${value === 'approve' ? 'approved' : 'rejected'} successfully!`);
             }
             setSelectedTasks([]);
             fetchTasks();
@@ -400,7 +416,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle individual actions
     const handleEdit = (task) => {
         setEditTask({
@@ -411,12 +427,13 @@ const AdminTaskOverview = ({ onLogout }) => {
             completed: task.completed ? 'Completed' : 'Pending',
             priority: task.priority,
             dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
+            checklist: task.checklist || [],
         });
         setIsEditModalOpen(true);
         setError('');
         setSuccess('');
     };
-
+ 
     const handleReassign = async (id, ownerEmail) => {
         if (!ownerEmail) return;
         setIsLoading(true);
@@ -438,7 +455,28 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
+    const handleApprove = async (id, action) => {
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('adminToken');
+            await axios.post(
+                `${API_BASE_URL}/api/admin/tasks/${id}/approve`,
+                { action },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            toast.success(`Task ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
+            setSuccess(`Task ${action === 'approve' ? 'approved' : 'rejected'} successfully!`);
+            fetchTasks();
+        } catch (err) {
+            console.error('Error approving/rejecting task:', err.response?.data || err.message);
+            toast.error(err.response?.data?.message || 'Failed to approve/reject task.');
+            setError(err.response?.data?.message || 'Failed to approve/reject task.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+ 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this task?')) {
             setIsLoading(true);
@@ -459,13 +497,32 @@ const AdminTaskOverview = ({ onLogout }) => {
             }
         }
     };
-
+ 
+    const handleAddItem = () => {
+        if (newItem.trim()) {
+            const newList = [...editTask.checklist, { text: newItem.trim(), completed: false }];
+            setEditTask({ ...editTask, checklist: newList });
+            setNewItem('');
+        }
+    };
+ 
+    const handleRemoveItem = (idx) => {
+        const newList = editTask.checklist.filter((_, i) => i !== idx);
+        setEditTask({ ...editTask, checklist: newList });
+    };
+ 
+    const handleToggleItem = (idx) => {
+        const newList = [...editTask.checklist];
+        newList[idx].completed = !newList[idx].completed;
+        setEditTask({ ...editTask, checklist: newList });
+    };
+ 
     // Handle create/edit form submission
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-
+ 
         // Validation
         if (!editTask.title || editTask.title.length < 3) {
             setError('Task title must be at least 3 characters long.');
@@ -492,7 +549,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
             return;
         }
-
+ 
         try {
             const token = localStorage.getItem('adminToken');
             if (editTask._id) {
@@ -506,6 +563,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                         completed: editTask.completed === 'Completed',
                         priority: editTask.priority,
                         dueDate: editTask.dueDate,
+                        checklist: editTask.checklist,
                     },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -522,6 +580,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                         completed: editTask.completed === 'Completed',
                         priority: editTask.priority,
                         dueDate: editTask.dueDate,
+                        checklist: editTask.checklist,
                     },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -539,7 +598,7 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle export
     const handleExport = async (format) => {
         if (filteredTasks.length === 0) {
@@ -590,7 +649,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                 doc.text('Task Overview Report', 14, 22);
                 doc.setFontSize(10);
                 doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-
+ 
                 const tableData = filteredTasks.map((task) => [
                     task.title,
                     task.owner?.email || 'Unassigned',
@@ -604,7 +663,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A',
                     calculateDays(task.dueDate, task.completed).days,
                 ]);
-
+ 
                 doc.autoTable({
                     startY: 40,
                     head: [['Title', 'User', 'Status', 'Priority', 'Created At', 'Due Date', 'Days Remaining']],
@@ -612,7 +671,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     styles: { fontSize: 8 },
                     headStyles: { fillColor: [0, 206, 209] },
                 });
-
+ 
                 doc.save(`task_overview_${Date.now()}.pdf`);
             }
             toast.success(`Tasks exported as ${format.toUpperCase()} successfully!`);
@@ -625,9 +684,9 @@ const AdminTaskOverview = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     return (
-        <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-7xl mx-auto animate-fade-in">
+        <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl w-full min-h-screen overflow-y-auto">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-teal-600">Task Overview</h2>
@@ -641,6 +700,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                                 completed: 'Pending',
                                 priority: 'Low',
                                 dueDate: '',
+                                checklist: [],
                             });
                             setIsEditModalOpen(true);
                         }}
@@ -657,14 +717,11 @@ const AdminTaskOverview = ({ onLogout }) => {
                             className="pl-10 pr-4 py-2 rounded-full border border-teal-200 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white text-gray-700 w-64"
                             aria-label="Search tasks"
                         />
-                        <Search
-                            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-teal-600"
-                            size={18}
-                        />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-teal-600" size={18} />
                     </div>
                 </div>
             </div>
-
+ 
             {/* Filters */}
             <div className="flex flex-wrap gap-4 mb-4">
                 <select
@@ -703,7 +760,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     <option value="Low">Low</option>
                 </select>
             </div>
-
+ 
             {/* Report Summary */}
             {report && (
                 <motion.div
@@ -724,7 +781,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </div>
                 </motion.div>
             )}
-
+ 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl shadow-lg animate-fade-in">
@@ -749,7 +806,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </div>
                 </div>
             </div>
-
+ 
             {/* Bulk Actions */}
             {selectedTasks.length > 0 && (
                 <motion.div
@@ -770,27 +827,44 @@ const AdminTaskOverview = ({ onLogout }) => {
                             </option>
                         ))}
                     </select>
-                    <select
-                        onChange={(e) => handleBulkAction('setStatus', e.target.value)}
-                        className="p-2 rounded-lg border border-teal-200 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white text-gray-700"
-                        aria-label="Change status of selected tasks"
+                    <button
+                        onClick={() => handleBulkAction('setStatus', 'Completed')}
+                        className="px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
                         disabled={isLoading}
                     >
-                        <option value="">Change Status</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Pending">Pending</option>
-                    </select>
+                        Mark Completed
+                    </button>
+                    <button
+                        onClick={() => handleBulkAction('setStatus', 'Pending')}
+                        className="px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
+                        disabled={isLoading}
+                    >
+                        Mark Pending
+                    </button>
+                    <button
+                        onClick={() => handleBulkAction('approve', 'approve')}
+                        className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
+                        disabled={isLoading}
+                    >
+                        Approve
+                    </button>
+                    <button
+                        onClick={() => handleBulkAction('approve', 'reject')}
+                        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-all duration-300"
+                        disabled={isLoading}
+                    >
+                        Reject
+                    </button>
                     <button
                         onClick={() => handleBulkAction('delete')}
                         className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
                         disabled={isLoading}
-                        aria-label="Delete selected tasks"
                     >
                         Delete
                     </button>
                 </motion.div>
             )}
-
+ 
             {/* Success/Error Messages */}
             <AnimatePresence>
                 {error && (
@@ -814,7 +888,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
+ 
             {/* Export Options */}
             <div className="flex space-x-4 mb-6">
                 <button
@@ -836,7 +910,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     Export PDF
                 </button>
             </div>
-
+ 
             {/* Task Table */}
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -903,7 +977,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                                         ? 'Overdue'
                                         : 'Pending';
                                 const { days, color } = calculateDays(task.dueDate, task.completed);
-
+ 
                                 return (
                                     <tr
                                         key={task._id}
@@ -983,6 +1057,22 @@ const AdminTaskOverview = ({ onLogout }) => {
                                                     </option>
                                                 ))}
                                             </select>
+                                            <button
+                                                onClick={() => handleApprove(task._id, 'approve')}
+                                                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-all duration-300"
+                                                aria-label={`Approve ${task.title}`}
+                                                disabled={isLoading || task.submissionStatus !== 'submitted'}
+                                            >
+                                                <CheckCircle size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleApprove(task._id, 'reject')}
+                                                className="p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-all duration-300"
+                                                aria-label={`Reject ${task.title}`}
+                                                disabled={isLoading || task.submissionStatus !== 'submitted'}
+                                            >
+                                                <X size={16} />
+                                            </button>
                                             <motion.button
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
@@ -1001,7 +1091,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </tbody>
                 </table>
             </div>
-
+ 
             {/* Pagination */}
             <div className="flex justify-between items-center mt-4">
                 <p className="text-sm text-gray-600">
@@ -1028,7 +1118,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </button>
                 </div>
             </div>
-
+ 
             {/* Edit/Create Modal */}
             <AnimatePresence>
                 {isEditModalOpen && (
@@ -1162,12 +1252,53 @@ const AdminTaskOverview = ({ onLogout }) => {
                                         />
                                     </div>
                                 </div>
+                                {/* Checklist */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                                        <CheckSquare className="w-4 h-4 text-blue-700" /> Checklist
+                                    </label>
+                                    <ul className="space-y-2 mb-4">
+                                        {editTask.checklist.map((item, idx) => (
+                                            <li key={idx} className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.completed}
+                                                    onChange={() => handleToggleItem(idx)}
+                                                    className="h-5 w-5 text-blue-700 focus:ring-blue-500 border-blue-300 rounded transition-all duration-200"
+                                                />
+                                                <span className={`text-sm text-gray-800 font-medium flex-1 ${item.completed ? 'line-through text-gray-500' : ''}`}>{item.text}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveItem(idx)}
+                                                    className="text-red-600 hover:text-red-800 text-sm"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newItem}
+                                            onChange={(e) => setNewItem(e.target.value)}
+                                            className="flex-1 border border-blue-200 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white text-gray-800 placeholder-gray-500"
+                                            placeholder="New checklist item"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddItem}
+                                            className="bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-800 hover:shadow-lg transition-all duration-300"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex space-x-4">
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className={`w-full py-3 rounded-lg bg-teal-600 text-white font-semibold flex items-center justify-center transition-all duration-300 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-teal-700 hover:shadow-lg'
-                                            }`}
+                                        className={`w-full py-3 rounded-lg bg-teal-600 text-white font-semibold flex items-center justify-center transition-all duration-300 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-teal-700 hover:shadow-lg'}`}
                                         aria-label="Save task"
                                     >
                                         {isLoading ? (
@@ -1201,7 +1332,7 @@ const AdminTaskOverview = ({ onLogout }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
+ 
             {isLoading && (
                 <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
                     <div className="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
@@ -1210,5 +1341,5 @@ const AdminTaskOverview = ({ onLogout }) => {
         </div>
     );
 };
-
+ 
 export default AdminTaskOverview;

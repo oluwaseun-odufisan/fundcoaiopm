@@ -1,3 +1,4 @@
+// AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -33,7 +34,6 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import io from 'socket.io-client';
-
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -45,10 +45,8 @@ ChartJS.register(
     Tooltip,
     Legend
 );
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const USER_API_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:4001';
-
 const AdminDashboard = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -147,7 +145,6 @@ const AdminDashboard = () => {
         taskCompletionRate: 0,
         goalCompletionRate: 0,
     });
-
     const fetchDashboardData = async () => {
         setIsLoading(true);
         setError('');
@@ -157,12 +154,10 @@ const AdminDashboard = () => {
             if (!token) {
                 throw new Error('Authentication token missing. Please log in again.');
             }
-
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const startDate = new Date(today);
             startDate.setDate(today.getDate() - 30);
-
             const [usersResponse, tasksResponse, goalsResponse] = await Promise.all([
                 axios.get(`${API_BASE_URL}/api/admin/users`, {
                     headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
@@ -182,11 +177,9 @@ const AdminDashboard = () => {
                     },
                 }),
             ]);
-
             if (!usersResponse.data.success || !tasksResponse.data.success || !goalsResponse.data.success) {
                 throw new Error('Failed to fetch dashboard data.');
             }
-
             const users = usersResponse.data.users;
             const tasks = tasksResponse.data.tasks.map((task) => {
                 const priority = task.priority ? String(task.priority).toLowerCase() : 'medium';
@@ -197,7 +190,6 @@ const AdminDashboard = () => {
                 return { ...task, priority: validPriority };
             });
             const goals = goalsResponse.data.goals;
-
             // Debug priority distribution
             const priorityCounts = {
                 low: tasks.filter((task) => task.priority === 'low' && !task.completed).length,
@@ -208,13 +200,11 @@ const AdminDashboard = () => {
             setPriorityDebug(
                 `Active Tasks - Low: ${priorityCounts.low}, Medium: ${priorityCounts.medium}, High: ${priorityCounts.high}`
             );
-
             const totalUsers = users.length;
             const activeTasks = {
                 pending: tasks.filter((task) => !task.completed).length,
                 completed: tasks.filter((task) => task.completed).length,
             };
-
             const overdueTasks = tasks
                 .filter((task) => !task.completed && task.dueDate && new Date(task.dueDate) < today)
                 .map((task) => ({
@@ -224,7 +214,6 @@ const AdminDashboard = () => {
                     owner: task.owner?.name || task.owner?.email || 'Unknown',
                 }))
                 .slice(0, 5);
-
             const goalsInProgress = goals
                 .filter((goal) => ['approved', 'pending'].includes(goal.status))
                 .map((goal) => ({
@@ -235,7 +224,6 @@ const AdminDashboard = () => {
                             ? (goal.subGoals.filter((sg) => sg.completed).length / goal.subGoals.length) * 100
                             : 0,
                 }));
-
             const completedTasks = tasks.filter(
                 (task) => task.completed && task.createdAt && task.completedAt && !isNaN(new Date(task.createdAt)) && !isNaN(new Date(task.completedAt))
             );
@@ -247,14 +235,11 @@ const AdminDashboard = () => {
                       return sum + (isNaN(diffDays) ? 0 : diffDays);
                   }, 0) / completedTasks.length
                 : 0;
-
             const taskCompletionRate = tasks.length > 0 ? (activeTasks.completed / tasks.length) * 100 : 0;
-
             const completedGoals = goals.filter(
                 (goal) => goal.subGoals && goal.subGoals.length > 0 && goal.subGoals.every((sg) => sg.completed)
             ).length;
             const goalCompletionRate = goals.length > 0 ? (completedGoals / goals.length) * 100 : 0;
-
             const topPerformers = users
                 .map((user) => {
                     const userTasks = tasks.filter((task) => task.owner?._id === user._id);
@@ -279,7 +264,6 @@ const AdminDashboard = () => {
                 })
                 .sort((a, b) => b.score - a.score)
                 .slice(0, 3);
-
             const weeks = [];
             for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 7)) {
                 weeks.push(new Date(d).toISOString().split('T')[0]);
@@ -321,7 +305,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const dates = [];
             for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 5)) {
                 dates.push(new Date(d).toISOString().split('T')[0]);
@@ -356,7 +339,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const goalProgressData = {
                 labels: goalsInProgress.map((goal) => goal.title),
                 datasets: [
@@ -368,7 +350,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const userProductivityData = {
                 labels: users.slice(0, 5).map((user) => user.name || user.email || 'Unknown'),
                 datasets: [
@@ -393,7 +374,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const taskPriorityData = {
                 labels: ['Low', 'Medium', 'High'],
                 datasets: [
@@ -409,11 +389,9 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             if (taskPriorityData.datasets[0].data.every((count) => count === 0)) {
                 setError('No active tasks with priority data. Please assign priorities in Task Management.');
             }
-
             const goalMilestoneData = {
                 labels: weeks.map((_, i) => `Week ${i + 1}`),
                 datasets: [
@@ -442,7 +420,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const storagePerUserData = {
                 labels: users.slice(0, 5).map((user) => user.name || user.email || 'Unknown'),
                 datasets: [
@@ -453,7 +430,6 @@ const AdminDashboard = () => {
                     },
                 ],
             };
-
             const recentActivities = [
                 ...tasks.slice(0, 10).map((task) => ({
                     id: task._id,
@@ -468,7 +444,6 @@ const AdminDashboard = () => {
                     timestamp: new Date(goal.createdAt).toISOString().replace('T', ' ').slice(0, 16),
                 })),
             ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 20);
-
             setDashboardData({
                 totalUsers,
                 activeTasks,
@@ -489,7 +464,6 @@ const AdminDashboard = () => {
                 taskCompletionRate,
                 goalCompletionRate,
             });
-
             toast.success('Dashboard data loaded successfully!');
         } catch (err) {
             console.error('Error fetching dashboard data:', err);
@@ -510,32 +484,26 @@ const AdminDashboard = () => {
             setIsLoading(false);
         }
     };
-
     useEffect(() => {
         const socket = io(USER_API_URL, {
             auth: { token: localStorage.getItem('adminToken') },
             reconnectionAttempts: 3,
             reconnectionDelay: 2000,
         });
-
         socket.on('connect', () => {
             console.log('Socket connected:', socket.id);
             toast.success('Connected to real-time updates');
         });
-
         socket.on('newTask', (task) => {
             const taskWithPriority = {
                 ...task,
                 priority: task.priority ? String(task.priority).toLowerCase() : 'medium',
             };
-            const validPriority = ['low', 'medium', 'high'].includes(taskWithPriority.priority)
-                ? taskWithPriority.priority
-                : 'medium';
+            const validPriority = ['low', 'medium', 'high'].includes(taskWithPriority.priority) ? taskWithPriority.priority : 'medium';
             if (taskWithPriority.priority !== validPriority) {
                 console.warn(`New Task ${task._id}: Invalid priority '${task.priority}', defaulting to 'medium'`);
             }
             taskWithPriority.priority = validPriority;
-
             setDashboardData((prev) => {
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !taskWithPriority.completed;
                 const newPriorityData = {
@@ -553,7 +521,6 @@ const AdminDashboard = () => {
                     ],
                 };
                 console.log('Updated Priority Data (newTask):', newPriorityData);
-
                 return {
                     ...prev,
                     activeTasks: {
@@ -585,7 +552,6 @@ const AdminDashboard = () => {
             });
             toast.success('New task created!');
         });
-
         socket.on('updateTask', (updatedTask) => {
             const taskWithPriority = {
                 ...updatedTask,
@@ -598,7 +564,6 @@ const AdminDashboard = () => {
                 console.warn(`Updated Task ${updatedTask._id}: Invalid priority '${updatedTask.priority}', defaulting to 'medium'`);
             }
             taskWithPriority.priority = validPriority;
-
             setDashboardData((prev) => {
                 const wasCompleted = prev.activeTasks.completed > 0 && taskWithPriority.completed;
                 const isOverdue = taskWithPriority.dueDate && new Date(taskWithPriority.dueDate) < new Date() && !taskWithPriority.completed;
@@ -620,7 +585,6 @@ const AdminDashboard = () => {
                     ],
                 };
                 console.log('Updated Priority Data (updateTask):', newPriorityData);
-
                 const updatedOverdueTasks = prev.overdueTasks
                     .filter((task) => task.id !== taskWithPriority._id)
                     .slice(0, 5);
@@ -632,7 +596,6 @@ const AdminDashboard = () => {
                         owner: taskWithPriority.owner?.name || taskWithPriority.owner?.email || 'Unknown',
                     });
                 }
-
                 // Recalculate top performers
                 const users = prev.topPerformers.map((user) => ({
                     ...user,
@@ -643,7 +606,6 @@ const AdminDashboard = () => {
                         ? Math.min((user.completedTasks + 1) * 10 + user.avgGoalCompletion * 0.5, 100)
                         : user.score,
                 })).sort((a, b) => b.score - a.score).slice(0, 3);
-
                 return {
                     ...prev,
                     activeTasks: {
@@ -670,7 +632,6 @@ const AdminDashboard = () => {
             });
             toast.success('Task updated!');
         });
-
         socket.on('deleteTask', (taskId) => {
             setDashboardData((prev) => {
                 const deletedTask = prev.recentActivities.find((act) => act.id === taskId);
@@ -688,7 +649,6 @@ const AdminDashboard = () => {
                     ],
                 };
                 console.log('Updated Priority Data (deleteTask):', newPriorityData);
-
                 return {
                     ...prev,
                     activeTasks: {
@@ -702,7 +662,6 @@ const AdminDashboard = () => {
             });
             toast.success('Task deleted!');
         });
-
         socket.on('newGoal', (goal) => {
             setDashboardData((prev) => ({
                 ...prev,
@@ -738,7 +697,6 @@ const AdminDashboard = () => {
             }));
             toast.success('New goal created!');
         });
-
         socket.on('goalUpdated', (updatedGoal) => {
             setDashboardData((prev) => ({
                 ...prev,
@@ -791,7 +749,6 @@ const AdminDashboard = () => {
             }));
             toast.success('Goal updated!');
         });
-
         socket.on('goalDeleted', (goalId) => {
             setDashboardData((prev) => ({
                 ...prev,
@@ -809,30 +766,23 @@ const AdminDashboard = () => {
             }));
             toast.success('Goal deleted!');
         });
-
         socket.on('connect_error', (err) => {
             console.error('Socket connection error:', err.message);
             toast.error('Failed to connect to real-time updates. Retrying...');
         });
-
-        socket.on('error', (err) => {
-            console.error('Socket error:', err.message);
-            toast.error('Real-time update error occurred.');
+        socket.on('error', (error) => {
+            console.error('Socket error:', error.message);
         });
-
         return () => {
             socket.disconnect();
             console.log('Socket disconnected');
         };
     }, []);
-
     useEffect(() => {
         fetchDashboardData();
     }, []);
-
     const storageUsedPercentage =
         (parseFloat(dashboardData.storage.totalUsed) / parseFloat(dashboardData.storage.totalQuota)) * 100;
-
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -867,7 +817,6 @@ const AdminDashboard = () => {
             },
         },
     };
-
     const pieChartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -881,7 +830,7 @@ const AdminDashboard = () => {
                 titleColor: '#FFFFFF',
                 bodyColor: '#FFFFFF',
                 borderColor: '#E5E7EB',
-                depth: 1,
+                borderWidth: 1,
             },
             title: {
                 display: true,
@@ -890,7 +839,6 @@ const AdminDashboard = () => {
             },
         },
     };
-
     const horizontalBarChartOptions = {
         ...chartOptions,
         indexAxis: 'y',
@@ -908,7 +856,6 @@ const AdminDashboard = () => {
             },
         },
     };
-
     return (
         <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl w-full min-h-screen overflow-y-auto">
             {isLoading ? (
@@ -927,11 +874,9 @@ const AdminDashboard = () => {
                             Debug: {priorityDebug}
                         </div>
                     )}
-
                     <h1 className="text-3xl font-bold text-teal-700 mb-6 animate-fade-in">
                         Admin Analytics Dashboard
                     </h1>
-
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                         <div className="lg:col-span-2">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
@@ -1009,7 +954,6 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="bg-white/90 backdrop-blur-sm p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-300 animate-fade-in">
                                     <h3 className="text-lg font-semibold text-teal-700 flex items-center mb-4">
@@ -1165,6 +1109,7 @@ const AdminDashboard = () => {
                                         { to: '/admin/file-management', label: 'Manage Files' },
                                         { to: '/admin/reports', label: 'View Reports' },
                                         { to: '/admin/analytics', label: 'View Analytics' },
+                                        { to: '/admin/assigned', label: 'Assigned Tasks' },
                                     ].map((link, index) => (
                                         <Link
                                             key={link.to}
@@ -1292,5 +1237,4 @@ const AdminDashboard = () => {
         </div>
     );
 };
-
 export default AdminDashboard;

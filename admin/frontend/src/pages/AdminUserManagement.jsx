@@ -1,3 +1,4 @@
+// AdminUserManagement.jsx
 import React, { useState, useEffect } from 'react';
 import {
     User,
@@ -20,7 +21,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
+ 
 const AdminUserManagement = ({ onLogout }) => {
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
@@ -46,14 +47,14 @@ const AdminUserManagement = ({ onLogout }) => {
     const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const usersPerPage = 10;
-
+ 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-
+ 
     // Fetch users on mount
     useEffect(() => {
         fetchUsers();
     }, []);
-
+ 
     // Fetch all users
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -93,7 +94,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle API errors
     const handleApiError = (err, defaultMessage) => {
         console.error('API error:', err.message, err.response?.data);
@@ -109,7 +110,7 @@ const AdminUserManagement = ({ onLogout }) => {
             navigate('/admin/dashboard', { replace: true });
         }
     };
-
+ 
     // Handle sorting
     const handleSort = (key) => {
         let direction = 'asc';
@@ -117,7 +118,7 @@ const AdminUserManagement = ({ onLogout }) => {
             direction = 'desc';
         }
         setSortConfig({ key, direction });
-
+ 
         const sortedUsers = [...users].sort((a, b) => {
             if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
             if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
@@ -125,7 +126,7 @@ const AdminUserManagement = ({ onLogout }) => {
         });
         setUsers(sortedUsers);
     };
-
+ 
     // Handle search and filters
     const filteredUsers = users.filter(
         (user) =>
@@ -134,14 +135,14 @@ const AdminUserManagement = ({ onLogout }) => {
             (filterRole ? user.role === filterRole : true) &&
             (filterStatus ? user.status === filterStatus : true)
     );
-
+ 
     // Pagination logic
     const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
     const paginatedUsers = filteredUsers.slice(
         (currentPage - 1) * usersPerPage,
         currentPage * usersPerPage
     );
-
+ 
     // Handle bulk selection
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -150,13 +151,13 @@ const AdminUserManagement = ({ onLogout }) => {
             setSelectedUsers([]);
         }
     };
-
+ 
     const handleSelectUser = (id) => {
         setSelectedUsers((prev) =>
             prev.includes(id) ? prev.filter((userId) => userId !== id) : [...prev, id]
         );
     };
-
+ 
     // Handle bulk actions
     const handleBulkAction = async (action) => {
         setIsLoading(true);
@@ -197,7 +198,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle individual actions
     const handleEdit = (user) => {
         setEditUser({
@@ -211,7 +212,7 @@ const AdminUserManagement = ({ onLogout }) => {
         setError('');
         setSuccess('');
     };
-
+ 
     const handleToggleStatus = async (id, currentStatus) => {
         setIsLoading(true);
         try {
@@ -230,7 +231,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     const handleResetPassword = async (id) => {
         setIsLoading(true);
         try {
@@ -249,7 +250,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this user?')) {
             setIsLoading(true);
@@ -268,7 +269,7 @@ const AdminUserManagement = ({ onLogout }) => {
             }
         }
     };
-
+ 
     const handleViewLogs = async (id) => {
         setIsLoading(true);
         try {
@@ -286,13 +287,13 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle edit form submission
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-
+ 
         if (!editUser.name || editUser.name.length < 2) {
             setError('Name must be at least 2 characters long.');
             setIsLoading(false);
@@ -308,7 +309,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
             return;
         }
-
+ 
         try {
             const token = localStorage.getItem('adminToken');
             // Update profile (name, email, preferences)
@@ -342,13 +343,13 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Handle create form submission
     const handleCreateSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-
+ 
         if (!createUser.name || createUser.name.length < 2) {
             setError('Name must be at least 2 characters long.');
             setIsLoading(false);
@@ -369,7 +370,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
             return;
         }
-
+ 
         try {
             const token = localStorage.getItem('adminToken');
             const response = await axios.post(
@@ -396,7 +397,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
-
+ 
     // Render access denied message if error indicates 403
     if (error === 'Access denied: Super-admin role required to manage users.') {
         return (
@@ -414,9 +415,9 @@ const AdminUserManagement = ({ onLogout }) => {
             </div>
         );
     }
-
+ 
     return (
-        <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-7xl mx-auto relative animate-fade-in">
+        <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl w-full min-h-screen overflow-y-auto">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-teal-600">User Management</h2>
@@ -442,7 +443,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             </div>
-
+ 
             {/* Filters */}
             <div className="flex space-x-4 mb-4">
                 <select
@@ -467,7 +468,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     <option value="Inactive">Inactive</option>
                 </select>
             </div>
-
+ 
             {/* Success/Error Messages */}
             {error && error !== 'Access denied: Super-admin role required to manage users.' && (
                 <div className="text-red-500 text-sm text-center animate-shake mb-4">
@@ -479,7 +480,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     {success}
                 </div>
             )}
-
+ 
             {/* Bulk Actions */}
             {selectedUsers.length > 0 && (
                 <div className="flex space-x-2 mb-4 animate-slide-in">
@@ -513,7 +514,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             )}
-
+ 
             {/* User Table */}
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -617,7 +618,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </tbody>
                 </table>
             </div>
-
+ 
             {/* Pagination */}
             <div className="flex justify-between items-center mt-4">
                 <p className="text-sm text-gray-600">
@@ -644,7 +645,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             </div>
-
+ 
             {/* Edit Modal */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
@@ -762,7 +763,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </div>
                 </div>
             )}
-
+ 
             {/* Create Modal */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
@@ -904,7 +905,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </div>
                 </div>
             )}
-
+ 
             {/* Activity Logs Modal */}
             {isLogsModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
@@ -946,5 +947,5 @@ const AdminUserManagement = ({ onLogout }) => {
         </div>
     );
 };
-
+ 
 export default AdminUserManagement;

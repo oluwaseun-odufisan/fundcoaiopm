@@ -1,10 +1,11 @@
+// adminUserController.js
 import User from '../models/adminUserModel.js';
 import validator from 'validator';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
+ 
 const JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'your_jwt_secret_here';
-
+ 
 // Get all users
 export async function getAllUsers(req, res) {
     try {
@@ -21,11 +22,11 @@ export async function getAllUsers(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Create a new user
 export async function createUser(req, res) {
     const { name, email, password, role, preferences } = req.body;
-
+ 
     if (!name || !email || !password || !role) {
         return res.status(400).json({ success: false, message: 'All fields are required' });
     }
@@ -41,7 +42,7 @@ export async function createUser(req, res) {
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         if (await User.findOne({ email })) {
             return res.status(409).json({ success: false, message: 'Email already exists' });
@@ -64,19 +65,19 @@ export async function createUser(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Update user profile
 export async function updateUserProfile(req, res) {
     const { userId } = req.params;
     const { name, email, preferences } = req.body;
-
+ 
     if (!name || !email || !validator.isEmail(email)) {
         return res.status(400).json({ success: false, message: 'Valid name and email required' });
     }
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const existingUser = await User.findOne({ email, _id: { $ne: userId } });
         if (existingUser) {
@@ -101,14 +102,14 @@ export async function updateUserProfile(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Deactivate user account
 export async function deactivateUser(req, res) {
     const { userId } = req.params;
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const user = await User.findByIdAndUpdate(
             userId,
@@ -127,14 +128,14 @@ export async function deactivateUser(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Delete user account
 export async function deleteUser(req, res) {
     const { userId } = req.params;
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const user = await User.findByIdAndDelete(userId);
         if (!user) {
@@ -146,19 +147,19 @@ export async function deleteUser(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Reset user password
 export async function resetUserPassword(req, res) {
     const { userId } = req.params;
     const { newPassword } = req.body;
-
+ 
     if (!newPassword || newPassword.length < 8) {
         return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const user = await User.findById(userId);
         if (!user) {
@@ -173,19 +174,19 @@ export async function resetUserPassword(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Assign user role
 export async function assignUserRole(req, res) {
     const { userId } = req.params;
     const { role } = req.body;
-
+ 
     if (!role || !['standard', 'team-lead', 'admin'].includes(role)) {
         return res.status(400).json({ success: false, message: 'Invalid role' });
     }
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const user = await User.findByIdAndUpdate(
             userId,
@@ -204,14 +205,14 @@ export async function assignUserRole(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-
+ 
 // Get user activity logs
 export async function getUserActivityLogs(req, res) {
     const { userId } = req.params;
     if (req.admin.role !== 'super-admin') {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-
+ 
     try {
         const user = await User.findById(userId).select('activityLogs');
         if (!user) {

@@ -1,6 +1,7 @@
+// adminModel.js
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-
+ 
 const adminSchema = new mongoose.Schema(
     {
         name: {
@@ -42,7 +43,7 @@ const adminSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
-
+ 
 // Hash password before saving
 adminSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
@@ -53,10 +54,10 @@ adminSchema.pre('save', async function (next) {
         next(err);
     }
 });
-
+ 
 // Compare password method
 adminSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
-
+ 
 export default mongoose.model('Admin', adminSchema);

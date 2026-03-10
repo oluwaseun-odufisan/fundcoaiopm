@@ -1,3 +1,4 @@
+// CompletePage.jsx
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, Filter } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
@@ -6,6 +7,7 @@ import TaskModal from '../components/TaskModal';
 const CompletePage = () => {
   const { tasks = [], refreshTasks } = useOutletContext();
   const [sortBy, setSortBy] = useState('newest');
+  const [search, setSearch] = useState(''); // Added search for improved filtering
   const [selectedTask, setSelectedTask] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const sortedCompletedTasks = useMemo(() => {
@@ -15,6 +17,7 @@ const CompletePage = () => {
         task.completed === 1 ||
         (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
       )
+      .filter(task => task.title.toLowerCase().includes(search.toLowerCase()) || task.description?.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => {
         if (sortBy === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
         if (sortBy === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
@@ -24,7 +27,7 @@ const CompletePage = () => {
         }
         return 0;
       });
-  }, [tasks, sortBy]);
+  }, [tasks, sortBy, search]);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans">
       {/* === Main Container === */}
@@ -55,6 +58,13 @@ const CompletePage = () => {
                 <option value="oldest">Oldest First</option>
                 <option value="priority">By Priority</option>
               </select>
+              <input // Added search input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search completed tasks..."
+                className="flex-1 border border-blue-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white text-gray-800 placeholder-gray-500 text-sm"
+              />
             </div>
           </div>
           {/* === Task List — Hover Preview with Scroll === */}
@@ -80,7 +90,7 @@ const CompletePage = () => {
                       <TaskItem
                         task={task}
                         showCompleteCheckbox={false}
-                        onRefresh={refreshTasks}
+                        onRefresh={refreshTasks?.()}
                         onEdit={() => { setSelectedTask(task); setShowModal(true); }}
                       />
                     </div>
@@ -114,7 +124,7 @@ const CompletePage = () => {
           {/* === Task Modal === */}
           <TaskModal
             isOpen={!!selectedTask || showModal}
-            onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks(); }}
+            onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks?.(); }}
             taskToEdit={selectedTask}
           />
         </div>
