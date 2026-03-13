@@ -55,7 +55,7 @@ export const rawExtract = async (req, res) => {
     const simulatedReq = {
       user: req.user,
       body: {
-        messages: [{ role: 'user', content: 'Extract and output ONLY the full raw text from all pages of the attached PDF, concatenated sequentially, without any additional text, introductions, summaries, formatting, markdown, or comments. Use browse_pdf_attachment(file_name="attached.pdf", pages="all") or search_pdf_attachment(query="") to get the complete text.' }],
+        messages: [{ role: 'user', content: 'Extract and output ONLY the full raw text from ALL pages of the attached PDF, concatenated sequentially from beginning to end, with EVERY single character, word, sentence, paragraph, table, heading, and footer included. Do not truncate, summarize, omit, or add any extra text, comments, or markdown. Use browse_pdf_attachment(file_name="attached.pdf", pages="all") or search_pdf_attachment(query="") to get the COMPLETE document text without ANY missing content.' }],
         taskContext: null,
         toolId: 'pdf-extractor'
       },
@@ -138,7 +138,7 @@ export const extractText = async (req, res) => {
     let newGrokChat;
     if (doc.grokChatId) {
       await GrokChat.findByIdAndUpdate(doc.grokChatId, {
-        $push: { messages: { $each: simulatedReq.body.messages.concat({ role: 'assistant', content: extracted }) } }
+        $push: { messages: simulatedReq.body.messages.concat({ role: 'assistant', content: extracted }) }
       });
     } else {
       newGrokChat = new GrokChat({
@@ -185,7 +185,7 @@ export const generatePPT = async (req, res) => {
     const simulatedReq = {
       user: req.user,
       body: {
-        messages: [{ role: 'user', content: `${prompt || 'Generate PPT from this content'}.\nContent: ${doc.extractedText}\nTemplate Structure: ${JSON.stringify(templateJson)}\nFill the template slides with content, applying styles intelligently to format the PowerPoint automatically. Output JSON matching template structure with filled title/content.` }],
+        messages: [{ role: 'user', content: `${prompt || 'Generate PPT from this content'}.\nContent: ${doc.extractedText}\nTemplate Structure: ${JSON.stringify(templateJson)}\nFill the template slides with content, applying styles intelligently to format the PowerPoint automatically. Output JSON matching template structure with filled title/content.'` }],
         taskContext: null,
         toolId: 'ppt-generator'
       },
@@ -210,11 +210,13 @@ export const generatePPT = async (req, res) => {
     }
     doc.pptJson = pptJson;
     await doc.save();
-    // Update GrokChat if linked
+    // Update GrokChat
     if (doc.grokChatId) {
-      await GrokChat.findByIdAndUpdate(doc.grokChatId, { $push: { messages: { $each: simulatedReq.body.messages.concat({ role: 'assistant', content: pptJsonStr }) } } });
+      await GrokChat.findByIdAndUpdate(doc.grokChatId, {
+        $push: { messages: simulatedReq.body.messages.concat({ role: 'assistant', content: pptJsonStr }) }
+      });
     }
-    res.json({ success: true, pptJson: pptJson });
+    res.json({ success: true, pptJson });
   } catch (error) {
     console.error('Generate PPT error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to generate PPT', error: error.message });
@@ -236,21 +238,19 @@ export const extractTemplateStructure = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only PPT/PPTX templates can be extracted' });
     }
     const url = `https://gateway.pinata.cloud/ipfs/${file.cid}`;
-    // Fetch PDF buffer from IPFS
     const response = await axios.get(url, { responseType: 'arraybuffer' });
     const buffer = Buffer.from(response.data);
     // Simulate req for grokChat to extract structure
     const simulatedReq = {
       user: req.user,
       body: {
-        messages: [{ role: 'user', content: 'Use code_execution tool to parse the attached PPT/PPTX file (use python-pptx library in Python code) and extract the full structure, styles (colors, fonts, layouts), and existing texts as JSON: {"templateStyles": {colors: {}, fonts: {}}, "slides": [{"title": "existing title", "content": "existing content", "layout": "string"}]}' }],
+        messages: [{ role: 'user', content: 'Respond ONLY with valid JSON. Use code_execution tool to parse the attached PPT/PPTX file (use python-pptx library in Python code) and extract the full structure, styles (colors, fonts, layouts), and EVERY existing text from ALL slides without omitting ANY content. Output exactly: {"templateStyles": {colors: {}, fonts: {}}, "slides": [{"title": "existing title", "content": "existing content", "layout": "string"}]}' }],
         taskContext: null,
         toolId: 'ppt-generator'
       },
       files: [{ buffer, originalname: file.fileName, mimetype: `application/vnd.openxmlformats-officedocument.presentationml.presentation` }]
     };
     let extractedStr = '';
-    // Call grokChat function, capture stream
     await callGrokChat(simulatedReq, {
       setHeader: () => {},
       write: (data) => {
@@ -264,9 +264,8 @@ export const extractTemplateStructure = async (req, res) => {
     let extractedJson;
     try {
       extractedJson = JSON.parse(extractedStr);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError.message, 'Raw string:', extractedStr);
-      return res.status(500).json({ success: false, message: 'Invalid JSON from Grok for template structure', rawOutput: extractedStr });
+    } catch {
+      throw new Error('Invalid JSON from Grok for template structure');
     }
     res.json({ success: true, extractedJson });
   } catch (error) {
@@ -290,21 +289,19 @@ export const cleanTemplate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only PPT/PPTX templates can be cleaned' });
     }
     const url = `https://gateway.pinata.cloud/ipfs/${file.cid}`;
-    // Fetch PDF buffer from IPFS
     const response = await axios.get(url, { responseType: 'arraybuffer' });
     const buffer = Buffer.from(response.data);
     // Simulate req for grokChat to clean template
     const simulatedReq = {
       user: req.user,
       body: {
-        messages: [{ role: 'user', content: 'Use code_execution tool to parse the attached PPT/PPTX file (use python-pptx library) and extract structure/styles, then output cleaned JSON with empty texts: {"templateStyles": {colors: {}, fonts: {}}, "slides": [{"title": "", "content": "", "layout": ""}]}' }],
+        messages: [{ role: 'user', content: 'Respond ONLY with valid JSON. Use code_execution tool to parse the attached PPT/PPTX file (use python-pptx library) and extract structure/styles, then output cleaned JSON with empty texts: {"templateStyles": {colors: {}, fonts: {}}, "slides": [{"title": "", "content": "", "layout": ""}]}' }],
         taskContext: null,
         toolId: 'ppt-generator'
       },
       files: [{ buffer, originalname: file.fileName, mimetype: `application/vnd.openxmlformats-officedocument.presentationml.presentation` }]
     };
     let cleanedStr = '';
-    // Call grokChat function, capture stream
     await callGrokChat(simulatedReq, {
       setHeader: () => {},
       write: (data) => {
@@ -318,9 +315,8 @@ export const cleanTemplate = async (req, res) => {
     let cleanedJson;
     try {
       cleanedJson = JSON.parse(cleanedStr);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError.message, 'Raw string:', cleanedStr);
-      return res.status(500).json({ success: false, message: 'Invalid JSON from Grok for cleaned template', rawOutput: cleanedStr });
+    } catch {
+      throw new Error('Invalid JSON from Grok for cleaned template');
     }
     res.json({ success: true, cleanedJson });
   } catch (error) {

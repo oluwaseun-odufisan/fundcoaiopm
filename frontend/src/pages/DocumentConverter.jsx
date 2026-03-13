@@ -185,7 +185,7 @@ const DocumentConverter = () => {
   const stepConfig = [
     { id: 1, icon: Upload, title: 'Upload / Select PDF' },
     { id: 2, icon: FileText, title: 'Raw PDF Extraction' },
-    { id: 3, icon: Edit2, title: 'Edit Full Text' },
+    { id: 3, icon: Edit2, title: 'Edit Text' },
     { id: 4, icon: Zap, title: 'Meaningful Extraction Prompt' },
     { id: 5, icon: Edit2, title: 'Edit Meaningful Text' },
     { id: 6, icon: ImageIcon, title: 'Select Template' },
@@ -248,12 +248,12 @@ const DocumentConverter = () => {
                   {step === 2 && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2"><FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Raw PDF Extraction</h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Click to convert the entire PDF to text using AI. This is required for further processing.</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Click to convert the PDF to text using AI. This is required for further processing.</p>
                       <button
                         onClick={handleRawExtract}
                         className="w-full px-4 py-3 bg-blue-500 dark:bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-200"
                       >
-                        <FileText className="w-5 h-5" /> Convert PDF to Full Text
+                        <FileText className="w-5 h-5" /> Convert PDF to Text
                       </button>
                       {errorMessage && (
                         <div className="p-4 bg-red-100/50 dark:bg-red-900/50 border border-red-200/50 dark:border-red-700/50 rounded-lg flex items-start gap-2">
