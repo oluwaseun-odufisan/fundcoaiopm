@@ -4,18 +4,15 @@ import authMiddleware from '../middleware/auth.js';
 import {
   getLeaderboard,
   getMyPerformance,
-  getUserPerformance,
+  getUserDetails,        // ← added
   awardBonus,
 } from '../controllers/performanceController.js';
 
 const performanceRouter = express.Router();
 
-// PUBLIC TO ALL AUTHENTICATED USERS
 performanceRouter.get('/leaderboard', authMiddleware, getLeaderboard);
 performanceRouter.get('/me', authMiddleware, getMyPerformance);
-
-// ADMIN / TEAM-LEAD ONLY
-performanceRouter.get('/:userId', authMiddleware, getUserPerformance);
+performanceRouter.get('/user/:userId/details', authMiddleware, getUserDetails); // ← new protected route
 performanceRouter.post('/award', authMiddleware, awardBonus);
 
 export default performanceRouter;

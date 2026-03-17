@@ -6,17 +6,17 @@ import {
   calculateUserTotalScore,
   calculateCompletionRate,
   getUserLevel,
-  getBonusEligibility,
+  calculateTaskScore,
+  calculateGoalScore,
+  PRIORITY_WEIGHTS,
 } from '../utils/performanceCalculator.js';
 
 const getLeaderboard = async (req, res) => {
   try {
-    // All active users
     const users = await User.find({ isActive: true })
-      .select('name email role points level badges lastActive activityLogs')
+      .select('name email role points level badges lastActive')
       .lean();
 
-    // All tasks & goals (populate owner for grouping)
     const allTasks = await Task.find({})
       .select('owner priority completed submissionStatus checklist')
       .lean();
@@ -25,15 +25,10 @@ const getLeaderboard = async (req, res) => {
       .select('owner subGoals')
       .lean();
 
-    // Group data
     const userMap = {};
     users.forEach(u => {
       const idStr = u._id.toString();
-      userMap[idStr] = {
-        ...u,
-        tasks: [],
-        goals: [],
-      };
+      userMap[idStr] = { ...u, tasks: [], goals: [] };
     });
 
     allTasks.forEach(t => {
@@ -46,7 +41,6 @@ const getLeaderboard = async (req, res) => {
       if (userMap[uid]) userMap[uid].goals.push(g);
     });
 
-    // Compute scores
     let leaderboard = Object.values(userMap).map(userData => {
       const totalScore = calculateUserTotalScore(userData.tasks, userData.goals);
       const completionRate = calculateCompletionRate(userData.tasks);
@@ -61,18 +55,13 @@ const getLeaderboard = async (req, res) => {
         badges: userData.badges || [],
         lastActive: userData.lastActive,
         totalScore,
-        taskScore: userData.tasks.reduce((sum, t) => sum + (t.completed ? 1 : 0), 0),
         completionRate,
-        weightedTasksCompleted: userData.tasks.filter(t => t.completed).length,
-        rank: 0, // assigned later
+        rank: 0,
       };
     });
 
-    // Sort + rank
     leaderboard.sort((a, b) => b.totalScore - a.totalScore);
-    leaderboard.forEach((user, index) => {
-      user.rank = index + 1;
-    });
+    leaderboard.forEach((user, i) => { user.rank = i + 1; });
 
     const top3 = leaderboard.slice(0, 3);
     const rest = leaderboard.slice(3);
@@ -91,7 +80,6 @@ const getLeaderboard = async (req, res) => {
 const getMyPerformance = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const tasks = await Task.find({ owner: userId }).lean();
     const goals = await Goal.find({ owner: userId }).lean();
 
@@ -116,33 +104,102 @@ const getMyPerformance = async (req, res) => {
   }
 };
 
-const getUserPerformance = async (req, res) => {
-  // Admin / Team-lead only
-  if (!['admin', 'team-lead'].includes(req.user.role)) {
-    return res.status(403).json({ success: false, message: 'Access denied' });
-  }
-
+const getUserDetails = async (req, res) => {
   try {
     const { userId } = req.params;
-    const tasks = await Task.find({ owner: userId }).lean();
-    const goals = await Goal.find({ owner: userId }).lean();
+    const requestingUser = req.user;
 
-    const totalScore = calculateUserTotalScore(tasks, goals);
-    const completionRate = calculateCompletionRate(tasks);
-    const level = getUserLevel(totalScore);
+    // Everyone can see aggregated stats of others
+    // Only self or admin can see bonus history
+    const canSeeBonusHistory = requestingUser.id === userId || requestingUser.role === 'admin';
 
-    res.json({
-      success: true,
-      performance: {
-        totalScore,
-        completionRate,
-        level,
-        taskCount: tasks.length,
-        completedTasks: tasks.filter(t => t.completed).length,
-      },
+    const [tasks, goals, targetUser] = await Promise.all([
+      Task.find({ owner: userId }).select('priority completed submissionStatus checklist').lean(),
+      Goal.find({ owner: userId }).select('subGoals').lean(),
+      User.findById(userId).select('name role level badges activityLogs').lean(),
+    ]);
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // ── Aggregated task stats (NO TITLES) ──
+    const taskStatsByPriority = {
+      Low: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 },
+      Medium: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 },
+      High: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 },
+    };
+
+    let totalTaskPoints = 0;
+    let totalChecklistBonus = 0;
+    let totalApprovalBonus = 0;
+
+    tasks.forEach(task => {
+      if (!task.priority || !taskStatsByPriority[task.priority]) return;
+
+      const stats = taskStatsByPriority[task.priority];
+      stats.count++;
+
+      if (task.completed) {
+        stats.completed++;
+        const score = calculateTaskScore(task);
+        totalTaskPoints += score;
+
+        // Breakdown
+        const weight = PRIORITY_WEIGHTS[task.priority] || 10;
+        const approval = task.submissionStatus === 'approved' ? 30 : 0;
+        const checklistB = task.checklist?.length
+          ? Math.round((task.checklist.filter(c => c.completed).length / task.checklist.length) * 20)
+          : 0;
+
+        totalChecklistBonus += checklistB;
+        totalApprovalBonus += approval;
+
+        stats.checklistBonusTotal += checklistB;
+      }
     });
+
+    // ── Goal stats ──
+    let totalGoalPoints = 0;
+    let completedGoals = 0;
+    let totalGoals = goals.length;
+
+    goals.forEach(g => {
+      const progress = g.subGoals.length ? (g.subGoals.filter(s => s.completed).length / g.subGoals.length) * 100 : 0;
+      const points = Math.round(progress);
+      totalGoalPoints += points;
+      if (progress === 100) completedGoals++;
+    });
+
+    const totalScore = totalTaskPoints + totalGoalPoints;
+    const completionRate = tasks.length ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0;
+
+    // ── Response ──
+    const response = {
+      success: true,
+      user: {
+        name: targetUser.name,
+        role: targetUser.role,
+        level: targetUser.level,
+      },
+      totalScore,
+      taskPoints: totalTaskPoints,
+      goalPoints: totalGoalPoints,
+      completionRate,
+      taskStatsByPriority,
+      totalChecklistBonus,
+      totalApprovalBonus,
+      totalGoals,
+      completedGoals,
+      bonusHistory: canSeeBonusHistory
+        ? targetUser.activityLogs?.filter(log => log.action === 'bonus_awarded') || []
+        : [],
+    };
+
+    res.json(response);
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to load user performance' });
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to load user details' });
   }
 };
 
@@ -165,18 +222,20 @@ const awardBonus = async (req, res) => {
     user.points = newPoints;
     user.activityLogs.push({
       action: 'bonus_awarded',
-      details: `Bonus of ${bonusAmount} points awarded. Reason: ${reason}`,
+      details: `Bonus of ${bonusAmount} points awarded. Reason: ${reason || 'No reason provided'}`,
       timestamp: new Date(),
     });
 
-    // Optional: auto level update
-    user.level = getUserLevel(newPoints); // reuse calculator
+    user.level = getUserLevel(newPoints);
 
     await user.save();
 
-    // Real-time emit to user
     if (global.io) {
-      global.io.to(`user:${userId}`).emit('bonusAwarded', { points: bonusAmount, reason, newTotal: newPoints });
+      global.io.to(`user:${userId}`).emit('bonusAwarded', {
+        points: bonusAmount,
+        reason,
+        newTotal: newPoints,
+      });
     }
 
     res.json({
@@ -190,4 +249,4 @@ const awardBonus = async (req, res) => {
   }
 };
 
-export { getLeaderboard, getMyPerformance, getUserPerformance, awardBonus };
+export { getLeaderboard, getMyPerformance, getUserDetails, awardBonus };
