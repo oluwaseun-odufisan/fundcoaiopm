@@ -1,11 +1,21 @@
-// New routes/performanceRoutes.js
+// routes/performanceRoutes.js
 import express from 'express';
 import authMiddleware from '../middleware/auth.js';
-import { getUsersPerformance, redeemPoints } from '../controllers/performanceController.js';
+import {
+  getLeaderboard,
+  getMyPerformance,
+  getUserPerformance,
+  awardBonus,
+} from '../controllers/performanceController.js';
 
 const performanceRouter = express.Router();
 
-performanceRouter.get('/users', authMiddleware, getUsersPerformance);
-performanceRouter.post('/redeem', authMiddleware, redeemPoints);  // Assume only admin or self, add check if needed
+// PUBLIC TO ALL AUTHENTICATED USERS
+performanceRouter.get('/leaderboard', authMiddleware, getLeaderboard);
+performanceRouter.get('/me', authMiddleware, getMyPerformance);
+
+// ADMIN / TEAM-LEAD ONLY
+performanceRouter.get('/:userId', authMiddleware, getUserPerformance);
+performanceRouter.post('/award', authMiddleware, awardBonus);
 
 export default performanceRouter;

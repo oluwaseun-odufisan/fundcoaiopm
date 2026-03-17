@@ -16,7 +16,7 @@ import UrlShortener from './pages/UrlShortener';
 import FileStorage from './pages/FileStorage';
 import PerformanceAnalytics from './pages/PerformanceAnalytics';
 import GenerateReport from './pages/GenerateReport';
-import Payment from './pages/PerformanceBoard';
+import PerformanceDashboard from './pages/PerformanceDashboard';
 import SocialFeed from './pages/SocialFeed';
 import AiTools from './pages/AiTools';
 import Reminders from './pages/Reminders';
@@ -98,7 +98,7 @@ const App = () => {
           <Route path="/file-storage" element={<FileStorage />} />
           <Route path="/analytics" element={<PerformanceAnalytics />} />
           <Route path="/generate-report" element={<GenerateReport />} />
-          <Route path="/performance-board" element={<Payment />} />
+          <Route path="/performance" element={<PerformanceDashboard />} />
           <Route path="/social-feed" element={<SocialFeed />} />
           <Route path="/ai-tools" element={<AiTools />} />
           <Route path="/reminders" element={<Reminders />} />
