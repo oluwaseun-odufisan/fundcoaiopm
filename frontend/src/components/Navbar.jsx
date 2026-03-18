@@ -28,6 +28,7 @@ const Navbar = ({ user = {}, onLogout }) => {
 
   const handleMenuToggle = () => setMenuOpen((prev) => !prev);
   const handleEmailMenuToggle = () => setEmailMenuOpen((prev) => !prev);
+
   const handleLogout = () => {
     setMenuOpen(false);
     setEmailMenuOpen(false);
@@ -36,34 +37,35 @@ const Navbar = ({ user = {}, onLogout }) => {
 
   const emailLinks = [
     { name: 'Outlook', href: 'https://outlook.live.com', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/50', ring: 'ring-blue-200 dark:ring-blue-700' },
-    { name: 'Gmail', href: 'https://mail.google.com', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/50', ring: 'ring-red-200 dark:ring-red-700' },
-    { name: 'Yahoo', href: 'https://mail.yahoo.com', color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-50 dark:bg-purple-900/50', ring: 'ring-purple-200 dark:ring-purple-700' },
+    { name: 'Gmail',   href: 'https://mail.google.com',   color: 'text-red-600 dark:text-red-400',   bgColor: 'bg-red-50 dark:bg-red-900/50',   ring: 'ring-red-200 dark:ring-red-700' },
+    { name: 'Yahoo',   href: 'https://mail.yahoo.com',   color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-50 dark:bg-purple-900/50', ring: 'ring-purple-200 dark:ring-purple-700' },
   ];
 
   return (
     <header className="fixed top-0 left-0 w-full z-[60] bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700 shadow-md font-sans">
       <div className="flex items-center justify-between px-4 md:px-6 lg:pl-4 lg:pr-8 h-16 max-w-screen-2xl mx-auto">
-        {/* LOGO & TITLE */}
+
+        {/* LOGO */}
         <div
           className="flex items-center gap-3 cursor-pointer group"
           onClick={() => navigate('/')}
           aria-label="Go to FundCo Dashboard"
         >
-          {/* Logo Icon */}
-          <div className="relative w-12 h-12 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-200">
-            <CheckCircle className="w-7 h-7 text-white drop-shadow-sm" />
-            <div className="absolute inset-0 rounded-xl ring-2 ring-blue-300 dark:ring-blue-800 ring-opacity-60 group-hover:ring-opacity-100 transition-opacity" />
-          </div>
-          {/* Brand Name */}
-          <div className="flex flex-col justify-center">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-none">
-              <span className="text-purple-600 dark:text-purple-400 drop-shadow-sm">Fund</span>
-              <span className="text-blue-600 dark:text-blue-400 drop-shadow-sm">Co</span>
-              <sup className="text-xs align-super text-gray-500 dark:text-gray-400 font-medium ml-0.5">TM</sup>
-            </h1>
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-semibold tracking-wide">CAPITAL MANAGERS</p>
+          {/* Real logo from public folder */}
+          <img
+            src="/Fundco.svg"
+            alt="FundCo Logo"
+            className="h-10 w-auto object-contain transition-all duration-200 group-hover:scale-105"
+          />
+
+          {/* Optional: keep tagline if you want (comment out if not needed) */}
+          <div className="hidden sm:flex flex-col justify-center">
+            <p className="text-xs text-gray-600 dark:text-gray-400 font-semibold tracking-wide">
+              CAPITAL MANAGERS
+            </p>
           </div>
         </div>
+
         {/* HAMBURGER MENU (MOBILE) */}
         <div ref={menuRef} className="relative">
           <button
@@ -73,6 +75,7 @@ const Navbar = ({ user = {}, onLogout }) => {
           >
             {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
+
           {/* MOBILE DROPDOWN */}
           {menuOpen && (
             <div className="absolute top-14 right-4 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden md:hidden">
@@ -91,6 +94,7 @@ const Navbar = ({ user = {}, onLogout }) => {
                       className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform duration-200 ${emailMenuOpen ? 'rotate-180' : ''}`}
                     />
                   </button>
+
                   {emailMenuOpen && (
                     <ul className="mt-2 space-y-1.5 pl-8">
                       {emailLinks.map((link) => (
@@ -109,6 +113,7 @@ const Navbar = ({ user = {}, onLogout }) => {
                     </ul>
                   )}
                 </div>
+
                 {/* Profile Settings */}
                 <button
                   onClick={() => {
@@ -120,6 +125,7 @@ const Navbar = ({ user = {}, onLogout }) => {
                   <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   Profile Settings
                 </button>
+
                 {/* User Info */}
                 <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                   <div className="relative">
@@ -141,6 +147,7 @@ const Navbar = ({ user = {}, onLogout }) => {
                     <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{user.email}</p>
                   </div>
                 </div>
+
                 {/* Logout */}
                 <button
                   onClick={handleLogout}
@@ -153,6 +160,7 @@ const Navbar = ({ user = {}, onLogout }) => {
             </div>
           )}
         </div>
+
         {/* DESKTOP RIGHT SECTION */}
         <div ref={desktopMenuRef} className="hidden md:flex items-center gap-6">
           {/* Email Icons */}
@@ -171,6 +179,7 @@ const Navbar = ({ user = {}, onLogout }) => {
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{link.name}</span>
             </a>
           ))}
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -179,6 +188,7 @@ const Navbar = ({ user = {}, onLogout }) => {
           >
             {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
           </button>
+
           {/* Settings */}
           <button
             className="p-2.5 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/50 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-110 hover:ring-4 hover:ring-blue-200 dark:hover:ring-blue-700 transition-all duration-200 shadow-md"
@@ -187,6 +197,7 @@ const Navbar = ({ user = {}, onLogout }) => {
           >
             <Settings className="w-5 h-5" />
           </button>
+
           {/* User Dropdown */}
           <div className="relative">
             <button
@@ -215,6 +226,7 @@ const Navbar = ({ user = {}, onLogout }) => {
                 className={`w-4 h-4 text-blue-700 dark:text-blue-300 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
               />
             </button>
+
             {menuOpen && (
               <ul className="absolute top-16 right-0 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden mt-2">
                 <li>
