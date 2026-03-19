@@ -187,7 +187,7 @@ const getUserAIAnalysis = async (req, res) => {
     const requestingUserId = req.user.id;
     const isSelfView = requestingUserId === userId;
 
-    // Fetch aggregated stats (same as before)
+    // Fetch aggregated stats (unchanged)
     const [tasks, goals, targetUser] = await Promise.all([
       Task.find({ owner: userId }).select('priority completed submissionStatus checklist').lean(),
       Goal.find({ owner: userId }).select('subGoals').lean(),
@@ -196,7 +196,6 @@ const getUserAIAnalysis = async (req, res) => {
 
     if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
 
-    // Compute stats
     const taskStatsByPriority = {
       Low: { count: 0, completed: 0 },
       Medium: { count: 0, completed: 0 },
@@ -225,33 +224,34 @@ const getUserAIAnalysis = async (req, res) => {
     const totalScore = totalTaskPoints + totalGoalPoints;
     const completionRate = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
-    // ── NEW & IMPROVED PROMPT ──
+    // ── STRICT PROFESSIONAL PROMPT ──
     const systemPrompt = isSelfView
-      ? `You are Super (AI) Admin — the company's impartial performance overseer.
-You speak directly to the user in second person ("you", "your contribution", "you are helping...").
-Based ONLY on the aggregated data below, write a natural, honest note that shows how their work is moving FundCo forward.
-Mention impact on company goals (clean energy access, agro-productive use, sustainable housing, rural electrification, etc.) at a high level — never mention specific tasks or clients.
-Praise real achievements. Give constructive, actionable suggestions for improvement.
-End with a clear statement on bonus readiness.
-Be warm, professional, and motivational. No fluff. No lies.`
+      ? `You are Super (AI) Admin, the company's impartial performance overseer.
+Write in clear, concise, professional second-person language ("you", "your performance", "your contribution").
+Use formal tone suitable for internal executive communication.
+Base your response ONLY on the aggregated data provided.
+Highlight how the user's work supports FundCo's mission in clean energy access, rural electrification, agro-productive use, sustainable housing, or related objectives — at a high level, without mentioning specific tasks or clients.
+Praise genuine strengths. Provide constructive, actionable improvement recommendations.
+Conclude with a direct, evidence-based statement on current bonus readiness.
+Never use markdown formatting, hashes, ellipses, or casual phrasing. Write in full, structured paragraphs.`
 
-      : `You are Super (AI) Admin — the company's impartial performance overseer.
-You are writing a neutral, professional note about this third-party user.
-Use third-person language only: "${targetUser.name}", "they", "the user", "he/she", etc.
-Based ONLY on the aggregated data below, show how their work is moving FundCo forward.
-Mention impact on company goals (clean energy access, agro-productive use, sustainable housing, rural electrification, etc.) at a high level — never mention specific tasks or clients.
-Praise real achievements. Give constructive, actionable suggestions for improvement.
-End with a clear statement on bonus readiness.
-Be balanced, professional, and fair. No fluff. No lies.`;
+      : `You are Super (AI) Admin, the company's impartial performance overseer.
+Write in clear, concise, professional third-person language using the user's full name ("${targetUser.name}"), "they", "the individual", etc.
+Use formal tone suitable for internal executive communication.
+Base your response ONLY on the aggregated data provided.
+Highlight how the user's work supports FundCo's mission in clean energy access, rural electrification, agro-productive use, sustainable housing, or related objectives — at a high level, without mentioning specific tasks or clients.
+Praise genuine strengths. Provide constructive, actionable improvement recommendations.
+Conclude with a direct, evidence-based statement on current bonus readiness.
+Never use markdown formatting, hashes, ellipses, or casual phrasing. Write in full, structured paragraphs.`;
 
     const userDataForAI = `
 User: ${targetUser.name} (${targetUser.role})
 Total Score: ${totalScore}
 Completion Rate: ${completionRate}%
-Task Points: ${totalTaskPoints} 
-  • High priority completed: ${taskStatsByPriority.High.completed}/${taskStatsByPriority.High.count}
-  • Medium priority completed: ${taskStatsByPriority.Medium.completed}/${taskStatsByPriority.Medium.count}
-  • Low priority completed: ${taskStatsByPriority.Low.completed}/${taskStatsByPriority.Low.count}
+Task Points: ${totalTaskPoints}
+  - High priority completed: ${taskStatsByPriority.High.completed} out of ${taskStatsByPriority.High.count}
+  - Medium priority completed: ${taskStatsByPriority.Medium.completed} out of ${taskStatsByPriority.Medium.count}
+  - Low priority completed: ${taskStatsByPriority.Low.completed} out of ${taskStatsByPriority.Low.count}
 Goal Points: ${totalGoalPoints} (${completedGoals} fully completed goals)
 `;
 
@@ -261,23 +261,26 @@ Goal Points: ${totalGoalPoints} (${completedGoals} fully completed goals)
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userDataForAI }
       ],
-      temperature: isSelfView ? 0.65 : 0.5,
-      max_tokens: 850,
+      temperature: isSelfView ? 0.55 : 0.45,   // Lower temperature = more controlled, professional output
+      max_tokens: 750,
     });
 
     let aiNote = response.choices[0].message.content.trim();
 
-    // Optional polish: ensure it starts with the right tone
-    if (!aiNote.startsWith(targetUser.name) && !isSelfView) {
-      aiNote = `${targetUser.name} has been...` + aiNote;
-    }
+    // Final safety cleanup — remove any stray markdown or artifacts
+    aiNote = aiNote
+      .replace(/#{1,6}\s*/g, '')           // remove headers
+      .replace(/\n\s*[-*+]\s*/g, '\n- ')   // normalize lists if any
+      .replace(/\.{3,}/g, '…')             // normalize ellipses
+      .replace(/\s+/g, ' ')                // collapse extra spaces
+      .trim();
 
     res.json({ success: true, aiNote });
   } catch (err) {
     console.error('AI Analysis error:', err);
     res.json({
       success: true,
-      aiNote: "Super (AI) Admin is currently reviewing this performance. Insights will appear shortly."
+      aiNote: "Super (AI) Admin is currently reviewing this performance. Insights will be available shortly."
     });
   }
 };

@@ -1,8 +1,8 @@
 // src/pages/PerformanceDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Trophy, Users, Gift, RefreshCw, Info } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Trophy, Users, Gift, RefreshCw, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import LeaderboardTable from '../components/LeaderboardTable';
 import UserPerformanceCard from '../components/UserPerformanceCard';
@@ -22,6 +22,9 @@ const PerformanceDashboard = () => {
   const [selectedDetailUserId, setSelectedDetailUserId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // NEW: Toggle state for points calculation section
+  const [showPointsCalculation, setShowPointsCalculation] = useState(true);
 
   const isAdmin = user?.role === 'admin';
 
@@ -124,24 +127,64 @@ const PerformanceDashboard = () => {
           </div>
         </div>
 
-        {/* Scoring Explanation Banner */}
+        {/* Points Calculation Section with Toggle */}
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-blue-200 dark:border-blue-900 rounded-3xl p-6 mb-10 shadow-lg">
-          <div className="flex items-start gap-4">
-            <Info className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Info className="w-7 h-7 text-blue-600 flex-shrink-0" />
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                 How Points Are Calculated (100% Transparent)
               </h3>
-              <ul className="text-gray-700 dark:text-gray-300 space-y-2 text-sm md:text-base">
-                <li>• <strong>Task Points</strong> = Priority Weight (Low: 10, Medium: 25, High: 50) + Approval Bonus (+30) + Checklist Bonus (0–20)</li>
-                <li>• <strong>Goal Points</strong> = % of sub-goals completed × 100 (max 100 per goal)</li>
-                <li>• <strong>Total Score</strong> = All Task Points + All Goal Points</li>
-                <li className="text-red-600 dark:text-red-400 font-medium mt-3">
-                  This exact formula determines who receives a bonus at the end of each month.
-                </li>
-              </ul>
             </div>
+
+            {/* Toggle Button */}
+            <button
+              onClick={() => setShowPointsCalculation(!showPointsCalculation)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300 font-medium transition-colors"
+            >
+              {showPointsCalculation ? (
+                <>
+                  <ChevronUp className="w-5 h-5" />
+                  Hide Details
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-5 h-5" />
+                  Show Details
+                </>
+              )}
+            </button>
           </div>
+
+          {/* Animated Show/Hide Content */}
+          <AnimatePresence>
+            {showPointsCalculation && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="pt-4 space-y-3 text-gray-700 dark:text-gray-300 text-sm md:text-base">
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li>
+                      <strong>Task Points</strong> = Priority Weight (Low: 10, Medium: 25, High: 50) + Approval Bonus (+30 if approved) + Checklist Bonus (0–20 based on % completed)
+                    </li>
+                    <li>
+                      <strong>Goal Points</strong> = Percentage of sub-goals completed × 100 (max 100 per goal)
+                    </li>
+                    <li>
+                      <strong>Total Score</strong> = Sum of all Task Points + all Goal Points
+                    </li>
+                  </ul>
+                  <p className="text-red-600 dark:text-red-400 font-medium pt-2">
+                    This exact formula determines who receives a bonus at the end of each month.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Top 3 Podium */}
