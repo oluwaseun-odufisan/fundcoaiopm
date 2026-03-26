@@ -51,7 +51,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'Social Feeds', path: '/social-feed', icon: <Instagram className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     // { text: 'URL Shortener', path: '/url-shortener', icon: <Link className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'File Storage', path: '/file-storage', icon: <File className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    { text: 'Write Report', path: '/generate-report', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
+    { text: 'Reports', path: '/reports', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'AI Tools', path: '/ai-tools', icon: <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" /> },
     { text: 'Deck Prep', path: '/document-converter', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Reminders', path: '/reminders', icon: <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },

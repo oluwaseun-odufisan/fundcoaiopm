@@ -1,4 +1,4 @@
-// src/pages/AiTools.jsx (Modern redesign: Sleek UI with dark mode toggle, responsive, better layout, fixed errors, improved history with proper titles)
+// src/pages/AiTools.jsx 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {

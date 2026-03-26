@@ -36,6 +36,8 @@ import './models/meetingModel.js';
 import './models/learningMaterialModel.js'; // New
 import './models/feedbackModel.js';
 import grokRouter from './routes/grokRoutes.js'
+import reportRouter from './routes/reportRoutes.js';
+
 const app = express();
 const httpServer = createServer(app);
 const port = process.env.PORT || 5000;
@@ -233,6 +235,7 @@ app.use('/api/grok', grokRouter);
 app.use('/api/meetings', meetingRouter);
 app.use('/api/learning', learningRouter);
 app.use('/api/documents', documentRoutes);
+app.use('/api/reports', reportRouter);
 // Emit endpoint for admin
 app.post('/api/emit', (req, res) => {
   const { event, data } = req.body;

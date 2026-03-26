@@ -1,0 +1,255 @@
+// src/components/ReportHistoryList.jsx
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Eye, Download, Send, Trash2, Search, Edit } from 'lucide-react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import ReportEditor from './ReportEditor';
+import jsPDF from 'jspdf';
+
+const ReportHistoryList = ({ user }) => {
+  const [reports, setReports] = useState([]);
+  const [search, setSearch] = useState('');
+  const [viewingReport, setViewingReport] = useState(null);
+  const [editingReport, setEditingReport] = useState(null);
+
+  const fetchReports = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/reports`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setReports(res.data.reports || []);
+    } catch (err) {
+      toast.error('Failed to load history');
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const filtered = reports.filter((r) =>
+    r.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleSubmit = async (id) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/reports/${id}/submit`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      toast.success('Report submitted successfully!');
+      fetchReports();
+    } catch (err) {
+      toast.error('Submit failed');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this report permanently?')) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/reports/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      toast.success('Report deleted');
+      fetchReports();
+      setViewingReport(null);
+    } catch (err) {
+      toast.error('Delete failed');
+    }
+  };
+
+  // Clean Markdown symbols (asterisks, hashes, etc.) from AI-generated reports
+  const cleanMarkdownForPDF = (text) => {
+    return text
+      .replace(/^#{1,6}\s*/gm, '')                    // Remove headings
+      .replace(/\*\*(.*?)\*\*/g, '$1')                // Remove bold
+      .replace(/\*(.*?)\*/g, '$1')                    // Remove italic
+      .replace(/^\s*[-*+]\s+/gm, '• ')                // Convert bullets
+      .replace(/^\s*\d+\.\s+/gm, '')                  // Remove numbered lists
+      .replace(/`([^`]+)`/g, '$1')                    // Remove code
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')        // Remove links
+      .replace(/\n{3,}/g, '\n\n')                     // Normalize newlines
+      .trim();
+  };
+
+  const exportReportToPDF = async (report) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'in',
+        format: 'letter',
+      });
+
+      const margin = 1;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const printableWidth = pageWidth - 2 * margin;
+      let y = margin + 0.6;
+
+      const addText = (text, fontSize, isBold = false, lineSpacing = 1.15) => {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+        const lines = doc.splitTextToSize(text, printableWidth);
+        lines.forEach((line) => {
+          if (y > 10) {
+            doc.addPage();
+            y = margin + 0.6;
+          }
+          doc.text(line, margin, y);
+          y += (fontSize / 72) * lineSpacing;
+        });
+      };
+
+      // Clean AI Markdown before PDF
+      const cleanContent = cleanMarkdownForPDF(report.content);
+
+      // Title
+      addText(report.title, 18, true, 1.6);
+      y += 0.4;
+
+      // Date & Type
+      addText(
+        `${report.reportType.toUpperCase()} Report • ${new Date(report.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })}`,
+        12,
+        false,
+        1.2
+      );
+      y += 0.6;
+
+      // Content
+      const paragraphs = cleanContent
+        .split('\n\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
+      paragraphs.forEach((paragraph) => {
+        addText(paragraph, 12, false, 1.2);
+        y += 0.3;
+      });
+
+      doc.save(`${report.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+      toast.success('Clean, professional PDF exported from history!');
+    } catch (err) {
+      console.error(err);
+      toast.error('PDF export failed');
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      <div className="flex items-center gap-3 mb-6">
+        <Search className="w-6 h-6 text-blue-500" />
+        <input
+          type="text"
+          placeholder="Search reports..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 p-4 rounded-3xl border border-blue-200 focus:border-blue-500 outline-none"
+        />
+      </div>
+
+      <div className="grid gap-6">
+        {filtered.map((report) => (
+          <motion.div
+            key={report._id}
+            className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow flex justify-between items-center"
+          >
+            <div>
+              <h4 className="font-semibold text-xl">{report.title}</h4>
+              <p className="text-sm text-gray-500">
+                {new Date(report.createdAt).toLocaleDateString()} • {report.reportType}
+              </p>
+              <span
+                className={`inline-block px-4 py-1 text-xs rounded-full mt-2 ${
+                  report.status === 'draft' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                }`}
+              >
+                {report.status.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setViewingReport(report)}
+                className="flex items-center gap-2 px-6 py-3 hover:bg-blue-50 rounded-2xl transition-all"
+              >
+                <Eye className="w-5 h-5" /> View
+              </button>
+
+              <button
+                onClick={() => setEditingReport(report)}
+                className="flex items-center gap-2 px-6 py-3 hover:bg-amber-50 rounded-2xl transition-all"
+              >
+                <Edit className="w-5 h-5" /> Edit
+              </button>
+
+              <button
+                onClick={() => exportReportToPDF(report)}
+                className="flex items-center gap-2 px-6 py-3 hover:bg-emerald-50 rounded-2xl transition-all"
+              >
+                <Download className="w-5 h-5" /> PDF
+              </button>
+
+              {report.status === 'draft' && (
+                <button
+                  onClick={() => handleSubmit(report._id)}
+                  className="px-8 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700"
+                >
+                  Submit
+                </button>
+              )}
+
+              {report.status === 'draft' && (
+                <button
+                  onClick={() => handleDelete(report._id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* View Modal */}
+      {viewingReport && (
+        <motion.div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
+          <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl p-10">
+            <div className="prose dark:prose-invert max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewingReport.content}</ReactMarkdown>
+            </div>
+            <button onClick={() => setViewingReport(null)} className="mt-8 px-8 py-4 bg-gray-200 rounded-2xl">
+              Close
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Edit Modal */}
+      {editingReport && (
+        <motion.div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
+          <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl">
+            <ReportEditor
+              user={user}
+              tasks={tasks || []}
+              initialReport={editingReport}
+              onClose={() => setEditingReport(null)}
+              onSaved={() => {
+                fetchReports();
+                setEditingReport(null);
+              }}
+            />
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+export default ReportHistoryList;

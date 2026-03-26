@@ -26,6 +26,8 @@ import Meeting from './pages/Meeting';
 import Training from './pages/Training';
 import Feedback from './pages/Feedback';
 import DocumentConverter from './pages/DocumentConverter';
+import ReportGeneration from './pages/ReportGeneration';
+
 import { ThemeProvider } from './context/ThemeContext';
 
 const App = () => {
@@ -108,6 +110,7 @@ const App = () => {
           <Route path="/training" element={<Training />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/document-converter" element={<DocumentConverter />} />
+          <Route path="/reports" element={<ReportGeneration />} />
         </Route>
 
         <Route path="/" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />

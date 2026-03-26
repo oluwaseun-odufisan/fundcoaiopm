@@ -15,7 +15,8 @@ const grokChatSchema = new mongoose.Schema({
     content: { type: mongoose.Schema.Types.Mixed }
   }],
   taskContext: {
-    type: String
+    type: mongoose.Schema.Types.Mixed,  
+    default: null
   },
   title: {
     type: String,
