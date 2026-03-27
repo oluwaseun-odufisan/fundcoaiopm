@@ -1,6 +1,6 @@
-// taskModel.js
+// models/taskModel.js
 import mongoose from 'mongoose';
- 
+
 const taskSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -60,6 +60,6 @@ const taskSchema = new mongoose.Schema({
         ref: 'File',
     }],
 });
- 
+
 const Task = mongoose.models.Task || mongoose.model('Task', taskSchema);
 export default Task;
