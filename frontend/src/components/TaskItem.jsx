@@ -18,7 +18,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
   const [showEditModal, setShowEditModal] = useState(false);
   const [showChecklistModal, setShowChecklistModal] = useState(false);
 
-  // Hover popup state
+  // Hover popup
   const [showHoverPopup, setShowHoverPopup] = useState(false);
 
   const progress = task.checklist?.length
@@ -130,7 +130,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
 
   return (
     <>
-      {/* Main Task Card - now relative for overlay positioning */}
+      {/* Main Task Card */}
       <div 
         className={`bg-white/95 dark:bg-gray-800/95 rounded-3xl p-5 flex justify-between gap-4 shadow-lg border-l-4 ${borderColor} transition-all duration-300 hover:shadow-2xl relative`}
         onMouseEnter={() => setShowHoverPopup(true)}
@@ -203,7 +203,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
           </div>
         </div>
 
-                {/* ==================== HOVER POPUP - EXACTLY ON THE TASK ==================== */}
+        {/* ==================== HOVER POPUP - EXACTLY ON THE TASK ==================== */}
         {showHoverPopup && (
           <div className="absolute inset-0 z-50 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 overflow-y-auto custom-scrollbar flex flex-col">
             {/* Header */}
@@ -214,8 +214,9 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
               </span>
             </div>
 
-            {/* Full Description */}
-            <div className="flex-1 mb-6 overflow-y-auto">
+            {/* Description Section - clearly labeled */}
+            <div className="mb-6">
+              <div className="text-xs uppercase tracking-widest font-medium text-gray-500 dark:text-gray-400 mb-2">Description</div>
               <p className="text-base leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                 {task.description || 'No description provided.'}
               </p>
@@ -242,7 +243,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
             )}
 
             {/* Footer dates */}
-            <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
               <div>Created • {task.createdAt ? format(new Date(task.createdAt), 'MMM dd, yyyy') : '—'}</div>
               <div>Due • {task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'No due date'}</div>
             </div>
