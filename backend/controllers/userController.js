@@ -2,15 +2,19 @@ import User from '../models/userModel.js';
 import validator from 'validator';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 const TOKEN_EXPIRES = '24h';
+
 // Create JWT token
 const createToken = (userId) => jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRES });
-// Register user
+
+// Register user - UPDATED for new fields
 export async function registerUser(req, res) {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-        return res.status(400).json({ success: false, message: 'All fields are required' });
+    const { firstName, lastName, otherName, position, unitSector, email, password, role } = req.body;
+
+    if (!firstName || !lastName || !email || !password || !role) {
+        return res.status(400).json({ success: false, message: 'First name, last name, email, password and account type are required' });
     }
     if (!validator.isEmail(email)) {
         return res.status(400).json({ success: false, message: 'Invalid email' });
@@ -18,27 +22,52 @@ export async function registerUser(req, res) {
     if (password.length < 8) {
         return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
+    if (!['standard', 'team-lead', 'admin'].includes(role)) {
+        return res.status(400).json({ success: false, message: 'Invalid account type' });
+    }
+
     try {
         if (await User.findOne({ email })) {
             return res.status(409).json({ success: false, message: 'User already exists' });
         }
         const hashed = await bcrypt.hash(password, 10);
-        const user = await User.create({ name, email, password: hashed });
+        const user = await User.create({ 
+            firstName, 
+            lastName, 
+            otherName: otherName || '', 
+            position: position || '', 
+            unitSector: unitSector || '', 
+            email, 
+            password: hashed, 
+            role 
+        });
         const token = createToken(user._id);
         // Log registration activity
         user.activityLogs.push({ action: 'register', details: `User registered from IP ${req.ip}` });
         await user.save();
+
         res.status(201).json({
             success: true,
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role },
+            user: { 
+                id: user._id, 
+                firstName: user.firstName,
+                lastName: user.lastName,
+                otherName: user.otherName,
+                fullName: user.fullName,
+                position: user.position,
+                unitSector: user.unitSector,
+                email: user.email, 
+                role: user.role 
+            },
         });
     } catch (err) {
         console.error('Error registering user:', err.message);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-// Login user
+
+// Login user - UPDATED response to include new fields
 export async function loginUser(req, res) {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -56,24 +85,36 @@ export async function loginUser(req, res) {
         // Update lastLogin and lastActive, add login activity log
         const now = new Date();
         user.lastLogin = now;
-        user.lastActive = now;  // Added: Update lastActive on login
+        user.lastActive = now;
         user.activityLogs.push({ action: 'login', details: `User logged in from IP ${req.ip}` });
         await user.save();
+
         const token = createToken(user._id);
         res.json({
             success: true,
             token,
-            user: { id: user._id, name: user.name, email: user.email, role: user.role },
+            user: { 
+                id: user._id, 
+                firstName: user.firstName,
+                lastName: user.lastName,
+                otherName: user.otherName,
+                fullName: user.fullName,
+                position: user.position,
+                unitSector: user.unitSector,
+                email: user.email, 
+                role: user.role 
+            },
         });
     } catch (err) {
         console.error('Error logging in:', err.message);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-// Get current user
+
+// Get current user - UPDATED to return new fields
 export async function getCurrentUser(req, res) {
     try {
-        const user = await User.findById(req.user.id).select('name email role preferences pushToken');
+        const user = await User.findById(req.user.id).select('firstName lastName otherName position unitSector email role preferences pushToken fullName');
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
@@ -83,11 +124,12 @@ export async function getCurrentUser(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-// Update user profile
+
+// Update user profile - UPDATED for all new fields
 export async function updateProfile(req, res) {
-    const { name, email, role } = req.body;
-    if (!name || !email || !validator.isEmail(email)) {
-        return res.status(400).json({ success: false, message: 'Valid name and email required' });
+    const { firstName, lastName, otherName, position, unitSector, email, role } = req.body;
+    if (!firstName || !lastName || !email || !validator.isEmail(email)) {
+        return res.status(400).json({ success: false, message: 'Valid first name, last name and email required' });
     }
     if (role && !['standard', 'team-lead', 'admin'].includes(role)) {
         return res.status(400).json({ success: false, message: 'Invalid role' });
@@ -97,7 +139,7 @@ export async function updateProfile(req, res) {
         if (exists) {
             return res.status(409).json({ success: false, message: 'Email already in use by another account' });
         }
-        const updateData = { name, email };
+        const updateData = { firstName, lastName, otherName, position, unitSector, email };
         if (role) {
             updateData.role = role;
         }
@@ -105,7 +147,8 @@ export async function updateProfile(req, res) {
             req.user.id,
             updateData,
             { new: true, runValidators: true }
-        ).select('name email role');
+        ).select('firstName lastName otherName position unitSector email role fullName');
+
         // Log role change if applicable
         if (role && role !== req.user.role) {
             user.activityLogs.push({ action: 'role_change', details: `Role changed to ${role} from IP ${req.ip}` });
@@ -117,31 +160,53 @@ export async function updateProfile(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-// Update password
+
+// Update password - already fully functional (kept unchanged + improved error messaging)
 export async function updatePassword(req, res) {
     const { currentPassword, newPassword } = req.body;
+
     if (!currentPassword || !newPassword || newPassword.length < 8) {
-        return res.status(400).json({ success: false, message: 'Password invalid or too short' });
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Current password and new password (min 8 characters) are required' 
+        });
     }
+
     try {
         const user = await User.findById(req.user.id).select('password');
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
+
         const match = await bcrypt.compare(currentPassword, user.password);
         if (!match) {
-            return res.status(401).json({ success: false, message: 'Current password incorrect' });
+            return res.status(401).json({ success: false, message: 'Current password is incorrect' });
         }
-        user.password = await bcrypt.hash(newPassword, 10);
-        user.activityLogs.push({ action: 'password_change', details: `Password changed from IP ${req.ip}` });
-        await user.save();
-        res.json({ success: true, message: 'Password changed' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Atomic update - no more undefined push issue
+        await User.findByIdAndUpdate(
+            req.user.id,
+            {
+                $set: { password: hashedPassword },
+                $push: {
+                    activityLogs: {
+                        action: 'password_change',
+                        details: `Password changed from IP ${req.ip}`
+                    }
+                }
+            }
+        );
+
+        res.json({ success: true, message: 'Password changed successfully' });
     } catch (err) {
         console.error('Error updating password:', err.message);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
-// Update push token
+
+// Update push token (unchanged)
 export async function updatePushToken(req, res) {
     const { pushToken } = req.body;
     if (!pushToken) {

@@ -1,4 +1,4 @@
-// AdminUserManagement.jsx
+// AdminUserManagement.jsx  (FULLY UPDATED - copy and paste this entire file)
 import React, { useState, useEffect } from 'react';
 import {
     User,
@@ -17,11 +17,13 @@ import {
     ChevronDown,
     Plus,
     History,
+    Briefcase,
+    Building,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
- 
+
 const AdminUserManagement = ({ onLogout }) => {
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
@@ -36,7 +38,11 @@ const AdminUserManagement = ({ onLogout }) => {
     const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
     const [editUser, setEditUser] = useState(null);
     const [createUser, setCreateUser] = useState({
-        name: '',
+        firstName: '',
+        lastName: '',
+        otherName: '',
+        position: '',
+        unitSector: '',
         email: '',
         password: '',
         role: 'standard',
@@ -47,21 +53,20 @@ const AdminUserManagement = ({ onLogout }) => {
     const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const usersPerPage = 10;
- 
+
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
- 
+
     // Fetch users on mount
     useEffect(() => {
         fetchUsers();
     }, []);
- 
-    // Fetch all users
+
+    // Fetch all users - UPDATED for new fields
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('adminToken');
             if (!token) {
-                console.error('No token found in localStorage');
                 setError('Authentication token missing. Please log in again.');
                 toast.error('Authentication token missing. Please log in again.');
                 navigate('/admin/login', { replace: true });
@@ -70,12 +75,16 @@ const AdminUserManagement = ({ onLogout }) => {
             const response = await axios.get(`${API_BASE_URL}/api/admin/users`, {
                 headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
             });
-            console.log('Fetch users response:', response.data);
             if (response.data.success) {
                 setUsers(
                     response.data.users.map((user) => ({
                         id: user._id,
-                        name: user.name,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        otherName: user.otherName || '',
+                        fullName: user.fullName || `${user.firstName} ${user.lastName}`.trim(),
+                        position: user.position || '',
+                        unitSector: user.unitSector || '',
                         email: user.email,
                         role: user.role === 'standard' ? 'User' : user.role === 'team-lead' ? 'Team Lead' : 'Admin',
                         registrationDate: new Date(user.createdAt).toISOString().split('T')[0],
@@ -94,7 +103,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
+
     // Handle API errors
     const handleApiError = (err, defaultMessage) => {
         console.error('API error:', err.message, err.response?.data);
@@ -110,7 +119,7 @@ const AdminUserManagement = ({ onLogout }) => {
             navigate('/admin/dashboard', { replace: true });
         }
     };
- 
+
     // Handle sorting
     const handleSort = (key) => {
         let direction = 'asc';
@@ -118,7 +127,7 @@ const AdminUserManagement = ({ onLogout }) => {
             direction = 'desc';
         }
         setSortConfig({ key, direction });
- 
+
         const sortedUsers = [...users].sort((a, b) => {
             if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
             if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
@@ -126,23 +135,23 @@ const AdminUserManagement = ({ onLogout }) => {
         });
         setUsers(sortedUsers);
     };
- 
+
     // Handle search and filters
     const filteredUsers = users.filter(
         (user) =>
-            (user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 user.email.toLowerCase().includes(searchQuery.toLowerCase())) &&
             (filterRole ? user.role === filterRole : true) &&
             (filterStatus ? user.status === filterStatus : true)
     );
- 
+
     // Pagination logic
     const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
     const paginatedUsers = filteredUsers.slice(
         (currentPage - 1) * usersPerPage,
         currentPage * usersPerPage
     );
- 
+
     // Handle bulk selection
     const handleSelectAll = (e) => {
         if (e.target.checked) {
@@ -151,14 +160,14 @@ const AdminUserManagement = ({ onLogout }) => {
             setSelectedUsers([]);
         }
     };
- 
+
     const handleSelectUser = (id) => {
         setSelectedUsers((prev) =>
             prev.includes(id) ? prev.filter((userId) => userId !== id) : [...prev, id]
         );
     };
- 
-    // Handle bulk actions
+
+    // Handle bulk actions (unchanged logic)
     const handleBulkAction = async (action) => {
         setIsLoading(true);
         try {
@@ -198,12 +207,16 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
+
     // Handle individual actions
     const handleEdit = (user) => {
         setEditUser({
             id: user.id,
-            name: user.name,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            otherName: user.otherName,
+            position: user.position,
+            unitSector: user.unitSector,
             email: user.email,
             role: user.role === 'User' ? 'standard' : user.role === 'Team Lead' ? 'team-lead' : 'admin',
             preferences: user.preferences,
@@ -212,7 +225,7 @@ const AdminUserManagement = ({ onLogout }) => {
         setError('');
         setSuccess('');
     };
- 
+
     const handleToggleStatus = async (id, currentStatus) => {
         setIsLoading(true);
         try {
@@ -231,7 +244,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
+
     const handleResetPassword = async (id) => {
         setIsLoading(true);
         try {
@@ -250,7 +263,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
+
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this user?')) {
             setIsLoading(true);
@@ -269,7 +282,7 @@ const AdminUserManagement = ({ onLogout }) => {
             }
         }
     };
- 
+
     const handleViewLogs = async (id) => {
         setIsLoading(true);
         try {
@@ -287,15 +300,20 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
-    // Handle edit form submission
+
+    // Handle edit form submission - UPDATED with new fields
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
- 
-        if (!editUser.name || editUser.name.length < 2) {
-            setError('Name must be at least 2 characters long.');
+
+        if (!editUser.firstName || editUser.firstName.length < 2) {
+            setError('First name must be at least 2 characters long.');
+            setIsLoading(false);
+            return;
+        }
+        if (!editUser.lastName || editUser.lastName.length < 2) {
+            setError('Last name must be at least 2 characters long.');
             setIsLoading(false);
             return;
         }
@@ -309,27 +327,23 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
             return;
         }
- 
+
         try {
             const token = localStorage.getItem('adminToken');
-            // Update profile (name, email, preferences)
             const profileResponse = await axios.put(
                 `${API_BASE_URL}/api/admin/users/${editUser.id}`,
                 {
-                    name: editUser.name,
+                    firstName: editUser.firstName,
+                    lastName: editUser.lastName,
+                    otherName: editUser.otherName,
+                    position: editUser.position,
+                    unitSector: editUser.unitSector,
                     email: editUser.email,
                     preferences: editUser.preferences,
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            // Update role if changed
-            if (editUser.role !== (users.find((u) => u.id === editUser.id)?.role.toLowerCase() || '')) {
-                await axios.put(
-                    `${API_BASE_URL}/api/admin/users/${editUser.id}/role`,
-                    { role: editUser.role },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-            }
+
             if (profileResponse.data.success) {
                 setSuccess('User updated successfully!');
                 toast.success('User updated!');
@@ -343,15 +357,20 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
-    // Handle create form submission
+
+    // Handle create form submission - UPDATED with new fields
     const handleCreateSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
- 
-        if (!createUser.name || createUser.name.length < 2) {
-            setError('Name must be at least 2 characters long.');
+
+        if (!createUser.firstName || createUser.firstName.length < 2) {
+            setError('First name must be at least 2 characters long.');
+            setIsLoading(false);
+            return;
+        }
+        if (!createUser.lastName || createUser.lastName.length < 2) {
+            setError('Last name must be at least 2 characters long.');
             setIsLoading(false);
             return;
         }
@@ -370,7 +389,7 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
             return;
         }
- 
+
         try {
             const token = localStorage.getItem('adminToken');
             const response = await axios.post(
@@ -383,7 +402,11 @@ const AdminUserManagement = ({ onLogout }) => {
                 toast.success('User created!');
                 setIsCreateModalOpen(false);
                 setCreateUser({
-                    name: '',
+                    firstName: '',
+                    lastName: '',
+                    otherName: '',
+                    position: '',
+                    unitSector: '',
                     email: '',
                     password: '',
                     role: 'standard',
@@ -397,8 +420,8 @@ const AdminUserManagement = ({ onLogout }) => {
             setIsLoading(false);
         }
     };
- 
-    // Render access denied message if error indicates 403
+
+    // Render access denied message
     if (error === 'Access denied: Super-admin role required to manage users.') {
         return (
             <div className="min-h-screen bg-teal-50 flex items-center justify-center">
@@ -415,7 +438,7 @@ const AdminUserManagement = ({ onLogout }) => {
             </div>
         );
     }
- 
+
     return (
         <div className="p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl w-full min-h-screen overflow-y-auto">
             {/* Header */}
@@ -443,7 +466,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             </div>
- 
+
             {/* Filters */}
             <div className="flex space-x-4 mb-4">
                 <select
@@ -468,19 +491,15 @@ const AdminUserManagement = ({ onLogout }) => {
                     <option value="Inactive">Inactive</option>
                 </select>
             </div>
- 
+
             {/* Success/Error Messages */}
             {error && error !== 'Access denied: Super-admin role required to manage users.' && (
-                <div className="text-red-500 text-sm text-center animate-shake mb-4">
-                    {error}
-                </div>
+                <div className="text-red-500 text-sm text-center animate-shake mb-4">{error}</div>
             )}
             {success && (
-                <div className="text-teal-600 text-sm text-center animate-fade-in mb-4">
-                    {success}
-                </div>
+                <div className="text-teal-600 text-sm text-center animate-fade-in mb-4">{success}</div>
             )}
- 
+
             {/* Bulk Actions */}
             {selectedUsers.length > 0 && (
                 <div className="flex space-x-2 mb-4 animate-slide-in">
@@ -514,8 +533,8 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             )}
- 
-            {/* User Table */}
+
+            {/* User Table - UPDATED COLUMNS */}
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                     <thead>
@@ -529,7 +548,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     aria-label="Select all users"
                                 />
                             </th>
-                            {['name', 'email', 'role', 'registrationDate', 'status', 'lastLogin'].map((key) => (
+                            {['fullName', 'email', 'position', 'unitSector', 'role', 'registrationDate', 'status', 'lastLogin'].map((key) => (
                                 <th
                                     key={key}
                                     className="p-3 text-left text-teal-700 cursor-pointer hover:text-teal-900 transition-colors"
@@ -537,7 +556,15 @@ const AdminUserManagement = ({ onLogout }) => {
                                     aria-sort={sortConfig.key === key ? sortConfig.direction : 'none'}
                                 >
                                     <div className="flex items-center space-x-1">
-                                        <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                                        <span>
+                                            {key === 'fullName'
+                                                ? 'Name'
+                                                : key === 'position'
+                                                ? 'Position'
+                                                : key === 'unitSector'
+                                                ? 'Unit/Sector'
+                                                : key.charAt(0).toUpperCase() + key.slice(1)}
+                                        </span>
                                         {sortConfig.key === key &&
                                             (sortConfig.direction === 'asc' ? (
                                                 <ChevronUp size={16} />
@@ -562,11 +589,13 @@ const AdminUserManagement = ({ onLogout }) => {
                                         checked={selectedUsers.includes(user.id)}
                                         onChange={() => handleSelectUser(user.id)}
                                         className="h-4 w-4 text-teal-600 focus:ring-teal-400"
-                                        aria-label={`Select ${user.name}`}
+                                        aria-label={`Select ${user.fullName}`}
                                     />
                                 </td>
-                                <td className="p-3 text-gray-700">{user.name}</td>
+                                <td className="p-3 text-gray-700">{user.fullName}</td>
                                 <td className="p-3 text-gray-700">{user.email}</td>
+                                <td className="p-3 text-gray-700">{user.position}</td>
+                                <td className="p-3 text-gray-700">{user.unitSector}</td>
                                 <td className="p-3 text-gray-700">{user.role}</td>
                                 <td className="p-3 text-gray-700">{user.registrationDate}</td>
                                 <td className="p-3 text-gray-700">{user.status}</td>
@@ -575,7 +604,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleEdit(user)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`Edit ${user.name}`}
+                                        aria-label={`Edit ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Edit size={16} />
@@ -583,7 +612,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleToggleStatus(user.id, user.status)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`${user.status === 'Active' ? 'Deactivate' : 'Activate'} ${user.name}`}
+                                        aria-label={`${user.status === 'Active' ? 'Deactivate' : 'Activate'} ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         {user.status === 'Active' ? <ToggleLeft size={16} /> : <ToggleRight size={16} />}
@@ -591,7 +620,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleResetPassword(user.id)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`Reset password for ${user.name}`}
+                                        aria-label={`Reset password for ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Key size={16} />
@@ -599,7 +628,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleDelete(user.id)}
                                         className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
-                                        aria-label={`Delete ${user.name}`}
+                                        aria-label={`Delete ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Trash2 size={16} />
@@ -607,7 +636,7 @@ const AdminUserManagement = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleViewLogs(user.id)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`View activity logs for ${user.name}`}
+                                        aria-label={`View activity logs for ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <History size={16} />
@@ -618,7 +647,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </tbody>
                 </table>
             </div>
- 
+
             {/* Pagination */}
             <div className="flex justify-between items-center mt-4">
                 <p className="text-sm text-gray-600">
@@ -645,61 +674,95 @@ const AdminUserManagement = ({ onLogout }) => {
                     </button>
                 </div>
             </div>
- 
-            {/* Edit Modal */}
+
+            {/* Edit Modal - FULLY UPDATED */}
             {isEditModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
                     <div className="bg-white/80 backdrop-blur-md rounded-2xl p-8 w-full max-w-md transform transition-all duration-500 hover:scale-105">
                         <h3 className="text-xl font-bold text-teal-600 mb-4">Edit User</h3>
                         <form onSubmit={handleEditSubmit} className="space-y-4">
                             <div className="relative">
-                                <label htmlFor="name" className="sr-only">
-                                    Name
-                                </label>
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <User className="w-5 h-5 text-teal-600 ml-3" />
                                     <input
                                         type="text"
-                                        id="name"
-                                        value={editUser.name}
-                                        onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                                        placeholder="Enter name"
+                                        value={editUser.firstName}
+                                        onChange={(e) => setEditUser({ ...editUser, firstName: e.target.value })}
+                                        placeholder="First Name"
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
-                                        aria-label="Full name"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label htmlFor="email" className="sr-only">
-                                    Email
-                                </label>
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <User className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={editUser.lastName}
+                                        onChange={(e) => setEditUser({ ...editUser, lastName: e.target.value })}
+                                        placeholder="Last Name"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <User className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={editUser.otherName}
+                                        onChange={(e) => setEditUser({ ...editUser, otherName: e.target.value })}
+                                        placeholder="Other Name (optional)"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <Briefcase className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={editUser.position}
+                                        onChange={(e) => setEditUser({ ...editUser, position: e.target.value })}
+                                        placeholder="Position Held"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <Building className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={editUser.unitSector}
+                                        onChange={(e) => setEditUser({ ...editUser, unitSector: e.target.value })}
+                                        placeholder="Unit / Sector"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <Mail className="w-5 h-5 text-teal-600 ml-3" />
                                     <input
                                         type="email"
-                                        id="email"
                                         value={editUser.email}
                                         onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
-                                        placeholder="Enter email"
+                                        placeholder="Email"
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
-                                        aria-label="Email address"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label htmlFor="role" className="sr-only">
-                                    Role
-                                </label>
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <Shield className="w-5 h-5 text-teal-600 ml-3" />
                                     <select
-                                        id="role"
                                         value={editUser.role}
                                         onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 appearance-none"
-                                        aria-label="Select role"
                                         required
                                     >
                                         <option value="standard">User</option>
@@ -708,30 +771,12 @@ const AdminUserManagement = ({ onLogout }) => {
                                     </select>
                                 </div>
                             </div>
-                            <div className="relative">
-                                <label htmlFor="notifications" className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        id="notifications"
-                                        checked={editUser.preferences.notifications}
-                                        onChange={(e) =>
-                                            setEditUser({
-                                                ...editUser,
-                                                preferences: { notifications: e.target.checked },
-                                            })
-                                        }
-                                        className="h-4 w-4 text-teal-600 focus:ring-teal-400"
-                                        aria-label="Enable notifications"
-                                    />
-                                    <span className="text-gray-700">Enable Notifications</span>
-                                </label>
-                            </div>
+
                             <div className="flex space-x-4">
                                 <button
                                     type="submit"
                                     disabled={isLoading}
                                     className={`w-full py-3 rounded-lg bg-teal-600 text-white font-semibold flex items-center justify-center transition-all duration-300 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-teal-700 hover:shadow-lg'}`}
-                                    aria-label="Save user"
                                 >
                                     {isLoading ? (
                                         <div className="flex items-center space-x-2">
@@ -753,7 +798,6 @@ const AdminUserManagement = ({ onLogout }) => {
                                         setSuccess('');
                                     }}
                                     className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 hover:shadow-lg transition-all duration-300"
-                                    aria-label="Cancel"
                                 >
                                     <X className="w-5 h-5 mr-2 inline" />
                                     Cancel
@@ -763,79 +807,108 @@ const AdminUserManagement = ({ onLogout }) => {
                     </div>
                 </div>
             )}
- 
-            {/* Create Modal */}
+
+            {/* Create Modal - FULLY UPDATED */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
                     <div className="bg-white/80 backdrop-blur-md rounded-2xl p-8 w-full max-w-md transform transition-all duration-500 hover:scale-105">
                         <h3 className="text-xl font-bold text-teal-600 mb-4">Create User</h3>
                         <form onSubmit={handleCreateSubmit} className="space-y-4">
                             <div className="relative">
-                                <label htmlFor="create-name" className="sr-only">
-                                    Name
-                                </label>
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <User className="w-5 h-5 text-teal-600 ml-3" />
                                     <input
                                         type="text"
-                                        id="create-name"
-                                        value={createUser.name}
-                                        onChange={(e) => setCreateUser({ ...createUser, name: e.target.value })}
-                                        placeholder="Enter name"
+                                        value={createUser.firstName}
+                                        onChange={(e) => setCreateUser({ ...createUser, firstName: e.target.value })}
+                                        placeholder="First Name"
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
-                                        aria-label="Full name"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label htmlFor="create-email" className="sr-only">
-                                    Email
-                                </label>
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <User className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={createUser.lastName}
+                                        onChange={(e) => setCreateUser({ ...createUser, lastName: e.target.value })}
+                                        placeholder="Last Name"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <User className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={createUser.otherName}
+                                        onChange={(e) => setCreateUser({ ...createUser, otherName: e.target.value })}
+                                        placeholder="Other Name (optional)"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <Briefcase className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={createUser.position}
+                                        onChange={(e) => setCreateUser({ ...createUser, position: e.target.value })}
+                                        placeholder="Position Held"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
+                                    <Building className="w-5 h-5 text-teal-600 ml-3" />
+                                    <input
+                                        type="text"
+                                        value={createUser.unitSector}
+                                        onChange={(e) => setCreateUser({ ...createUser, unitSector: e.target.value })}
+                                        placeholder="Unit / Sector"
+                                        className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="relative">
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <Mail className="w-5 h-5 text-teal-600 ml-3" />
                                     <input
                                         type="email"
-                                        id="create-email"
                                         value={createUser.email}
                                         onChange={(e) => setCreateUser({ ...createUser, email: e.target.value })}
-                                        placeholder="Enter email"
+                                        placeholder="Email"
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
-                                        aria-label="Email address"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label htmlFor="create-password" className="sr-only">
-                                    Password
-                                </label>
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <Key className="w-5 h-5 text-teal-600 ml-3" />
                                     <input
                                         type="password"
-                                        id="create-password"
                                         value={createUser.password}
                                         onChange={(e) => setCreateUser({ ...createUser, password: e.target.value })}
-                                        placeholder="Enter password"
+                                        placeholder="Password"
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
-                                        aria-label="Password"
                                         required
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label htmlFor="create-role" className="sr-only">
-                                    Role
-                                </label>
                                 <div className="flex items-center border border-teal-200 rounded-lg focus-within:ring-2 focus-within:ring-teal-400 transition-all duration-300">
                                     <Shield className="w-5 h-5 text-teal-600 ml-3" />
                                     <select
-                                        id="create-role"
                                         value={createUser.role}
                                         onChange={(e) => setCreateUser({ ...createUser, role: e.target.value })}
                                         className="w-full p-3 bg-transparent focus:outline-none text-gray-700 appearance-none"
-                                        aria-label="Select role"
                                         required
                                     >
                                         <option value="standard">User</option>
@@ -844,30 +917,12 @@ const AdminUserManagement = ({ onLogout }) => {
                                     </select>
                                 </div>
                             </div>
-                            <div className="relative">
-                                <label htmlFor="create-notifications" className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        id="create-notifications"
-                                        checked={createUser.preferences.notifications}
-                                        onChange={(e) =>
-                                            setCreateUser({
-                                                ...createUser,
-                                                preferences: { notifications: e.target.checked },
-                                            })
-                                        }
-                                        className="h-4 w-4 text-teal-600 focus:ring-teal-400"
-                                        aria-label="Enable notifications"
-                                    />
-                                    <span className="text-gray-700">Enable Notifications</span>
-                                </label>
-                            </div>
+
                             <div className="flex space-x-4">
                                 <button
                                     type="submit"
                                     disabled={isLoading}
                                     className={`w-full py-3 rounded-lg bg-teal-600 text-white font-semibold flex items-center justify-center transition-all duration-300 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-teal-700 hover:shadow-lg'}`}
-                                    aria-label="Create user"
                                 >
                                     {isLoading ? (
                                         <div className="flex items-center space-x-2">
@@ -885,7 +940,11 @@ const AdminUserManagement = ({ onLogout }) => {
                                     onClick={() => {
                                         setIsCreateModalOpen(false);
                                         setCreateUser({
-                                            name: '',
+                                            firstName: '',
+                                            lastName: '',
+                                            otherName: '',
+                                            position: '',
+                                            unitSector: '',
                                             email: '',
                                             password: '',
                                             role: 'standard',
@@ -895,7 +954,6 @@ const AdminUserManagement = ({ onLogout }) => {
                                         setSuccess('');
                                     }}
                                     className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 hover:shadow-lg transition-all duration-300"
-                                    aria-label="Cancel"
                                 >
                                     <X className="w-5 h-5 mr-2 inline" />
                                     Cancel
@@ -905,7 +963,7 @@ const AdminUserManagement = ({ onLogout }) => {
                     </div>
                 </div>
             )}
- 
+
             {/* Activity Logs Modal */}
             {isLogsModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
@@ -935,7 +993,6 @@ const AdminUserManagement = ({ onLogout }) => {
                                     setActivityLogs([]);
                                 }}
                                 className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 hover:shadow-lg transition-all duration-300"
-                                aria-label="Close"
                             >
                                 <X className="w-5 h-5 mr-2 inline" />
                                 Close
@@ -947,5 +1004,5 @@ const AdminUserManagement = ({ onLogout }) => {
         </div>
     );
 };
- 
+
 export default AdminUserManagement;

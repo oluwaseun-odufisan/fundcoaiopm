@@ -1,13 +1,29 @@
-// userModel.js
-// Updated models/userModel.js
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import validator from 'validator';
+
 const userSchema = new mongoose.Schema(
     {
-        name: {
+        firstName: {
             type: String,
             required: true,
+            trim: true,
+        },
+        lastName: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+        otherName: {
+            type: String,
+            trim: true,
+        },
+        position: {  // Position held / Job Role (from registration form "Role")
+            type: String,
+            trim: true,
+        },
+        unitSector: {  // Unit/Sector of the company
+            type: String,
             trim: true,
         },
         email: {
@@ -22,7 +38,7 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        role: {
+        role: {  // Account type (standard, team-lead, admin)
             type: String,
             enum: ['standard', 'team-lead', 'admin'],
             default: 'standard',
@@ -38,22 +54,25 @@ const userSchema = new mongoose.Schema(
         lastLogin: {
             type: Date,
         },
-        lastActive: {  // New field for tracking refreshes and activities
+        lastActive: {  
             type: Date,
         },
-        activityLogs: [{
-            action: {
-                type: String,
-                required: true,
-            },
-            timestamp: {
-                type: Date,
-                default: Date.now,
-            },
-            details: {
-                type: String,
-            },
-        }],
+                activityLogs: {
+            type: [{
+                action: {
+                    type: String,
+                    required: true,
+                },
+                timestamp: {
+                    type: Date,
+                    default: Date.now,
+                },
+                details: {
+                    type: String,
+                },
+            }],
+            default: [],   
+        },
         pushToken: {
             type: String,
             trim: true,
@@ -62,7 +81,7 @@ const userSchema = new mongoose.Schema(
             reminders: {
                 defaultDeliveryChannels: {
                     inApp: { type: Boolean, default: true },
-                    email: { type: Boolean, default: true }, // Default to true
+                    email: { type: Boolean, default: true },
                     push: { type: Boolean, default: false },
                 },
                 defaultReminderTimes: {
@@ -94,5 +113,16 @@ const userSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+// Virtual fullName for backward compatibility in UI components
+userSchema.virtual('fullName').get(function() {
+    const parts = [this.firstName, this.lastName];
+    if (this.otherName) parts.push(this.otherName);
+    return parts.join(' ');
+});
+
+userSchema.set('toJSON', { virtuals: true });
+userSchema.set('toObject', { virtuals: true });
+
 const User = mongoose.models.user || mongoose.model('user', userSchema);
 export default User;

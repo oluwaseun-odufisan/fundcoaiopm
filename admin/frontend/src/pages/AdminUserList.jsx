@@ -1,3 +1,4 @@
+// AdminUserList.jsx  (FULLY FIXED - copy and paste this entire file)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     User,
@@ -13,6 +14,8 @@ import {
     Key,
     Trash2,
     Download,
+    Briefcase,
+    Building,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -35,11 +38,9 @@ const AdminUserList = ({ onLogout }) => {
     const navigate = useNavigate();
     const usersPerPage = 10;
 
-    // Available roles and statuses (aligned with backend)
     const availableRoles = ['All Roles', 'Super Admin', 'Manager', 'User'];
     const availableStatuses = ['All Statuses', 'Active', 'Inactive'];
 
-    // Map backend roles to display roles
     const mapRoleToDisplay = (role) => {
         switch (role) {
             case 'super-admin': return 'Super Admin';
@@ -49,7 +50,6 @@ const AdminUserList = ({ onLogout }) => {
         }
     };
 
-    // Map display roles to backend roles
     const mapRoleToBackend = (role) => {
         switch (role) {
             case 'Super Admin': return 'super-admin';
@@ -59,7 +59,7 @@ const AdminUserList = ({ onLogout }) => {
         }
     };
 
-    // Fetch users from backend
+    // Fetch users - safe fallback for old data
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         setError('');
@@ -75,12 +75,17 @@ const AdminUserList = ({ onLogout }) => {
             const response = await axios.get(`${API_BASE_URL}/api/admin/users`, {
                 headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
             });
-            console.log('Fetch users response:', response.data);
             if (response.data.success) {
                 setUsers(
                     response.data.users.map((user) => ({
                         id: user._id,
-                        name: user.name,
+                        firstName: user.firstName || '',
+                        lastName: user.lastName || '',
+                        otherName: user.otherName || '',
+                        // Safe fullName for both old and new users
+                        fullName: user.fullName || user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown User',
+                        position: user.position || '',
+                        unitSector: user.unitSector || '',
                         email: user.email,
                         role: mapRoleToDisplay(user.role),
                         registrationDate: new Date(user.createdAt).toISOString().split('T')[0],
@@ -134,14 +139,21 @@ const AdminUserList = ({ onLogout }) => {
         setUsers(sortedUsers);
     };
 
-    // Handle search and filters
+    // FIXED filteredUsers - now uses fullName (safe for old + new data)
     const filteredUsers = users.filter(
-        (user) =>
-            (user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase())) &&
-            (filterRole !== 'All Roles' ? user.role === 'filterRole' : true) &&
-            (filterStatus !== 'All Statuses' ? user.status === 'filterStatus' : true)
-        );
+        (user) => {
+            const searchTerm = searchQuery.toLowerCase();
+            const nameToSearch = (user.fullName || '').toLowerCase();
+            const emailToSearch = (user.email || '').toLowerCase();
+
+            return (
+                nameToSearch.includes(searchTerm) ||
+                emailToSearch.includes(searchTerm)
+            ) &&
+            (filterRole !== 'All Roles' ? user.role === filterRole : true) &&
+            (filterStatus !== 'All Statuses' ? user.status === filterStatus : true);
+        }
+    );
 
     // Pagination logic
     const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
@@ -165,7 +177,7 @@ const AdminUserList = ({ onLogout }) => {
         );
     };
 
-    // Handle bulk actions
+    // Handle bulk actions (unchanged)
     const handleBulkAction = async (action, value) => {
         if (selectedUsers.length === 0) {
             setError('No users selected.');
@@ -188,7 +200,7 @@ const AdminUserList = ({ onLogout }) => {
                 await Promise.all(
                     selectedUsers.map((id) =>
                         axios.put(
-                            `${API_BASE_URL}/api/admin/user/${id}`,
+                            `${API_BASE_URL}/api/admin/users/${id}/role`,
                             { role: mapRoleToBackend(value) },
                             { headers: { Authorization: `Bearer ${token}` } }
                         )
@@ -200,7 +212,7 @@ const AdminUserList = ({ onLogout }) => {
                 await Promise.all(
                     selectedUsers.map((id) =>
                         axios.put(
-                            `${API_BASE_URL}/api/admin/user/${id}/deactivate`,
+                            `${API_BASE_URL}/api/admin/users/${id}/deactivate`,
                             {},
                             { headers: { Authorization: `Bearer ${token}` } }
                         )
@@ -211,7 +223,7 @@ const AdminUserList = ({ onLogout }) => {
             } else if (action === 'delete') {
                 await Promise.all(
                     selectedUsers.map((id) =>
-                        axios.delete(`${API_BASE_URL}/api/admin/user/${id}`, {
+                        axios.delete(`${API_BASE_URL}/api/admin/users/${id}`, {
                             headers: { Authorization: `Bearer ${token}` },
                         })
                     )
@@ -220,7 +232,7 @@ const AdminUserList = ({ onLogout }) => {
                 toast.success('Selected users deleted successfully!');
             }
             setSelectedUsers([]);
-            fetchUsers(); // Refresh user list
+            fetchUsers();
         } catch (err) {
             console.error(`Error in bulk ${action}:`, {
                 message: err.message,
@@ -239,13 +251,14 @@ const AdminUserList = ({ onLogout }) => {
         }
     };
 
-    // Handle individual actions
+    // Handle individual actions (updated to use fullName)
     const handleEdit = async (user) => {
-        const newName = prompt('Enter new name:', user.name);
+        const newFirstName = prompt('Enter new first name:', user.firstName);
+        const newLastName = prompt('Enter new last name:', user.lastName);
         const newEmail = prompt('Enter new email:', user.email);
-        if (!newName || !newEmail) {
-            setError('Name and email are required.');
-            toast.error('Name and email are required.');
+        if (!newFirstName || !newLastName || !newEmail) {
+            setError('First name, last name and email are required.');
+            toast.error('First name, last name and email are required.');
             return;
         }
         setIsLoading(true);
@@ -254,12 +267,12 @@ const AdminUserList = ({ onLogout }) => {
         try {
             const token = localStorage.getItem('adminToken');
             await axios.put(
-                `${API_BASE_URL}/api/admin/user/${user.id}`,
-                { name: newName, email: newEmail },
+                `${API_BASE_URL}/api/admin/users/${user.id}`,
+                { firstName: newFirstName, lastName: newLastName, email: newEmail },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            setSuccess(`Updated user ${newName} successfully!`);
-            toast.success(`Updated user ${newName} successfully!`);
+            setSuccess(`Updated user ${newFirstName} ${newLastName} successfully!`);
+            toast.success(`Updated user ${newFirstName} ${newLastName} successfully!`);
             fetchUsers();
         } catch (err) {
             console.error('Error editing user:', {
@@ -286,7 +299,7 @@ const AdminUserList = ({ onLogout }) => {
         try {
             const token = localStorage.getItem('adminToken');
             await axios.put(
-                `${API_BASE_URL}/api/admin/user/${id}/deactivate`,
+                `${API_BASE_URL}/api/admin/users/${id}/deactivate`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -318,7 +331,7 @@ const AdminUserList = ({ onLogout }) => {
         try {
             const token = localStorage.getItem('adminToken');
             await axios.put(
-                `${API_BASE_URL}/api/admin/user/reset-password`,
+                `${API_BASE_URL}/api/admin/users/reset-password`,
                 { email },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -349,7 +362,7 @@ const AdminUserList = ({ onLogout }) => {
         setSuccess('');
         try {
             const token = localStorage.getItem('adminToken');
-            await axios.delete(`${API_BASE_URL}/api/admin/user/${id}`, {
+            await axios.delete(`${API_BASE_URL}/api/admin/users/${id}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setSuccess('User deleted successfully!');
@@ -385,7 +398,7 @@ const AdminUserList = ({ onLogout }) => {
         setSuccess('');
         try {
             if (format === 'csv') {
-                const csvHeaders = ['name', 'email', 'role', 'registrationDate', 'status', 'lastLogin'];
+                const csvHeaders = ['fullName', 'email', 'position', 'unitSector', 'role', 'registrationDate', 'status', 'lastLogin'];
                 const csvRows = filteredUsers.map((user) =>
                     csvHeaders.map((header) => `"${user[header] || ''}"`).join(',')
                 );
@@ -406,13 +419,15 @@ const AdminUserList = ({ onLogout }) => {
                 let y = 20;
                 filteredUsers.forEach((user, index) => {
                     doc.text(`User ${index + 1}`, 10, y);
-                    doc.text(`Name: ${user.name}`, 10, y + 5);
+                    doc.text(`Name: ${user.fullName}`, 10, y + 5);
                     doc.text(`Email: ${user.email}`, 10, y + 10);
-                    doc.text(`Role: ${user.role}`, 10, y + 15);
-                    doc.text(`Registration Date: ${user.registrationDate}`, 10, y + 20);
-                    doc.text(`Status: ${user.status}`, 10, y + 25);
-                    doc.text(`Last Login: ${user.lastLogin}`, 10, y + 30);
-                    y += 40;
+                    doc.text(`Position: ${user.position}`, 10, y + 15);
+                    doc.text(`Unit/Sector: ${user.unitSector}`, 10, y + 20);
+                    doc.text(`Role: ${user.role}`, 10, y + 25);
+                    doc.text(`Registration Date: ${user.registrationDate}`, 10, y + 30);
+                    doc.text(`Status: ${user.status}`, 10, y + 35);
+                    doc.text(`Last Login: ${user.lastLogin}`, 10, y + 40);
+                    y += 50;
                     if (y > 270) {
                         doc.addPage();
                         y = 10;
@@ -512,14 +527,10 @@ const AdminUserList = ({ onLogout }) => {
 
             {/* Success/Error Messages */}
             {error && (
-                <div className="text-red-500 text-sm text-center animate-shake mb-4">
-                    {error}
-                </div>
+                <div className="text-red-500 text-sm text-center animate-shake mb-4">{error}</div>
             )}
             {success && (
-                <div className="text-teal-600 text-sm text-center animate-fade-in mb-4">
-                    {success}
-                </div>
+                <div className="text-teal-600 text-sm text-center animate-fade-in mb-4">{success}</div>
             )}
 
             {/* Export Options */}
@@ -558,7 +569,7 @@ const AdminUserList = ({ onLogout }) => {
                                     aria-label="Select all users"
                                 />
                             </th>
-                            {['name', 'email', 'role', 'registrationDate', 'status', 'lastLogin'].map((key) => (
+                            {['fullName', 'email', 'position', 'unitSector', 'role', 'registrationDate', 'status', 'lastLogin'].map((key) => (
                                 <th
                                     key={key}
                                     className="p-3 text-left text-teal-700 cursor-pointer hover:text-teal-900 transition-colors"
@@ -566,7 +577,15 @@ const AdminUserList = ({ onLogout }) => {
                                     aria-sort={sortConfig.key === key ? sortConfig.direction : 'none'}
                                 >
                                     <div className="flex items-center space-x-1">
-                                        <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                                        <span>
+                                            {key === 'fullName'
+                                                ? 'Name'
+                                                : key === 'position'
+                                                ? 'Position'
+                                                : key === 'unitSector'
+                                                ? 'Unit/Sector'
+                                                : key.charAt(0).toUpperCase() + key.slice(1)}
+                                        </span>
                                         {sortConfig.key === key &&
                                             (sortConfig.direction === 'asc' ? (
                                                 <ChevronUp size={16} />
@@ -591,11 +610,13 @@ const AdminUserList = ({ onLogout }) => {
                                         checked={selectedUsers.includes(user.id)}
                                         onChange={() => handleSelectUser(user.id)}
                                         className="h-4 w-4 text-teal-600 focus:ring-teal-400"
-                                        aria-label={`Select ${user.name}`}
+                                        aria-label={`Select ${user.fullName}`}
                                     />
                                 </td>
-                                <td className="p-3 text-gray-700">{user.name}</td>
+                                <td className="p-3 text-gray-700">{user.fullName}</td>
                                 <td className="p-3 text-gray-700">{user.email}</td>
+                                <td className="p-3 text-gray-700">{user.position}</td>
+                                <td className="p-3 text-gray-700">{user.unitSector}</td>
                                 <td className="p-3 text-gray-700">{user.role}</td>
                                 <td className="p-3 text-gray-700">{user.registrationDate}</td>
                                 <td className="p-3 text-gray-700">
@@ -610,7 +631,7 @@ const AdminUserList = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleEdit(user)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`Edit ${user.name}`}
+                                        aria-label={`Edit ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Edit size={16} />
@@ -618,7 +639,7 @@ const AdminUserList = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleDeactivate(user.id)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`Deactivate ${user.name}`}
+                                        aria-label={`Deactivate ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Lock size={16} />
@@ -626,7 +647,7 @@ const AdminUserList = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleResetPassword(user.email)}
                                         className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 transition-all duration-300"
-                                        aria-label={`Reset password for ${user.name}`}
+                                        aria-label={`Reset password for ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Key size={16} />
@@ -634,7 +655,7 @@ const AdminUserList = ({ onLogout }) => {
                                     <button
                                         onClick={() => handleDelete(user.id)}
                                         className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all duration-300"
-                                        aria-label={`Delete ${user.name}`}
+                                        aria-label={`Delete ${user.fullName}`}
                                         disabled={isLoading}
                                     >
                                         <Trash2 size={16} />
