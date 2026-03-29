@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, User, Mail, Lock, Shield, Briefcase, Building } from 'lucide-react';
+import { UserPlus, User, Mail, Lock, Shield, Briefcase, Building, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,8 @@ const INITIAL_FORM = {
 const Signup = ({ onSwitchMode }) => {
     const [formData, setFormData] = useState(INITIAL_FORM);
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showRepeatPassword, setShowRepeatPassword] = useState(false);
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -85,7 +87,6 @@ const Signup = ({ onSwitchMode }) => {
         <div className="min-h-screen w-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
             <ToastContainer position="top-center" autoClose={3000} hideProgressBar />
 
-            {/* FIXED CARD: now scrollable on small screens + removed overflow-hidden from parent */}
             <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6 sm:p-8 border border-blue-200 max-h-[95vh] overflow-y-auto">
                 {/* Logo & Title */}
                 <div className="mb-8 text-center">
@@ -106,6 +107,7 @@ const Signup = ({ onSwitchMode }) => {
                         <div key={name} className="relative group">
                             <div className="flex items-center border border-blue-200 rounded-2xl px-5 py-3 bg-blue-50/30 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300">
                                 {Icon && <Icon className="text-blue-700 w-6 h-6 mr-4 flex-shrink-0" />}
+
                                 {type === 'select' ? (
                                     <select
                                         name={name}
@@ -121,14 +123,53 @@ const Signup = ({ onSwitchMode }) => {
                                         ))}
                                     </select>
                                 ) : (
-                                    <input
-                                        type={type}
-                                        placeholder={placeholder}
-                                        value={formData[name]}
-                                        onChange={(e) => setFormData({ ...formData, [name]: e.target.value })}
-                                        className="w-full focus:outline-none text-lg text-gray-800 placeholder-gray-500 bg-transparent"
-                                        required={name !== 'otherName'}
-                                    />
+                                    <>
+                                        {/* Password input with toggle */}
+                                        <input
+                                            type={
+                                                name === 'password'
+                                                    ? showPassword
+                                                        ? 'text'
+                                                        : 'password'
+                                                    : name === 'repeatPassword'
+                                                    ? showRepeatPassword
+                                                        ? 'text'
+                                                        : 'password'
+                                                    : type
+                                            }
+                                            placeholder={placeholder}
+                                            value={formData[name]}
+                                            onChange={(e) => setFormData({ ...formData, [name]: e.target.value })}
+                                            className="flex-1 focus:outline-none text-lg text-gray-800 placeholder-gray-500 bg-transparent"
+                                            required={name !== 'otherName'}
+                                        />
+
+                                        {/* Show/Hide toggle - only for password fields */}
+                                        {(name === 'password' || name === 'repeatPassword') && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    name === 'password'
+                                                        ? setShowPassword(!showPassword)
+                                                        : setShowRepeatPassword(!showRepeatPassword)
+                                                }
+                                                className="ml-3 text-blue-700 hover:text-blue-800 focus:outline-none transition-colors"
+                                                aria-label={name === 'password' ? (showPassword ? 'Hide password' : 'Show password') : (showRepeatPassword ? 'Hide password' : 'Show password')}
+                                            >
+                                                {name === 'password' ? (
+                                                    showPassword ? (
+                                                        <EyeOff className="w-6 h-6" />
+                                                    ) : (
+                                                        <Eye className="w-6 h-6" />
+                                                    )
+                                                ) : showRepeatPassword ? (
+                                                    <EyeOff className="w-6 h-6" />
+                                                ) : (
+                                                    <Eye className="w-6 h-6" />
+                                                )}
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
