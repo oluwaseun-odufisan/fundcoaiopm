@@ -6,16 +6,16 @@ import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 
-const INITIAL_FORM = { 
-    firstName: '', 
-    lastName: '', 
-    otherName: '', 
-    position: '', 
-    unitSector: '', 
-    email: '', 
-    password: '', 
-    repeatPassword: '', 
-    role: 'standard' 
+const INITIAL_FORM = {
+    firstName: '',
+    lastName: '',
+    otherName: '',
+    position: '',
+    unitSector: '',
+    email: '',
+    password: '',
+    repeatPassword: '',
+    role: 'standard'
 };
 
 const Signup = ({ onSwitchMode }) => {
@@ -26,13 +26,11 @@ const Signup = ({ onSwitchMode }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-
         if (formData.password !== formData.repeatPassword) {
             toast.error('Passwords do not match');
             setLoading(false);
             return;
         }
-
         try {
             const { data } = await axios.post(`${API_URL}/api/user/register`, formData);
             toast.success('Registration successful! Logging you in...');
@@ -50,6 +48,7 @@ const Signup = ({ onSwitchMode }) => {
             localStorage.setItem('token', loginResponse.data.token);
             localStorage.setItem('userId', loginResponse.data.user.id);
             toast.success('Login successful! Redirecting to dashboard...');
+
             setFormData(INITIAL_FORM);
             setTimeout(() => navigate('/'), 1000);
         } catch (err) {
@@ -73,21 +72,23 @@ const Signup = ({ onSwitchMode }) => {
         { name: 'email', type: 'email', placeholder: 'Email Address', icon: Mail },
         { name: 'password', type: 'password', placeholder: 'Password', icon: Lock },
         { name: 'repeatPassword', type: 'password', placeholder: 'Repeat Password', icon: Lock },
-        { 
-            name: 'role', 
-            type: 'select', 
-            placeholder: 'Account Type', 
+        {
+            name: 'role',
+            type: 'select',
+            placeholder: 'Account Type',
             icon: Shield,
-            options: ['standard', 'team-lead', 'admin'] 
+            options: ['standard', 'team-lead', 'admin']
         },
     ];
 
     return (
-        <div className="min-h-screen w-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-hidden">
+        <div className="min-h-screen w-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
             <ToastContainer position="top-center" autoClose={3000} hideProgressBar />
-            <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6 sm:p-8 border border-blue-200">
+
+            {/* FIXED CARD: now scrollable on small screens + removed overflow-hidden from parent */}
+            <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6 sm:p-8 border border-blue-200 max-h-[95vh] overflow-y-auto">
                 {/* Logo & Title */}
-                <div className="mb-10 text-center">
+                <div className="mb-8 text-center">
                     <div className="w-24 h-24 bg-blue-700 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                         <UserPlus className="w-12 h-12 text-white" />
                     </div>
@@ -100,7 +101,7 @@ const Signup = ({ onSwitchMode }) => {
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-6 mt-6">
+                <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-6">
                     {FIELDS.map(({ name, type, placeholder, icon: Icon, options }) => (
                         <div key={name} className="relative group">
                             <div className="flex items-center border border-blue-200 rounded-2xl px-5 py-3 bg-blue-50/30 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-300">
