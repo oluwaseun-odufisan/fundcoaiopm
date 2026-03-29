@@ -2,11 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import { connectDB } from './config/adminDb.js';
+import './models/adminFileModel.js';
 import adminRouter from './routes/adminRoutes.js';
 import adminUserRouter from './routes/adminUserRoutes.js';
 import adminTaskRouter from './routes/adminTaskRoutes.js';
 import adminGoalRouter from './routes/adminGoalRoutes.js';
 import adminFileRouter from './routes/adminFileRoutes.js';
+import adminReportRouter from './routes/adminReportRoutes.js';
 
 const app = express();
 const port = process.env.ADMIN_PORT || 4000;
@@ -43,6 +45,7 @@ app.use('/api/admin/users', adminUserRouter);
 app.use('/api/admin', adminTaskRouter);
 app.use('/api/admin', adminGoalRouter);
 app.use('/api/admin', adminFileRouter);
+app.use('/api/admin/reports', adminReportRouter);
 
 // Health check route
 app.get('/', (req, res) => {

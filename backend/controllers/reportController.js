@@ -1,7 +1,19 @@
 import Report from '../models/reportModel.js';
 import Task from '../models/taskModel.js';
 import File from '../models/fileModel.js';
-import { grokChat } from './grokController.js'; // Reuse existing Grok streaming
+import { grokChat } from './grokController.js';
+import axios from 'axios';
+
+// Socket helper for real-time updates to admin
+const emitToAdmin = async (event, data) => {
+  try {
+    await axios.post('http://localhost:4000/api/emit', { event, data }, {
+      headers: { Authorization: `Bearer ${process.env.ADMIN_JWT_SECRET || 'your_jwt_secret_here'}` },
+    });
+  } catch (err) {
+    console.error('Socket emit to admin failed (non-critical):', err.message);
+  }
+};
 
 // Create manual report
 export const createManualReport = async (req, res) => {
@@ -19,18 +31,16 @@ export const createManualReport = async (req, res) => {
       aiGenerated: false,
     });
 
-    // Attach any uploaded images/files
     if (req.files && req.files.length > 0) {
       const fileIds = await Promise.all(
         req.files.map(async (file) => {
-          // Reuse your existing pinFileToIPFS logic or call it
           const savedFile = await File.create({
             fileName: file.originalname,
-            cid: file.cid || 'placeholder', // you already have upload logic
+            cid: file.cid || 'placeholder',
             size: file.size,
             type: file.mimetype.split('/')[1],
             owner: req.user._id,
-            reportId: report._id, // new field we can add to File if needed
+            reportId: report._id,
           });
           return savedFile._id;
         })
@@ -39,6 +49,10 @@ export const createManualReport = async (req, res) => {
     }
 
     await report.save();
+
+    // Emit to admin in real-time
+    await emitToAdmin('newReport', report);
+
     res.status(201).json({ success: true, report });
   } catch (err) {
     console.error('Create manual report error:', err);
@@ -46,7 +60,7 @@ export const createManualReport = async (req, res) => {
   }
 };
 
-// AI Generate Report (extends existing report-generator)
+// AI Generate Report
 export const generateAIReport = async (req, res) => {
   try {
     const { reportType, periodStart, periodEnd, selectedTaskIds = [], customPrompt = '' } = req.body;
@@ -60,12 +74,10 @@ export const generateAIReport = async (req, res) => {
       return res.json({ success: true, content: '**No Tasks Found**\n\nNo tasks were found in the selected period for this report.' });
     }
 
-    // Send to existing Grok report-generator tool (already perfect)
     const messages = [{
       role: 'user',
       content: `Write a natural, honest, first-person report as if I am reporting to my manager.
-Use ONLY the tasks below. Do not invent anything.
-Include checklist progress where relevant.
+Only use the tasks below. Do not invent anything.
 Be truthful about completed and incomplete work.
 
 Report type: ${reportType}
@@ -75,9 +87,7 @@ ${customPrompt ? `Additional instructions: ${customPrompt}` : ''}
 Tasks:\n${JSON.stringify(tasks, null, 2)}`,
     }];
 
-    // Reuse your existing Grok streaming (this will stream live)
     let fullContent = '';
-    // Call your existing grokChat function (you already have it)
     await grokChat({
       body: { messages, taskContext: JSON.stringify(tasks), toolId: 'report-generator' },
       user: req.user,
@@ -170,7 +180,7 @@ export const updateReport = async (req, res) => {
   }
 };
 
-// Submit report
+// Submit report (now emits to admin)
 export const submitReport = async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.id, user: req.user._id });
@@ -180,6 +190,9 @@ export const submitReport = async (req, res) => {
     report.status = 'submitted';
     report.submittedAt = new Date();
     await report.save();
+
+    // Emit to admin
+    await emitToAdmin('reportSubmitted', report);
 
     res.json({ success: true, report });
   } catch (err) {

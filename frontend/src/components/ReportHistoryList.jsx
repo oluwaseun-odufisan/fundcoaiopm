@@ -60,17 +60,17 @@ const ReportHistoryList = ({ user }) => {
     }
   };
 
-  // Clean Markdown symbols (asterisks, hashes, etc.) from AI-generated reports
+  // Clean Markdown for PDF export
   const cleanMarkdownForPDF = (text) => {
     return text
-      .replace(/^#{1,6}\s*/gm, '')                    // Remove headings
-      .replace(/\*\*(.*?)\*\*/g, '$1')                // Remove bold
-      .replace(/\*(.*?)\*/g, '$1')                    // Remove italic
-      .replace(/^\s*[-*+]\s+/gm, '• ')                // Convert bullets
-      .replace(/^\s*\d+\.\s+/gm, '')                  // Remove numbered lists
-      .replace(/`([^`]+)`/g, '$1')                    // Remove code
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')        // Remove links
-      .replace(/\n{3,}/g, '\n\n')                     // Normalize newlines
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/^\s*[-*+]\s+/gm, '• ')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   };
 
@@ -101,14 +101,11 @@ const ReportHistoryList = ({ user }) => {
         });
       };
 
-      // Clean AI Markdown before PDF
       const cleanContent = cleanMarkdownForPDF(report.content);
 
-      // Title
       addText(report.title, 18, true, 1.6);
       y += 0.4;
 
-      // Date & Type
       addText(
         `${report.reportType.toUpperCase()} Report • ${new Date(report.createdAt).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -121,7 +118,6 @@ const ReportHistoryList = ({ user }) => {
       );
       y += 0.6;
 
-      // Content
       const paragraphs = cleanContent
         .split('\n\n')
         .map((p) => p.trim())
@@ -166,7 +162,11 @@ const ReportHistoryList = ({ user }) => {
               </p>
               <span
                 className={`inline-block px-4 py-1 text-xs rounded-full mt-2 ${
-                  report.status === 'draft' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                  report.status === 'draft'
+                    ? 'bg-amber-100 text-amber-700'
+                    : report.status === 'reviewed'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-blue-100 text-blue-700'
                 }`}
               >
                 {report.status.toUpperCase()}
@@ -217,14 +217,28 @@ const ReportHistoryList = ({ user }) => {
         ))}
       </div>
 
-      {/* View Modal */}
+      {/* VIEW MODAL - Now shows Admin Feedback */}
       {viewingReport && (
         <motion.div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
           <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl p-10">
             <div className="prose dark:prose-invert max-w-none">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewingReport.content}</ReactMarkdown>
             </div>
-            <button onClick={() => setViewingReport(null)} className="mt-8 px-8 py-4 bg-gray-200 rounded-2xl">
+
+            {/* ADMIN FEEDBACK SECTION */}
+            {viewingReport.feedback && (
+              <div className="mt-10 p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-amber-600 font-semibold text-lg">Admin Feedback</span>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{viewingReport.feedback}</p>
+              </div>
+            )}
+
+            <button
+              onClick={() => setViewingReport(null)}
+              className="mt-8 px-8 py-4 bg-gray-200 dark:bg-gray-700 rounded-2xl w-full text-lg font-medium"
+            >
               Close
             </button>
           </div>
@@ -237,9 +251,9 @@ const ReportHistoryList = ({ user }) => {
           <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl">
             <ReportEditor
               user={user}
-              tasks={tasks || []}
-              initialReport={editingReport}
-              onClose={() => setEditingReport(null)}
+              tasks={[]}               
+              initialReport={editingReport}  
+              onClose={() => setEditingReport(null)}  
               onSaved={() => {
                 fetchReports();
                 setEditingReport(null);

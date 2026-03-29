@@ -1,41 +1,41 @@
 // src/components/ReportEditor.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, Download, Save, X, Loader2 } from 'lucide-react';
+import { FileText, Download, Save, X, Loader2, XCircle } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 
-const ReportEditor = ({ user, tasks }) => {
+const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
   const [title, setTitle] = useState('');
   const [reportType, setReportType] = useState('daily');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [content, setContent] = useState('');
-  const [attachments, setAttachments] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    setAttachments((prev) => [...prev, ...files]);
-  };
+  // Pre-fill form when editing an existing report
+  useEffect(() => {
+    if (initialReport) {
+      setTitle(initialReport.title || '');
+      setReportType(initialReport.reportType || 'daily');
+      setStartDate(initialReport.periodStart ? new Date(initialReport.periodStart).toISOString().split('T')[0] : '');
+      setEndDate(initialReport.periodEnd ? new Date(initialReport.periodEnd).toISOString().split('T')[0] : '');
+      setContent(initialReport.content || '');
+    }
+  }, [initialReport]);
 
-  const removeAttachment = (index) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Clean Markdown symbols from AI-generated reports (asterisks, hashes, etc.)
   const cleanMarkdownForPDF = (text) => {
     return text
-      .replace(/^#{1,6}\s*/gm, '')                    // Remove headings (#, ##, etc.)
-      .replace(/\*\*(.*?)\*\*/g, '$1')                // Remove bold **
-      .replace(/\*(.*?)\*/g, '$1')                    // Remove italic *
-      .replace(/^\s*[-*+]\s+/gm, '• ')                // Convert bullets to •
-      .replace(/^\s*\d+\.\s+/gm, '')                  // Remove numbered lists
-      .replace(/`([^`]+)`/g, '$1')                    // Remove inline code
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')        // Remove links
-      .replace(/\n{3,}/g, '\n\n')                     // Normalize excessive newlines
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/^\s*[-*+]\s+/gm, '• ')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   };
 
@@ -45,27 +45,39 @@ const ReportEditor = ({ user, tasks }) => {
     }
 
     setIsSaving(true);
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('reportType', reportType);
-    formData.append('periodStart', startDate || new Date().toISOString().split('T')[0]);
-    formData.append('periodEnd', endDate || new Date().toISOString().split('T')[0]);
-    formData.append('content', content);
-    formData.append('aiGenerated', false);
-
-    attachments.forEach((file) => formData.append('attachments', file));
+    const payload = {
+      title,
+      reportType,
+      periodStart: startDate || new Date().toISOString().split('T')[0],
+      periodEnd: endDate || new Date().toISOString().split('T')[0],
+      content,
+      aiGenerated: false,
+    };
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/reports`, formData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      toast.success('Report saved as draft successfully! Check Report History.');
-      setTitle('');
-      setContent('');
-      setAttachments([]);
+      if (initialReport) {
+        // UPDATE existing report
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/reports/${initialReport._id}`, payload, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        toast.success('Report updated successfully!');
+      } else {
+        // CREATE new report
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/reports`, payload, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        toast.success('Report saved as draft successfully! Check Report History.');
+      }
+
+      if (onSaved) onSaved();
+      if (onClose) onClose();
+      else {
+        setTitle('');
+        setContent('');
+      }
     } catch (err) {
-      console.error('Save draft error:', err);
-      toast.error(err.response?.data?.message || 'Failed to save draft');
+      console.error('Save error:', err);
+      toast.error(err.response?.data?.message || 'Failed to save report');
     } finally {
       setIsSaving(false);
     }
@@ -101,14 +113,11 @@ const ReportEditor = ({ user, tasks }) => {
         });
       };
 
-      // Clean content (removes *, #, ** from AI reports)
       const cleanContent = cleanMarkdownForPDF(content);
 
-      // Title
       addText(title || 'Progress Report', 18, true, 1.6);
       y += 0.4;
 
-      // Date & Type
       addText(
         `${reportType.toUpperCase()} Report • ${new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -121,7 +130,6 @@ const ReportEditor = ({ user, tasks }) => {
       );
       y += 0.6;
 
-      // Main content (clean paragraphs)
       const paragraphs = cleanContent
         .split('\n\n')
         .map((p) => p.trim())
@@ -131,26 +139,6 @@ const ReportEditor = ({ user, tasks }) => {
         addText(paragraph, 12, false, 1.2);
         y += 0.3;
       });
-
-      // Images
-      if (attachments.length > 0) {
-        y += 0.4;
-        for (const file of attachments) {
-          if (file.type.startsWith('image/')) {
-            if (y > 9) {
-              doc.addPage();
-              y = margin + 0.6;
-            }
-            const base64 = await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result);
-              reader.readAsDataURL(file);
-            });
-            doc.addImage(base64, 'PNG', margin, y, printableWidth, 0);
-            y += 3.5;
-          }
-        }
-      }
 
       doc.save(`${(title || 'report').replace(/[^a-z0-9]/gi, '_')}.pdf`);
       toast.success('Clean, professional PDF exported!');
@@ -166,11 +154,21 @@ const ReportEditor = ({ user, tasks }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 border border-blue-100 dark:border-gray-700"
+      className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 border border-blue-100 dark:border-gray-700 relative"
     >
+      {/* Close button when editing */}
+      {initialReport && onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 text-gray-400 hover:text-red-500 transition-colors"
+        >
+          <XCircle className="w-8 h-8" />
+        </button>
+      )}
+
       <h2 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-6 flex items-center gap-3">
         <FileText className="w-7 h-7" />
-        Manual Report Editor
+        {initialReport ? 'Edit Report' : 'Manual Report Editor'}
       </h2>
 
       <input
@@ -208,37 +206,9 @@ const ReportEditor = ({ user, tasks }) => {
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder="Write your report here... Be detailed about what you completed and what is still pending."
+        placeholder="Write your honest report here... Be detailed about what you completed and what is still pending."
         className="w-full h-96 p-6 text-lg resize-y border border-blue-200 dark:border-gray-600 rounded-3xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
       />
-
-      <div className="mt-8">
-        <label className="flex items-center gap-2 text-blue-600 dark:text-blue-400 cursor-pointer mb-4">
-          <Upload className="w-5 h-5" />
-          <span className="font-medium">Attach Images / Files</span>
-          <input type="file" multiple accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
-        </label>
-
-        <div className="flex flex-wrap gap-4">
-          {attachments.map((file, i) => (
-            <div key={i} className="relative group border border-gray-200 dark:border-gray-600 rounded-2xl overflow-hidden">
-              {file.type.startsWith('image/') ? (
-                <img src={URL.createObjectURL(file)} alt="" className="w-24 h-24 object-cover" />
-              ) : (
-                <div className="w-24 h-24 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                  <FileText className="w-10 h-10 text-gray-400" />
-                </div>
-              )}
-              <button
-                onClick={() => removeAttachment(i)}
-                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 text-xs opacity-0 group-hover:opacity-100 transition-all"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <div className="flex gap-4 mt-10">
         <button
@@ -247,7 +217,7 @@ const ReportEditor = ({ user, tasks }) => {
           className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-2xl font-semibold flex items-center justify-center gap-3 transition-all"
         >
           {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-          {isSaving ? 'Saving Draft...' : 'Save as Draft'}
+          {isSaving ? 'Saving...' : initialReport ? 'Save Changes' : 'Save as Draft'}
         </button>
 
         <button
