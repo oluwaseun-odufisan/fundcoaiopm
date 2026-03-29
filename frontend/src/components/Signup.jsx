@@ -37,7 +37,6 @@ const Signup = ({ onSwitchMode }) => {
             const { data } = await axios.post(`${API_URL}/api/user/register`, formData);
             toast.success('Registration successful! Logging you in...');
 
-            // Automatically log in the user
             const loginResponse = await axios.post(`${API_URL}/api/user/login`, {
                 email: formData.email,
                 password: formData.password,
@@ -123,8 +122,7 @@ const Signup = ({ onSwitchMode }) => {
                                         ))}
                                     </select>
                                 ) : (
-                                    <>
-                                        {/* Password input with toggle */}
+                                    <div className="relative flex-1">
                                         <input
                                             type={
                                                 name === 'password'
@@ -140,11 +138,11 @@ const Signup = ({ onSwitchMode }) => {
                                             placeholder={placeholder}
                                             value={formData[name]}
                                             onChange={(e) => setFormData({ ...formData, [name]: e.target.value })}
-                                            className="flex-1 focus:outline-none text-lg text-gray-800 placeholder-gray-500 bg-transparent"
+                                            className="w-full pr-12 focus:outline-none text-lg text-gray-800 placeholder-gray-500 bg-transparent"
                                             required={name !== 'otherName'}
                                         />
 
-                                        {/* Show/Hide toggle - only for password fields */}
+                                        {/* Show/Hide toggle - absolute positioned for perfect mobile experience */}
                                         {(name === 'password' || name === 'repeatPassword') && (
                                             <button
                                                 type="button"
@@ -153,8 +151,16 @@ const Signup = ({ onSwitchMode }) => {
                                                         ? setShowPassword(!showPassword)
                                                         : setShowRepeatPassword(!showRepeatPassword)
                                                 }
-                                                className="ml-3 text-blue-700 hover:text-blue-800 focus:outline-none transition-colors"
-                                                aria-label={name === 'password' ? (showPassword ? 'Hide password' : 'Show password') : (showRepeatPassword ? 'Hide password' : 'Show password')}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-700 hover:text-blue-800 active:scale-95 transition-all duration-200 focus:outline-none p-1"
+                                                aria-label={
+                                                    name === 'password'
+                                                        ? showPassword
+                                                            ? 'Hide password'
+                                                            : 'Show password'
+                                                        : showRepeatPassword
+                                                        ? 'Hide password'
+                                                        : 'Show password'
+                                                }
                                             >
                                                 {name === 'password' ? (
                                                     showPassword ? (
@@ -169,7 +175,7 @@ const Signup = ({ onSwitchMode }) => {
                                                 )}
                                             </button>
                                         )}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </div>

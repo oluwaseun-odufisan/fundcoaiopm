@@ -1,22 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
-import { ChevronLeft, Lock, LogOut, Save, Shield, UserCircle, Briefcase, Building } from 'lucide-react';
+import { ChevronLeft, Lock, LogOut, Save, Shield, UserCircle, Briefcase, Building, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const Profile = ({ setCurrentUser, onLogout }) => {
-    const [profile, setProfile] = useState({ 
-        firstName: '', 
-        lastName: '', 
-        otherName: '', 
-        position: '', 
-        unitSector: '', 
-        email: '', 
-        role: 'standard' 
+    const [profile, setProfile] = useState({
+        firstName: '',
+        lastName: '',
+        otherName: '',
+        position: '',
+        unitSector: '',
+        email: '',
+        role: 'standard'
     });
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
+    
+    // NEW: Password visibility toggles
+    const [showPasswords, setShowPasswords] = useState({
+        current: false,
+        new: false,
+        confirm: false
+    });
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -54,13 +62,13 @@ const Profile = ({ setCurrentUser, onLogout }) => {
             const token = localStorage.getItem('token');
             const { data } = await axios.put(
                 `${API_URL}/api/user/profile`,
-                { 
-                    firstName: profile.firstName, 
-                    lastName: profile.lastName, 
-                    otherName: profile.otherName, 
-                    position: profile.position, 
-                    unitSector: profile.unitSector, 
-                    email: profile.email 
+                {
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    otherName: profile.otherName,
+                    position: profile.position,
+                    unitSector: profile.unitSector,
+                    email: profile.email
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -101,6 +109,8 @@ const Profile = ({ setCurrentUser, onLogout }) => {
             if (data.success) {
                 toast.success('Password changed successfully');
                 setPasswords({ current: '', new: '', confirm: '' });
+                // Reset visibility toggles after successful change
+                setShowPasswords({ current: false, new: false, confirm: false });
             } else {
                 toast.error(data.message);
             }
@@ -129,7 +139,6 @@ const Profile = ({ setCurrentUser, onLogout }) => {
     return (
         <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100">
             <ToastContainer position="top-center" autoClose={3000} />
-
             <div className="max-w-4xl mx-auto p-6 sm:p-8">
                 {/* Back Button */}
                 <button
@@ -155,7 +164,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
 
                 {/* Grid: Personal + Security */}
                 <div className="grid md:grid-cols-2 gap-8">
-                    {/* Personal Information - NOW FULLY EDITABLE */}
+                    {/* Personal Information */}
                     <section className="bg-white rounded-2xl p-4 sm:p-6 shadow-md border border-blue-200">
                         <div className="flex items-center gap-2 mb-6">
                             <UserCircle className="text-blue-700 w-5 h-5" />
@@ -191,7 +200,7 @@ const Profile = ({ setCurrentUser, onLogout }) => {
                         </form>
                     </section>
 
-                    {/* Security - already fully functional */}
+                    {/* Security - with show/hide toggles */}
                     <section className="bg-white rounded-2xl p-4 sm:p-6 shadow-md border border-blue-200">
                         <div className="flex items-center gap-2 mb-6">
                             <Shield className="text-blue-700 w-5 h-5" />
@@ -204,16 +213,37 @@ const Profile = ({ setCurrentUser, onLogout }) => {
                                     className="flex items-center border border-blue-200 rounded-xl px-4 py-3 bg-blue-50/30 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200"
                                 >
                                     <Lock className="text-blue-700 w-5 h-5 mr-2 flex-shrink-0" />
+
                                     <input
-                                        type="password"
+                                        type={showPasswords[name] ? 'text' : 'password'}
                                         placeholder={placeholder}
                                         value={passwords[name]}
                                         onChange={(e) => setPasswords({ ...passwords, [name]: e.target.value })}
-                                        className="w-full focus:outline-none text-sm sm:text-base text-gray-800 placeholder-gray-500 bg-transparent"
+                                        className="flex-1 focus:outline-none text-sm sm:text-base text-gray-800 placeholder-gray-500 bg-transparent"
                                         required
                                     />
+
+                                    {/* Show/Hide Toggle Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowPasswords((prev) => ({
+                                                ...prev,
+                                                [name]: !prev[name]
+                                            }))
+                                        }
+                                        className="ml-3 text-blue-700 hover:text-blue-800 focus:outline-none transition-colors"
+                                        aria-label={showPasswords[name] ? 'Hide password' : 'Show password'}
+                                    >
+                                        {showPasswords[name] ? (
+                                            <EyeOff className="w-5 h-5" />
+                                        ) : (
+                                            <Eye className="w-5 h-5" />
+                                        )}
+                                    </button>
                                 </div>
                             ))}
+
                             <button className="w-full py-2.5 flex items-center justify-center gap-2 text-white bg-blue-700 hover:bg-blue-800 rounded-xl shadow-md font-semibold text-sm sm:text-base transition-all duration-300">
                                 <Shield className="w-4 h-4" /> Change Password
                             </button>
