@@ -1,3 +1,4 @@
+// src/pages/Signup.jsx
 import React, { useState } from 'react';
 import { UserPlus, User, Mail, Lock, Shield, Briefcase, Building, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
@@ -18,7 +19,7 @@ const INITIAL_FORM = {
     role: 'standard'
 };
 
-const Signup = ({ onSwitchMode }) => {
+const Signup = ({ onSwitchMode, onSubmit }) => {
     const [formData, setFormData] = useState(INITIAL_FORM);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -28,13 +29,15 @@ const Signup = ({ onSwitchMode }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+
         if (formData.password !== formData.repeatPassword) {
             toast.error('Passwords do not match');
             setLoading(false);
             return;
         }
+
         try {
-            const { data } = await axios.post(`${API_URL}/api/user/register`, formData);
+            await axios.post(`${API_URL}/api/user/register`, formData);
             toast.success('Registration successful! Logging you in...');
 
             const loginResponse = await axios.post(`${API_URL}/api/user/login`, {
@@ -48,8 +51,13 @@ const Signup = ({ onSwitchMode }) => {
 
             localStorage.setItem('token', loginResponse.data.token);
             localStorage.setItem('userId', loginResponse.data.user.id);
-            toast.success('Login successful! Redirecting to dashboard...');
 
+            // Pass full user object to parent (Layout)
+            if (onSubmit && typeof onSubmit === 'function') {
+                onSubmit(loginResponse.data.user);
+            }
+
+            toast.success('Login successful! Redirecting to dashboard...');
             setFormData(INITIAL_FORM);
             setTimeout(() => navigate('/'), 1000);
         } catch (err) {
@@ -87,7 +95,6 @@ const Signup = ({ onSwitchMode }) => {
             <ToastContainer position="top-center" autoClose={3000} hideProgressBar />
 
             <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-6 sm:p-8 border border-blue-200 max-h-[95vh] overflow-y-auto">
-                {/* Logo & Title */}
                 <div className="mb-8 text-center">
                     <div className="w-24 h-24 bg-blue-700 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                         <UserPlus className="w-12 h-12 text-white" />
@@ -100,7 +107,6 @@ const Signup = ({ onSwitchMode }) => {
                     </p>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-6">
                     {FIELDS.map(({ name, type, placeholder, icon: Icon, options }) => (
                         <div key={name} className="relative group">
@@ -126,13 +132,9 @@ const Signup = ({ onSwitchMode }) => {
                                         <input
                                             type={
                                                 name === 'password'
-                                                    ? showPassword
-                                                        ? 'text'
-                                                        : 'password'
+                                                    ? showPassword ? 'text' : 'password'
                                                     : name === 'repeatPassword'
-                                                    ? showRepeatPassword
-                                                        ? 'text'
-                                                        : 'password'
+                                                    ? showRepeatPassword ? 'text' : 'password'
                                                     : type
                                             }
                                             placeholder={placeholder}
@@ -142,7 +144,6 @@ const Signup = ({ onSwitchMode }) => {
                                             required={name !== 'otherName'}
                                         />
 
-                                        {/* Show/Hide toggle - absolute positioned for perfect mobile experience */}
                                         {(name === 'password' || name === 'repeatPassword') && (
                                             <button
                                                 type="button"
@@ -152,22 +153,9 @@ const Signup = ({ onSwitchMode }) => {
                                                         : setShowRepeatPassword(!showRepeatPassword)
                                                 }
                                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-700 hover:text-blue-800 active:scale-95 transition-all duration-200 focus:outline-none p-1"
-                                                aria-label={
-                                                    name === 'password'
-                                                        ? showPassword
-                                                            ? 'Hide password'
-                                                            : 'Show password'
-                                                        : showRepeatPassword
-                                                        ? 'Hide password'
-                                                        : 'Show password'
-                                                }
                                             >
                                                 {name === 'password' ? (
-                                                    showPassword ? (
-                                                        <EyeOff className="w-6 h-6" />
-                                                    ) : (
-                                                        <Eye className="w-6 h-6" />
-                                                    )
+                                                    showPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />
                                                 ) : showRepeatPassword ? (
                                                     <EyeOff className="w-6 h-6" />
                                                 ) : (
@@ -181,7 +169,6 @@ const Signup = ({ onSwitchMode }) => {
                         </div>
                     ))}
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={loading}
@@ -204,7 +191,6 @@ const Signup = ({ onSwitchMode }) => {
                     </button>
                 </form>
 
-                {/* Login Link */}
                 <p className="text-center text-base sm:text-lg text-gray-600 mt-10">
                     Already have an account?{' '}
                     <button

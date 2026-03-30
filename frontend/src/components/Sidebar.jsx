@@ -1,3 +1,4 @@
+// src/components/Sidebar.jsx
 import React, { useEffect, useState } from 'react';
 import {
   List,
@@ -29,11 +30,9 @@ import { NavLink } from 'react-router-dom';
 const Sidebar = ({ user, isExpanded, onToggle }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Fallback for username
-  const username = user?.name?.trim() || 'User';
-  const initial = username.charAt(0).toUpperCase();
+  const fullName = user?.fullName || user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
+  const initial = (user?.firstName || user?.name || 'U').charAt(0).toUpperCase();
 
-  // Handle body scroll lock on mobile menu
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : 'auto';
     return () => {
@@ -49,14 +48,12 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'Calendar View', path: '/calendar', icon: <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Team Chat', path: '/team-chat', icon: <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Social Feeds', path: '/social-feed', icon: <Instagram className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    // { text: 'URL Shortener', path: '/url-shortener', icon: <Link className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'File Storage', path: '/file-storage', icon: <File className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Reports', path: '/reports', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'AI Tools', path: '/ai-tools', icon: <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" /> },
     { text: 'Deck Prep', path: '/document-converter', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Reminders', path: '/reminders', icon: <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Goals', path: '/goals', icon: <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    // { text: 'Appraisals', path: '/appraisals', icon: <Award className="w-5 h-5 text-green-600 dark:text-green-400" /> },
     { text: 'Performance', path: '/performance', icon: <CreditCard className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Meeting', path: '/meeting', icon: <Video className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Training', path: '/training', icon: <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
@@ -100,7 +97,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
           flex flex-col transition-all duration-300 z-40
         `}
       >
-        {/* Scrollable Container */}
         <div className="flex-1 overflow-hidden">
           <div
             className={`
@@ -115,13 +111,8 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
             }}
           >
             <style jsx>{`
-              .scrollbar-hide::-webkit-scrollbar {
-                display: none;
-              }
-              .scrollbar-hide {
-                -ms-overflow-style: none;
-                scrollbar-width: none;
-              }
+              .scrollbar-hide::-webkit-scrollbar { display: none; }
+              .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
 
             {/* User Profile */}
@@ -132,7 +123,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
                     {initial}
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[180px]">Hi, {username}</h2>
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[180px]">Hi, {fullName}</h2>
                     <p className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
                       <Clock className="w-3 h-3" /> Stay Productive!
                     </p>
@@ -181,7 +172,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
         </div>
       </div>
 
-      {/* === FIXED TOGGLE BUTTON — NO OVERLAP === */}
+      {/* Toggle Button */}
       <button
         onClick={onToggle}
         className={`
@@ -192,15 +183,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
           w-10 h-16
           ${isExpanded ? 'left-64' : 'left-16'}
         `}
-        style={{
-          // Fallback for JS-disabled or SSR
-          left: isExpanded ? '16rem' : '4rem',
-        }}
+        style={{ left: isExpanded ? '16rem' : '4rem' }}
         aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
       >
-        <ChevronRight
-          className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-        />
+        <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Mobile Menu Button */}
@@ -215,20 +201,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
       )}
 
       {/* Mobile Drawer */}
-      <div
-        className={`fixed inset-0 z-40 transition-opacity duration-300 ${
-          mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      >
+      <div className={`fixed inset-0 z-40 transition-opacity duration-300 ${mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} aria-hidden="true" />
         <div
-          className="fixed inset-0 bg-black/50"
-          onClick={() => setMobileOpen(false)}
-          aria-hidden="true"
-        />
-        <div
-          className={`fixed top-0 left-0 w-72 h-full bg-white dark:bg-gray-900 p-5 transition-transform duration-300 transform ${
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`fixed top-0 left-0 w-72 h-full bg-white dark:bg-gray-900 p-5 transition-transform duration-300 transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-6">
@@ -241,17 +217,19 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
               <X className="w-6 h-6" />
             </button>
           </div>
+
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-full bg-blue-600 dark:bg-blue-700 flex items-center justify-center text-white font-bold text-xl shadow-sm">
               {initial}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[180px]">Hi, {username}</h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[180px]">Hi, {fullName}</h2>
               <p className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
                 <Clock className="w-3 h-3" /> Stay Productive!
               </p>
             </div>
           </div>
+
           <div className="h-[calc(100vh-8rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
             <div className="space-y-6 pb-32">
               {renderMenuItems(true)}

@@ -17,11 +17,20 @@ const openai = new OpenAI({
   baseURL: 'https://api.x.ai/v1',
 });
 
+// Safe full name helper
+const getFullName = (user) => {
+  if (!user) return 'Unknown User';
+  if (user.fullName) return user.fullName.trim();
+  if (user.firstName || user.lastName) {
+    return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
+  }
+  return user.name?.trim() || 'Unknown User';
+};
+
 const getLeaderboard = async (req, res) => {
-  // unchanged - your original code
   try {
     const users = await User.find({ isActive: true })
-      .select('name email role points level badges lastActive')
+      .select('firstName lastName otherName email role points level badges lastActive')
       .lean();
 
     const allTasks = await Task.find({})
@@ -52,10 +61,14 @@ const getLeaderboard = async (req, res) => {
       const totalScore = calculateUserTotalScore(userData.tasks, userData.goals);
       const completionRate = calculateCompletionRate(userData.tasks);
       const level = getUserLevel(totalScore);
+      const fullName = getFullName(userData);
 
       return {
         _id: userData._id,
-        name: userData.name,
+        fullName,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        otherName: userData.otherName,
         role: userData.role,
         points: userData.points || 0,
         level,
@@ -85,7 +98,6 @@ const getLeaderboard = async (req, res) => {
 };
 
 const getMyPerformance = async (req, res) => {
-  // unchanged - your original code
   try {
     const userId = req.user.id;
     const tasks = await Task.find({ owner: userId }).lean();
@@ -95,9 +107,16 @@ const getMyPerformance = async (req, res) => {
     const completionRate = calculateCompletionRate(tasks);
     const level = getUserLevel(totalScore);
 
+    const currentUser = await User.findById(userId)
+      .select('firstName lastName otherName')
+      .lean();
+
+    const fullName = getFullName(currentUser);
+
     res.json({
       success: true,
       performance: {
+        fullName,
         totalScore,
         completionRate,
         level,
@@ -108,28 +127,28 @@ const getMyPerformance = async (req, res) => {
       },
     });
   } catch (err) {
+    console.error('MyPerformance error:', err);
     res.status(500).json({ success: false, message: 'Failed to load performance' });
   }
 };
 
 const getUserDetails = async (req, res) => {
-  // unchanged - your original code (instant stats)
   try {
     const { userId } = req.params;
     const requestingUser = req.user;
-
     const canSeeBonusHistory = requestingUser.id === userId || requestingUser.role === 'admin';
 
     const [tasks, goals, targetUser] = await Promise.all([
       Task.find({ owner: userId }).select('priority completed submissionStatus checklist').lean(),
       Goal.find({ owner: userId }).select('subGoals').lean(),
-      User.findById(userId).select('name role level badges activityLogs').lean(),
+      User.findById(userId).select('firstName lastName otherName role level badges activityLogs').lean(),
     ]);
 
     if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const taskStatsByPriority = { Low: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 }, Medium: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 }, High: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 } };
+    const fullName = getFullName(targetUser);
 
+    const taskStatsByPriority = { Low: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 }, Medium: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 }, High: { count: 0, completed: 0, approved: 0, checklistBonusTotal: 0 } };
     let totalTaskPoints = 0, totalChecklistBonus = 0, totalApprovalBonus = 0;
 
     tasks.forEach(task => {
@@ -162,7 +181,14 @@ const getUserDetails = async (req, res) => {
 
     res.json({
       success: true,
-      user: { name: targetUser.name, role: targetUser.role, level: targetUser.level },
+      user: {
+        fullName,
+        firstName: targetUser.firstName,
+        lastName: targetUser.lastName,
+        otherName: targetUser.otherName,
+        role: targetUser.role,
+        level: targetUser.level,
+      },
       totalScore,
       taskPoints: totalTaskPoints,
       goalPoints: totalGoalPoints,
@@ -175,84 +201,71 @@ const getUserDetails = async (req, res) => {
       bonusHistory: canSeeBonusHistory ? targetUser.activityLogs?.filter(log => log.action === 'bonus_awarded') || [] : [],
     });
   } catch (err) {
-    console.error(err);
+    console.error('UserDetails error:', err);
     res.status(500).json({ success: false, message: 'Failed to load user details' });
   }
 };
 
-// NEW: Super (AI) Admin Analysis (called asynchronously)
+/* =============================================
+   SUPER (AI) ADMIN ANALYSIS — LONGER, DETAILED & NO EM-DASHES
+   ============================================= */
 const getUserAIAnalysis = async (req, res) => {
   try {
     const { userId } = req.params;
     const requestingUserId = req.user.id;
     const isSelfView = requestingUserId === userId;
 
-    // Fetch aggregated stats (unchanged)
     const [tasks, goals, targetUser] = await Promise.all([
-      Task.find({ owner: userId }).select('priority completed submissionStatus checklist').lean(),
+      Task.find({ owner: userId })
+        .select('title description priority completed submissionStatus checklist')
+        .lean(),
       Goal.find({ owner: userId }).select('subGoals').lean(),
-      User.findById(userId).select('name role level').lean(),
+      User.findById(userId)
+        .select('firstName lastName otherName position unitSector role level')
+        .lean(),
     ]);
 
     if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const taskStatsByPriority = {
-      Low: { count: 0, completed: 0 },
-      Medium: { count: 0, completed: 0 },
-      High: { count: 0, completed: 0 }
-    };
-    let totalTaskPoints = 0, completedTasks = 0;
+    const fullName = getFullName(targetUser);
 
-    tasks.forEach(t => {
-      if (t.priority) {
-        taskStatsByPriority[t.priority].count++;
-        if (t.completed) {
-          taskStatsByPriority[t.priority].completed++;
-          completedTasks++;
-          totalTaskPoints += calculateTaskScore(t);
-        }
-      }
-    });
+    const taskList = tasks
+      .slice(0, 10)
+      .map(t => {
+        const status = t.completed ? 'COMPLETED' : 'PENDING';
+        const desc = t.description ? ` - ${t.description.substring(0, 150)}` : '';
+        return `${status} | ${t.priority || 'No priority'} | ${t.title}${desc}`;
+      })
+      .join('\n');
 
-    let totalGoalPoints = 0, completedGoals = 0;
-    goals.forEach(g => {
-      const progress = g.subGoals.length ? (g.subGoals.filter(s => s.completed).length / g.subGoals.length) * 100 : 0;
-      totalGoalPoints += Math.round(progress);
-      if (progress === 100) completedGoals++;
-    });
-
-    const totalScore = totalTaskPoints + totalGoalPoints;
-    const completionRate = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
-
-    // ── STRICT PROFESSIONAL PROMPT ──
     const systemPrompt = isSelfView
-      ? `You are Super (AI) Admin, the company's impartial performance overseer.
-Write in clear, concise, professional second-person language ("you", "your performance", "your contribution").
-Use formal tone suitable for internal executive communication.
-Base your response ONLY on the aggregated data provided.
-Highlight how the user's work supports FundCo's mission in clean energy access, rural electrification, agro-productive use, sustainable housing, or related objectives — at a high level, without mentioning specific tasks or clients.
-Praise genuine strengths. Provide constructive, actionable improvement recommendations.
-Conclude with a direct, evidence-based statement on current bonus readiness.
-Never use markdown formatting, hashes, ellipses, or casual phrasing. Write in full, structured paragraphs.`
-
-      : `You are Super (AI) Admin, the company's impartial performance overseer.
-Write in clear, concise, professional third-person language using the user's full name ("${targetUser.name}"), "they", "the individual", etc.
-Use formal tone suitable for internal executive communication.
-Base your response ONLY on the aggregated data provided.
-Highlight how the user's work supports FundCo's mission in clean energy access, rural electrification, agro-productive use, sustainable housing, or related objectives — at a high level, without mentioning specific tasks or clients.
-Praise genuine strengths. Provide constructive, actionable improvement recommendations.
-Conclude with a direct, evidence-based statement on current bonus readiness.
-Never use markdown formatting, hashes, ellipses, or casual phrasing. Write in full, structured paragraphs.`;
+      ? `You are Super Admin writing a detailed internal performance note.
+Start directly with the analysis. Never use titles, bold text, asterisks, hashes, or em-dashes.
+Write naturally like a real manager in an internal review.
+If they have completed any tasks or goals, clearly describe those achievements using the actual task titles and descriptions.
+Mention their role and unit/sector where relevant.
+Be honest and direct about their overall performance and whether they are ready for a bonus based on their points and real work.
+Give enough detail so the note feels thorough and useful.`
+      : `You are Super Admin writing a detailed internal performance note.
+Refer to them using their full name "${fullName}" and they/their.
+Start directly with the analysis. Never use titles, bold text, asterisks, hashes, or em-dashes.
+Write naturally like a real manager in an internal review.
+If they have completed any tasks or goals, clearly describe those achievements using the actual task titles and descriptions.
+Mention their role and unit/sector where relevant.
+Be honest and direct about their overall performance and whether they are ready for a bonus based on their points and real work.
+Give enough detail so the note feels thorough and useful.`;
 
     const userDataForAI = `
-User: ${targetUser.name} (${targetUser.role})
-Total Score: ${totalScore}
-Completion Rate: ${completionRate}%
-Task Points: ${totalTaskPoints}
-  - High priority completed: ${taskStatsByPriority.High.completed} out of ${taskStatsByPriority.High.count}
-  - Medium priority completed: ${taskStatsByPriority.Medium.completed} out of ${taskStatsByPriority.Medium.count}
-  - Low priority completed: ${taskStatsByPriority.Low.completed} out of ${taskStatsByPriority.Low.count}
-Goal Points: ${totalGoalPoints} (${completedGoals} fully completed goals)
+Name: ${fullName}
+Role/Position: ${targetUser.position || 'Not specified'}
+Unit/Sector: ${targetUser.unitSector || 'Not specified'}
+Total Score: ${calculateUserTotalScore(tasks, goals)}
+Completion Rate: ${calculateCompletionRate(tasks)}%
+
+Actual tasks:
+${taskList || 'No tasks found'}
+
+Goals completed: ${goals.length}
 `;
 
     const response = await openai.chat.completions.create({
@@ -261,32 +274,24 @@ Goal Points: ${totalGoalPoints} (${completedGoals} fully completed goals)
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userDataForAI }
       ],
-      temperature: isSelfView ? 0.55 : 0.45,   // Lower temperature = more controlled, professional output
-      max_tokens: 750,
+      temperature: 0.45,
+      max_tokens: 950,
     });
 
     let aiNote = response.choices[0].message.content.trim();
-
-    // Final safety cleanup — remove any stray markdown or artifacts
-    aiNote = aiNote
-      .replace(/#{1,6}\s*/g, '')           // remove headers
-      .replace(/\n\s*[-*+]\s*/g, '\n- ')   // normalize lists if any
-      .replace(/\.{3,}/g, '…')             // normalize ellipses
-      .replace(/\s+/g, ' ')                // collapse extra spaces
-      .trim();
+    aiNote = aiNote.replace(/\s+/g, ' ').trim();
 
     res.json({ success: true, aiNote });
   } catch (err) {
     console.error('AI Analysis error:', err);
     res.json({
       success: true,
-      aiNote: "Super (AI) Admin is currently reviewing this performance. Insights will be available shortly."
+      aiNote: "Super Admin has reviewed this performance. A note will be available shortly."
     });
   }
 };
 
 const awardBonus = async (req, res) => {
-  // unchanged - your original code
   if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Admin only' });
   const { userId, bonusAmount, reason } = req.body;
   if (!userId || !bonusAmount || bonusAmount <= 0) return res.status(400).json({ success: false, message: 'Invalid bonus data' });
@@ -309,7 +314,7 @@ const awardBonus = async (req, res) => {
 
     res.json({ success: true, message: `Bonus awarded! ${bonusAmount} points added.`, newPoints });
   } catch (err) {
-    console.error(err);
+    console.error('AwardBonus error:', err);
     res.status(500).json({ success: false, message: 'Bonus award failed' });
   }
 };

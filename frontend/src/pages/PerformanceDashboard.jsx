@@ -22,11 +22,19 @@ const PerformanceDashboard = () => {
   const [selectedDetailUserId, setSelectedDetailUserId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-
-  // NEW: Toggle state for points calculation section
   const [showPointsCalculation, setShowPointsCalculation] = useState(true);
 
   const isAdmin = user?.role === 'admin';
+
+  // Safe full name helper
+  const getFullName = (u) => {
+    if (!u) return 'Unknown User';
+    if (u.fullName) return u.fullName.trim();
+    if (u.firstName || u.lastName) {
+      return `${u.firstName || ''} ${u.lastName || ''} ${u.otherName || ''}`.trim();
+    }
+    return u.name?.trim() || 'Unknown User';
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -105,7 +113,6 @@ const PerformanceDashboard = () => {
               Monthly Bonus System • 100% Transparent Scoring
             </p>
           </div>
-
           <div className="flex flex-wrap gap-4">
             <button
               onClick={fetchData}
@@ -114,7 +121,6 @@ const PerformanceDashboard = () => {
               <RefreshCw className="w-5 h-5" />
               Refresh
             </button>
-
             {isAdmin && (
               <button
                 onClick={() => handleAwardBonus(null)}
@@ -136,8 +142,6 @@ const PerformanceDashboard = () => {
                 How Points Are Calculated (100% Transparent)
               </h3>
             </div>
-
-            {/* Toggle Button */}
             <button
               onClick={() => setShowPointsCalculation(!showPointsCalculation)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300 font-medium transition-colors"
@@ -155,8 +159,6 @@ const PerformanceDashboard = () => {
               )}
             </button>
           </div>
-
-          {/* Animated Show/Hide Content */}
           <AnimatePresence>
             {showPointsCalculation && (
               <motion.div
@@ -192,6 +194,7 @@ const PerformanceDashboard = () => {
           {leaderboardData.top3.map((player, idx) => {
             const colors = ['amber-400', 'slate-300', 'amber-600'];
             const sizes = ['scale-110', 'scale-105', 'scale-100'];
+            const displayName = getFullName(player);
             return (
               <motion.div
                 key={player._id}
@@ -203,7 +206,7 @@ const PerformanceDashboard = () => {
               >
                 <div className="text-center">
                   <div className={`text-8xl mb-4`}>{['🥇', '🥈', '🥉'][idx]}</div>
-                  <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{player.name}</h3>
+                  <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{displayName}</h3>
                   <p className="text-blue-600 dark:text-blue-400 mt-1">{player.level}</p>
                   <div className="mt-6 text-7xl font-black text-amber-500">{player.totalScore}</div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">points</p>
@@ -214,8 +217,11 @@ const PerformanceDashboard = () => {
         </div>
 
         {/* My Performance Card */}
-        <div onClick={() => handleOpenDetails({ _id: user.id, name: user.name })} className="cursor-pointer mb-12">
-          <UserPerformanceCard performance={myPerformance} user={user} />
+        <div onClick={() => handleOpenDetails({ _id: user.id, ...user })} className="cursor-pointer mb-12">
+          <UserPerformanceCard
+            performance={myPerformance}
+            user={{ ...user, fullName: getFullName(user) }} // ← Safe fullName passed
+          />
         </div>
 
         {/* Leaderboard Table */}
@@ -233,16 +239,19 @@ const PerformanceDashboard = () => {
             All Participants
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {allUsers.map((u) => (
-              <div key={u._id} onClick={() => handleOpenDetails(u)} className="cursor-pointer">
-                <UserPerformanceCard
-                  performance={u}
-                  user={u}
-                  compact
-                  onAwardBonus={isAdmin ? handleAwardBonus : null}
-                />
-              </div>
-            ))}
+            {allUsers.map((u) => {
+              const displayUser = { ...u, fullName: getFullName(u) };
+              return (
+                <div key={u._id} onClick={() => handleOpenDetails(u)} className="cursor-pointer">
+                  <UserPerformanceCard
+                    performance={u}
+                    user={displayUser}           // ← Safe fullName passed
+                    compact
+                    onAwardBonus={isAdmin ? handleAwardBonus : null}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       </motion.div>
@@ -253,7 +262,6 @@ const PerformanceDashboard = () => {
         onClose={() => setShowBonusModal(false)}
         targetUser={selectedBonusUser}
       />
-
       <UserDetailModal
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}

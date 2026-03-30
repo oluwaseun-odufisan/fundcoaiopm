@@ -17,74 +17,35 @@ const TaskActionModal = ({ isOpen, onClose, onAction, task }) => {
   const submissionStatus = task.submissionStatus;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6"
-      onClick={onClose}
-      role="dialog"
-      aria-label="Task Actions Modal"
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm md:max-w-md border border-blue-200/50 dark:border-gray-700/50 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6" onClick={onClose} role="dialog" aria-label="Task Actions Modal">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm md:max-w-md border border-blue-200/50 dark:border-gray-700/50 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Task Actions</h3>
         <div className="space-y-2 sm:space-y-3">
-          {/* Mark as Done - always visible, disabled + green when completed */}
-          <button
-            onClick={() => onAction('complete')}
-            disabled={isCompleted}
-            className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-200 ${
-              isCompleted 
-                ? 'bg-green-200 text-green-700 cursor-not-allowed' 
-                : 'bg-green-100/50 dark:bg-green-900/50 text-green-700 dark:text-green-300 hover:bg-green-200/70 dark:hover:bg-green-800/70'
-            }`}
-          >
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> 
+          <button onClick={() => onAction('complete')} disabled={isCompleted} className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-200 ${isCompleted ? 'bg-green-200 text-green-700 cursor-not-allowed' : 'bg-green-100/50 dark:bg-green-900/50 text-green-700 dark:text-green-300 hover:bg-green-200/70 dark:hover:bg-green-800/70'}`}>
+            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
             {isCompleted ? '✅ Already Completed' : 'Mark as Done'}
           </button>
 
-          {/* Submit for Approval - always visible, clickable only when completed + not submitted */}
           {isCompleted && submissionStatus === 'not_submitted' && (
-            <button
-              onClick={() => onAction('submit')}
-              className="w-full flex items-center gap-2 sm:gap-3 bg-yellow-100/50 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-yellow-200/70 dark:hover:bg-yellow-800/70 transition-all duration-200 text-sm sm:text-base"
-            >
+            <button onClick={() => onAction('submit')} className="w-full flex items-center gap-2 sm:gap-3 bg-yellow-100/50 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-yellow-200/70 dark:hover:bg-yellow-800/70 transition-all duration-200 text-sm sm:text-base">
               <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> Submit for Approval
             </button>
           )}
           {isCompleted && submissionStatus !== 'not_submitted' && (
-            <button
-              disabled
-              className="w-full flex items-center gap-2 sm:gap-3 bg-gray-100 dark:bg-gray-700 text-gray-500 px-3 sm:px-4 py-2 sm:py-3 rounded-lg cursor-not-allowed text-sm sm:text-base"
-            >
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> 
+            <button disabled className="w-full flex items-center gap-2 sm:gap-3 bg-gray-100 dark:bg-gray-700 text-gray-500 px-3 sm:px-4 py-2 sm:py-3 rounded-lg cursor-not-allowed text-sm sm:text-base">
+              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" />
               {submissionStatus === 'submitted' ? 'Submitted (Waiting Approval)' : submissionStatus === 'approved' ? 'Approved' : 'Rejected'}
             </button>
           )}
 
-          <button
-            onClick={() => onAction('edit')}
-            className="w-full flex items-center gap-2 sm:gap-3 bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-blue-200/70 dark:hover:bg-blue-800/70 transition-all duration-200 text-sm sm:text-base"
-          >
+          <button onClick={() => onAction('edit')} className="w-full flex items-center gap-2 sm:gap-3 bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-blue-200/70 dark:hover:bg-blue-800/70 transition-all duration-200 text-sm sm:text-base">
             <Pen className="w-4 h-4 sm:w-5 sm:h-5" /> Edit Task
           </button>
-          <button
-            onClick={() => onAction('delete')}
-            className="w-full flex items-center gap-2 sm:gap-3 bg-red-100/50 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-red-200/70 dark:hover:bg-red-800/70 transition-all duration-200 text-sm sm:text-base"
-          >
+          <button onClick={() => onAction('delete')} className="w-full flex items-center gap-2 sm:gap-3 bg-red-100/50 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-red-200/70 dark:hover:bg-red-800/70 transition-all duration-200 text-sm sm:text-base">
             <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /> Delete Task
           </button>
         </div>
-        <button
-          onClick={onClose}
-          className="mt-3 sm:mt-4 w-full text-gray-600 dark:text-gray-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
-        >
+        <button onClick={onClose} className="mt-3 sm:mt-4 w-full text-gray-600 dark:text-gray-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200">
           Cancel
         </button>
       </motion.div>
@@ -95,37 +56,13 @@ const TaskActionModal = ({ isOpen, onClose, onAction, task }) => {
 const DeleteConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
   if (!isOpen) return null;
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6"
-      onClick={onCancel}
-      role="dialog"
-      aria-label="Delete Confirmation Modal"
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm border border-gray-200/50 dark:border-gray-700/50 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6" onClick={onCancel} role="dialog" aria-label="Delete Confirmation Modal">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm border border-gray-200/50 dark:border-gray-700/50 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Delete Task?</h3>
         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4 sm:mb-6 line-clamp-3">Are you sure you want to delete this task? This action cannot be undone.</p>
         <div className="flex gap-2 sm:gap-3">
-          <button
-            onClick={onConfirm}
-            className="flex-1 bg-red-500 dark:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-600 dark:hover:bg-red-500 transition-all duration-200 text-xs sm:text-sm"
-          >
-            Yes, Delete
-          </button>
-          <button
-            onClick={onCancel}
-            className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 text-xs sm:text-sm"
-          >
-            No, Keep It
-          </button>
+          <button onClick={onConfirm} className="flex-1 bg-red-500 dark:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-600 dark:hover:bg-red-500 transition-all duration-200 text-xs sm:text-sm">Yes, Delete</button>
+          <button onClick={onCancel} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 text-xs sm:text-sm">No, Keep It</button>
         </div>
       </motion.div>
     </motion.div>
@@ -144,46 +81,29 @@ const Dashboard = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [localTasks, setLocalTasks] = useState(tasks);
 
-  // Socket.IO setup - expanded with full error handling
   useEffect(() => {
-    const socket = io(USER_API_URL, {
-      auth: { token: localStorage.getItem('token') },
-    });
+    const socket = io(USER_API_URL, { auth: { token: localStorage.getItem('token') } });
     socket.on('connect', () => console.log('✅ Dashboard socket connected:', socket.id));
     socket.on('newTask', (task) => {
-      if (task.owner?._id === user?.id) {
-        setLocalTasks((prev) => [...prev, task]);
-      }
+      if (task.owner?._id === user?.id) setLocalTasks((prev) => [...prev, task]);
     });
     socket.on('updateTask', (updatedTask) => {
       if (updatedTask.owner?._id === user?.id) {
-        setLocalTasks((prev) =>
-          prev.map((t) => (t._id === updatedTask._id ? updatedTask : t))
-        );
+        setLocalTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)));
       }
     });
-    socket.on('deleteTask', (taskId) => {
-      setLocalTasks((prev) => prev.filter((t) => t._id !== taskId));
-    });
+    socket.on('deleteTask', (taskId) => setLocalTasks((prev) => prev.filter((t) => t._id !== taskId)));
     socket.on('connect_error', (err) => console.error('Socket connection error:', err));
-    return () => {
-      socket.disconnect();
-      console.log('Dashboard socket disconnected');
-    };
+    return () => socket.disconnect();
   }, [user?.id]);
 
-  // Sync local tasks with context
-  useEffect(() => {
-    setLocalTasks(tasks);
-  }, [tasks]);
+  useEffect(() => setLocalTasks(tasks), [tasks]);
 
-  // Live clock for WAT
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Stats calculation - expanded
   const stats = useMemo(() => {
     const now = new Date();
     return {
@@ -199,7 +119,6 @@ const Dashboard = () => {
     };
   }, [localTasks]);
 
-  // Filtered & sorted tasks - full logic preserved and improved
   const filteredTasks = useMemo(() => {
     let filtered = localTasks.filter(task => {
       if (!task || !task.title) return false;
@@ -211,28 +130,18 @@ const Dashboard = () => {
       const matchesSearch = task.title.toLowerCase().includes(searchLower) || (task.description || '').toLowerCase().includes(searchLower);
 
       switch (filter) {
-        case 'today':
-          return dueDate && dueDate.toDateString() === today.toDateString() && matchesSearch;
-        case 'week':
-          return dueDate && dueDate >= today && dueDate <= nextWeek && matchesSearch;
-        case 'month':
-          return dueDate && dueDate >= today && dueDate <= nextMonth && matchesSearch;
+        case 'today': return dueDate && dueDate.toDateString() === today.toDateString() && matchesSearch;
+        case 'week': return dueDate && dueDate >= today && dueDate <= nextWeek && matchesSearch;
+        case 'month': return dueDate && dueDate >= today && dueDate <= nextMonth && matchesSearch;
         case 'high':
         case 'medium':
-        case 'low':
-          return task.priority?.toLowerCase() === filter && matchesSearch;
-        case 'done':
-          return (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
-        case 'undone':
-          return (task.completed === false || task.completed === 0 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'no')) && matchesSearch;
-        case 'overdue':
-          return dueDate && dueDate < today && !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
-        case 'approved':
-          return task.submissionStatus === 'approved' && matchesSearch;
-        case 'rejected':
-          return task.submissionStatus === 'rejected' && matchesSearch;
-        default:
-          return matchesSearch;
+        case 'low': return task.priority?.toLowerCase() === filter && matchesSearch;
+        case 'done': return (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
+        case 'undone': return (task.completed === false || task.completed === 0 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'no')) && matchesSearch;
+        case 'overdue': return dueDate && dueDate < today && !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
+        case 'approved': return task.submissionStatus === 'approved' && matchesSearch;
+        case 'rejected': return task.submissionStatus === 'rejected' && matchesSearch;
+        default: return matchesSearch;
       }
     });
 
@@ -358,39 +267,21 @@ const Dashboard = () => {
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col font-sans"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: 'easeOut' }} className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col font-sans">
       <div className="flex-1 max-w-[1600px] mx-auto w-full px-8 py-12">
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-blue-100/50 dark:border-gray-700/50 rounded-3xl shadow-lg flex flex-col overflow-hidden"
-        >
-          {/* Header */}
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-blue-100/50 dark:border-gray-700/50 rounded-3xl shadow-lg flex flex-col overflow-hidden">
           <header className="bg-blue-50/50 dark:bg-blue-900/30 border-b border-blue-200/50 dark:border-gray-700/50 px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 shadow-sm">
             <div className="flex items-center gap-2 sm:gap-3">
               <Star className="w-6 h-6 sm:w-7 h-7 md:w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin-slow flex-shrink-0" />
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-indigo-900 dark:text-indigo-100 tracking-tight truncate">Dashboard</h1>
-                <p className="text-xs sm:text-sm lg:text-base text-blue-600 dark:text-blue-400 tracking-tight line-clamp-1"></p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-              <button
-                onClick={() => { setSelectedTask(null); setShowModal(true); }}
-                className="sm:hidden bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-1"
-              >
+              <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="sm:hidden bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-1">
                 <Plus className="w-4 h-4" /> Task
               </button>
-              <button
-                onClick={() => { setSelectedTask(null); setShowModal(true); }}
-                className="hidden sm:flex bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2"
-              >
+              <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="hidden sm:flex bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2">
                 <Plus className="w-4 h-4 sm:w-5 h-5" /> Add Task
               </button>
               <div className="bg-white/95 dark:bg-gray-800/95 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-3 sm:px-4 py-2 text-gray-800 dark:text-gray-200 text-xs sm:text-sm lg:text-base font-medium flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -398,7 +289,7 @@ const Dashboard = () => {
                 <span className="truncate">{currentTime.toLocaleTimeString('en-US', { hour12: true, timeZone: 'Africa/Lagos' })}</span>
               </div>
               <img
-                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}`}
+                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || user?.name || 'User')}`}
                 alt="User Avatar"
                 className="w-8 h-8 sm:w-9 h-9 md:w-10 h-10 lg:w-12 h-12 rounded-full border-2 border-blue-400/50 dark:border-blue-800/50 hover:shadow-sm transition-all duration-200 flex-shrink-0"
               />
@@ -407,16 +298,9 @@ const Dashboard = () => {
 
           <main className="flex-1 flex flex-col overflow-hidden">
             <div className="p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8">
-              {/* Stats Section */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4 max-w-[1400px] mx-auto">
                 {STATS.map(({ key, label, icon: Icon, color, valueKey, textColor }, index) => (
-                  <motion.div
-                    key={key}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 * (index + 1) }}
-                    className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-2 sm:p-3 md:p-4 lg:p-4 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 min-w-0"
-                  >
+                  <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * (index + 1) }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-2 sm:p-3 md:p-4 lg:p-4 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 min-w-0">
                     <div className="flex items-center gap-2 sm:gap-3 md:gap-3 lg:gap-3">
                       {key === 'completed' ? (
                         <div className="relative w-8 h-8 sm:w-10 h-10 md:w-12 h-12 lg:w-12 h-12 flex-shrink-0">
@@ -440,66 +324,37 @@ const Dashboard = () => {
                 ))}
               </div>
 
-              {/* Search and Sort */}
               <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-3 sm:p-4 md:p-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-2 sm:gap-3 flex-1 w-full">
                     <Search className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search tasks..."
-                      className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 w-full transition-all duration-300"
-                    />
+                    <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks..." className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 w-full transition-all duration-300" />
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <ArrowUpDown className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <select
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                      className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full sm:w-40 md:w-48"
-                    >
+                    <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full sm:w-40 md:w-48">
                       {SORT_OPTIONS.map(({ value, label }) => (
-                        <option key={value} value={value} className="text-blue-800 dark:text-blue-200">
-                          {label}
-                        </option>
+                        <option key={value} value={value} className="text-blue-800 dark:text-blue-200">{label}</option>
                       ))}
                     </select>
                   </div>
                 </div>
               </div>
 
-              {/* Filters */}
               <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-3 sm:p-4 md:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <Filter className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                   <span className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight truncate">{FILTER_LABELS[filter]}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
-                  <select
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    className="lg:hidden bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full"
-                  >
+                  <select value={filter} onChange={(e) => setFilter(e.target.value)} className="lg:hidden bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full">
                     {FILTER_OPTIONS.map(opt => (
-                      <option key={opt} value={opt} className="text-blue-800 dark:text-blue-200">
-                        {FILTER_LABELS[opt]}
-                      </option>
+                      <option key={opt} value={opt} className="text-blue-800 dark:text-blue-200">{FILTER_LABELS[opt]}</option>
                     ))}
                   </select>
                   <div className="hidden lg:flex flex-wrap gap-1 sm:gap-2 bg-blue-100/50 dark:bg-blue-900/30 p-1 sm:p-2 rounded-lg">
                     {FILTER_OPTIONS.map(opt => (
-                      <button
-                        key={opt}
-                        onClick={() => setFilter(opt)}
-                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-semibold transition-all duration-300 hover:scale-105 truncate ${
-                          filter === opt
-                            ? 'bg-blue-500 dark:bg-blue-600 text-white dark:text-gray-100 shadow-md'
-                            : 'text-blue-700 dark:text-blue-300 hover:bg-blue-200/50 dark:hover:bg-blue-800/50'
-                        }`}
-                        title={FILTER_LABELS[opt]}
-                      >
+                      <button key={opt} onClick={() => setFilter(opt)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-semibold transition-all duration-300 hover:scale-105 truncate ${filter === opt ? 'bg-blue-500 dark:bg-blue-600 text-white dark:text-gray-100 shadow-md' : 'text-blue-700 dark:text-blue-300 hover:bg-blue-200/50 dark:hover:bg-blue-800/50'}`} title={FILTER_LABELS[opt]}>
                         {FILTER_LABELS[opt]}
                       </button>
                     ))}
@@ -507,17 +362,12 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Task List */}
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-2xl p-4 sm:p-5 md:p-6 shadow-sm">
                   <div className="overflow-y-auto pr-2 sm:pr-3 custom-scrollbar">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       {filteredTasks.length === 0 ? (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="col-span-full bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-2xl p-6 sm:p-8 md:p-10 text-center shadow-md"
-                        >
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="col-span-full bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-2xl p-6 sm:p-8 md:p-10 text-center shadow-md">
                           <div className="w-16 h-16 sm:w-20 h-20 md:w-24 h-24 bg-blue-100/50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
                             <Layers className="w-8 h-8 sm:w-10 h-10 md:w-12 h-12 text-blue-600 dark:text-blue-400" />
                           </div>
@@ -525,30 +375,15 @@ const Dashboard = () => {
                           <p className="text-sm sm:text-base md:text-lg text-blue-600 dark:text-blue-400 mb-6 sm:mb-8 leading-relaxed line-clamp-2">
                             {filter === 'all' && !search ? 'Start your productivity journey with a new task!' : 'No tasks match your current filters.'}
                           </p>
-                          <button
-                            onClick={() => { setSelectedTask(null); setShowModal(true); }}
-                            className="bg-blue-500 dark:bg-blue-600 text-white px-6 sm:px-8 py-2 sm:py-3 rounded-lg flex items-center gap-2 sm:gap-3 mx-auto hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg text-sm sm:text-base"
-                          >
+                          <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="bg-blue-500 dark:bg-blue-600 text-white px-6 sm:px-8 py-2 sm:py-3 rounded-lg flex items-center gap-2 sm:gap-3 mx-auto hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg text-sm sm:text-base">
                             <Plus className="w-5 h-5 sm:w-6 h-6" /> Create New Task
                           </button>
                         </motion.div>
                       ) : (
                         filteredTasks.map((task, index) => (
-                          <motion.div
-                            key={task._id || task.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="relative"
-                            onClick={() => { setSelectedTask(task); setShowActionModal(true); }}
-                          >
+                          <motion.div key={task._id || task.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="relative" onClick={() => { setSelectedTask(task); setShowActionModal(true); }}>
                             <div className="p-4 sm:p-5 md:p-6">
-                              <TaskItem
-                                task={task}
-                                onRefresh={refreshTasks}
-                                showCompleteCheckbox
-                                onLogout={onLogout}
-                              />
+                              <TaskItem task={task} onRefresh={refreshTasks} showCompleteCheckbox onLogout={onLogout} />
                             </div>
                           </motion.div>
                         ))
@@ -560,64 +395,23 @@ const Dashboard = () => {
             </div>
           </main>
 
-          {/* Floating Add Button */}
-          <motion.button
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => { setSelectedTask(null); setShowModal(true); }}
-            className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 bg-blue-500 dark:bg-blue-600 text-white p-3 sm:p-4 md:p-5 rounded-full shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 z-30"
-            title="Add New Task"
-          >
+          <motion.button initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => { setSelectedTask(null); setShowModal(true); }} className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 bg-blue-500 dark:bg-blue-600 text-white p-3 sm:p-4 md:p-5 rounded-full shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 z-30" title="Add New Task">
             <Plus className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7" />
           </motion.button>
         </motion.div>
 
-        {/* Modals */}
-        <TaskModal
-          isOpen={showModal}
-          onClose={() => { setShowModal(false); setSelectedTask(null); }}
-          taskToEdit={selectedTask}
-          onSave={handleTaskSave}
-          onLogout={onLogout}
-        />
-        <TaskActionModal
-          isOpen={showActionModal}
-          onClose={() => { setShowActionModal(false); setSelectedTask(null); }}
-          onAction={handleAction}
-          task={selectedTask}
-        />
-        <DeleteConfirmationModal
-          isOpen={showDeleteConfirm}
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-        />
+        <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedTask(null); }} taskToEdit={selectedTask} onSave={handleTaskSave} onLogout={onLogout} />
+        <TaskActionModal isOpen={showActionModal} onClose={() => { setShowActionModal(false); setSelectedTask(null); }} onAction={handleAction} task={selectedTask} />
+        <DeleteConfirmationModal isOpen={showDeleteConfirm} onConfirm={handleDelete} onCancel={() => setShowDeleteConfirm(false)} />
       </div>
 
       <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 5px;
-          height: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(59, 130, 246, 0.1);
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #3B82F6;
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #2563EB;
-        }
-        .animate-pulse-slow {
-          animation: pulse 3s infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 0.3; }
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(59, 130, 246, 0.1); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3B82F6; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #2563EB; }
+        .animate-pulse-slow { animation: pulse 3s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.3; } }
       `}</style>
     </motion.div>
   );
