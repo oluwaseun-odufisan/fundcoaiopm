@@ -11,7 +11,7 @@ import { Tooltip } from 'react-tooltip';
 import moment from 'moment-timezone';
 import { debounce } from 'lodash';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const SOCKET_URL = API_BASE_URL;
 
 // Safe full name helper
@@ -37,6 +37,7 @@ const getInitials = (user) => {
 const TeamChat = () => {
     const { user, onLogout } = useOutletContext();
     const navigate = useNavigate();
+
     const [chatMode, setChatMode] = useState(localStorage.getItem('chatMode') || 'individual');
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -67,6 +68,7 @@ const TeamChat = () => {
     const [selectedMessages, setSelectedMessages] = useState([]);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [lastSeen, setLastSeen] = useState('never');
+
     const socket = useRef(null);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
@@ -175,11 +177,10 @@ const TeamChat = () => {
         }
     }, [user, getAuthHeaders, onLogout]);
 
+    // Socket connection with full real-time fixes
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
-            return;
-        }
+        if (!user) return;
+
         socket.current = io(SOCKET_URL, {
             auth: { token: localStorage.getItem('token') },
             transports: ['websocket', 'polling'],
@@ -188,34 +189,41 @@ const TeamChat = () => {
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
         });
+
         socket.current.on('connect', () => {
-            console.log('Socket connected:', socket.current.id);
+            console.log('✅ Socket connected:', socket.current.id);
             reconnectAttempts.current = 0;
             socket.current.emit('joinChat', `user:${user._id}`);
             if (selectedChat?._id) socket.current.emit('joinChat', selectedChat._id);
         });
+
         socket.current.on('message', (message) => {
             if (!message?._id || !message?.chatId) return;
-            setMessages((prev) => {
-                if (prev.some((msg) => msg._id === message._id)) return prev;
-                if (message.chatId === selectedChat?._id) {
-                    setTimeout(scrollToBottom, 0);
-                    return [...prev, message];
-                }
-                return prev;
-            });
+
             setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
             setChatTimestamps((prev) => ({
                 ...prev,
                 [message.chatId]: message.createdAt || new Date().toISOString(),
             }));
-            if (message.sender?._id !== user?._id && message.chatId !== selectedChat?._id) {
-                toast.success('New message received!', { style: { background: '#16A34A', color: '#FFFFFF' } });
+
+            if (message.chatId === selectedChat?._id) {
+                setMessages((prev) => {
+                    if (prev.some((msg) => msg._id === message._id)) return prev;
+                    return [...prev, message];
+                });
+                setTimeout(scrollToBottom, 0);
+            } else if (message.sender?._id !== user?._id) {
+                // INSTANT IN-APP NOTIFICATION
+                toast.success(`New message from ${getFullName(message.sender)}`, {
+                    style: { background: '#16A34A', color: '#FFFFFF' },
+                    duration: 4000,
+                });
                 setUnreadCounts((prev) => ({
                     ...prev,
                     [message.chatId]: (prev[message.chatId] || 0) + 1,
                 }));
             }
+
             if (chatMode === 'individual' && selectedChat?.type === 'individual' && message.sender?._id === selectedChat.recipient?._id) {
                 const newLastSeenTime = new Date(message.createdAt);
                 const recipientActive = selectedChat.recipient?.lastActive ? new Date(selectedChat.recipient.lastActive) : null;
@@ -223,6 +231,7 @@ const TeamChat = () => {
                 setLastSeen(maxTime ? moment(maxTime).fromNow() : 'never');
             }
         });
+
         socket.current.on('messageUpdated', (message) => {
             if (message.chatId === selectedChat?._id) {
                 setMessages((prev) =>
@@ -233,6 +242,7 @@ const TeamChat = () => {
                 setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
             }
         });
+
         socket.current.on('messageDeleted', (message) => {
             if (message.chatId === selectedChat?._id) {
                 setMessages((prev) =>
@@ -243,6 +253,7 @@ const TeamChat = () => {
                 setLastMessages((prev) => ({ ...prev, [message.chatId]: { ...prev[message.chatId], isDeleted: true } }));
             }
         });
+
         socket.current.on('typing', ({ chatId, userId, isTyping }) => {
             if (chatId && userId && userId !== user?._id) {
                 setTypingUsers((prev) => ({
@@ -251,6 +262,7 @@ const TeamChat = () => {
                 }));
             }
         });
+
         socket.current.on('groupCreated', (response) => {
             if (response.success && response.group?._id) {
                 setGroups((prev) => {
@@ -263,6 +275,7 @@ const TeamChat = () => {
                 socket.current.emit('joinChat', response.group._id);
             }
         });
+
         socket.current.on('groupUpdated', (response) => {
             if (response.success && response.group?._id) {
                 setGroups((prev) =>
@@ -274,6 +287,7 @@ const TeamChat = () => {
                 toast.success('Group updated!', { style: { background: '#16A34A', color: '#FFFFFF' } });
             }
         });
+
         socket.current.on('connect_error', (error) => {
             console.error('Socket connection error:', error.message);
             if (reconnectAttempts.current < maxReconnectAttempts) {
@@ -283,15 +297,19 @@ const TeamChat = () => {
                 toast.error('Failed to reconnect to chat server. Please refresh the page.', { style: { background: '#16A34A', color: '#FFFFFF' } });
             }
         });
+
         return () => {
             socket.current?.emit('leaveChat', selectedChat?._id);
             socket.current?.emit('leaveChat', `user:${user._id}`);
             socket.current?.disconnect();
         };
-    }, [user, selectedChat, scrollToBottom, navigate, lastMessages, chatMode]);
+    }, [user, selectedChat, scrollToBottom, lastMessages, chatMode]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            navigate('/login');
+            return;
+        }
         fetchInitialChats();
     }, [user, fetchInitialChats]);
 
@@ -506,19 +524,17 @@ const TeamChat = () => {
                 });
                 toast.success('Message updated.', { style: { background: '#16A34A', color: '#FFFFFF' } });
             } else {
-                const message = {
-                    chatId: selectedChat._id,
-                    content: newMessage.trim(),
-                    fileUrl,
-                    contentType,
-                    fileName,
-                };
                 const response = await axios.post(
                     `${API_BASE_URL}/api/chats/${selectedChat._id}/messages`,
-                    message,
+                    {
+                        content: newMessage.trim(),
+                        fileUrl,
+                        contentType,
+                        fileName,
+                    },
                     { headers: getAuthHeaders() }
                 );
-                socket.current?.emit('message', response.data.message);
+                // Backend already broadcasts the message via Socket.IO
             }
             setNewMessage('');
             setFile(null);
@@ -855,6 +871,7 @@ const TeamChat = () => {
                         })}
                 </div>
             </aside>
+
             <section className={`flex-1 bg-white dark:bg-gray-800 flex flex-col ${selectedChat ? 'flex' : 'hidden lg:flex'}`}>
                 {selectedChat ? (
                     <>
@@ -1197,6 +1214,7 @@ const TeamChat = () => {
                     </div>
                 )}
             </section>
+
             {showGroupModal && (
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -1251,6 +1269,7 @@ const TeamChat = () => {
                     </motion.div>
                 </motion.div>
             )}
+
             {showMembersModal && selectedChat?.type === 'group' && (
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -1291,6 +1310,7 @@ const TeamChat = () => {
                     </motion.div>
                 </motion.div>
             )}
+
             {mediaViewer.isOpen && (
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -1322,6 +1342,7 @@ const TeamChat = () => {
                     </motion.div>
                 </motion.div>
             )}
+
             <style jsx>{`
                 .sender-bubble {
                     position: relative;

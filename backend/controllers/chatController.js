@@ -185,7 +185,7 @@ export const addGroupMembers = async (req, res) => {
     }
 };
 
-// Fetch messages for chat
+// FIXED: getChatMessages - removed replyTo populate to prevent StrictPopulateError
 export const getChatMessages = async (req, res) => {
     const { chatId } = req.params;
     const { limit = 20, page = 1 } = req.query;
@@ -193,7 +193,7 @@ export const getChatMessages = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid chat ID' });
     }
     try {
-        const chat = await Chat.findOne({ _id: chatId, members: req.user._id }).select('_id').lean();
+        const chat = await Chat.findOne({ _id: chatId, members: req.user._id }).lean();
         if (!chat) {
             return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
         }
@@ -201,16 +201,13 @@ export const getChatMessages = async (req, res) => {
         const messages = await Message.find({ chatId })
             .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate('replyTo', '_id content sender')
+            // replyTo populate removed - it is not defined in your Message schema
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit, 10))
             .lean();
         const totalMessages = await Message.countDocuments({ chatId });
         const totalPages = Math.ceil(totalMessages / parseInt(limit, 10));
-        // Reset unread for user
-        chat.unreadCounts.set(req.user._id.toString(), 0);
-        await chat.save();
         res.json({
             success: true,
             messages: messages.reverse(),
@@ -227,7 +224,7 @@ export const getChatMessages = async (req, res) => {
     }
 };
 
-// Send message
+// Send message (real-time fixed)
 export const sendMessage = async (req, res) => {
     const { chatId } = req.params;
     const { content, fileUrl, contentType, fileName, replyTo } = req.body;
@@ -263,20 +260,17 @@ export const sendMessage = async (req, res) => {
             readBy: [{ userId: req.user._id, timestamp: new Date() }],
         });
         await message.save();
-        // Update sender's lastActive
+
         const sender = await User.findById(req.user._id);
         sender.lastActive = new Date();
         await sender.save();
+
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
+
         chat.updatedAt = Date.now();
-        // Increment unread for other members
+
         chat.members.forEach((memberId) => {
             if (memberId.toString() !== req.user._id.toString()) {
                 const currentCount = chat.unreadCounts.get(memberId.toString()) || 0;
@@ -285,7 +279,9 @@ export const sendMessage = async (req, res) => {
             }
         });
         await chat.save();
+
         req.io.to(chatId.toString()).emit('message', populatedMessage);
+
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
         console.error('Error sending message:', error.message, error.stack);
@@ -305,9 +301,7 @@ export const editMessage = async (req, res) => {
     }
     try {
         const message = await Message.findById(messageId);
-        if (!message) {
-            return res.status(404).json({ success: false, message: 'Message not found' });
-        }
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
         if (message.sender.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Unauthorized to edit this message' });
         }
@@ -322,11 +316,6 @@ export const editMessage = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -344,9 +333,7 @@ export const deleteMessage = async (req, res) => {
     }
     try {
         const message = await Message.findById(messageId);
-        if (!message) {
-            return res.status(404).json({ success: false, message: 'Message not found' });
-        }
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
         if (message.sender.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Unauthorized to delete this message' });
         }
@@ -359,11 +346,6 @@ export const deleteMessage = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
         req.io.to(message.chatId.toString()).emit('messageDeleted', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -402,12 +384,7 @@ export const getChatTimestamps = async (req, res) => {
         const lastMessages = await Message.aggregate([
             { $match: { chatId: { $in: await Chat.find({ members: req.user._id }).distinct('_id') } } },
             { $sort: { createdAt: -1 } },
-            {
-                $group: {
-                    _id: '$chatId',
-                    createdAt: { $first: '$createdAt' },
-                },
-            },
+            { $group: { _id: '$chatId', createdAt: { $first: '$createdAt' } } },
         ]);
         const timestamps = lastMessages.reduce((acc, msg) => {
             acc[msg._id.toString()] = msg.createdAt.toISOString();
@@ -449,20 +426,13 @@ export const markMessageRead = async (req, res) => {
     }
     try {
         const message = await Message.findById(messageId);
-        if (!message) {
-            return res.status(404).json({ success: false, message: 'Message not found' });
-        }
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
         if (!message.readBy.some((rb) => rb.userId.toString() === req.user._id.toString())) {
             message.readBy.push({ userId: req.user._id, timestamp: new Date() });
             await message.save();
         }
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
         req.io.to(message.chatId.toString()).emit('messageRead', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -484,12 +454,8 @@ export const addReaction = async (req, res) => {
     }
     try {
         const message = await Message.findById(messageId);
-        if (!message) {
-            return res.status(404).json({ success: false, message: 'Message not found' });
-        }
-        if (message.isDeleted) {
-            return res.status(400).json({ success: false, message: 'Cannot react to deleted message' });
-        }
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+        if (message.isDeleted) return res.status(400).json({ success: false, message: 'Cannot react to deleted message' });
         const existingReaction = message.reactions.find(r => r.userId.toString() === req.user._id.toString());
         if (existingReaction) {
             existingReaction.emoji = emoji;
@@ -500,11 +466,6 @@ export const addReaction = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -522,18 +483,11 @@ export const removeReaction = async (req, res) => {
     }
     try {
         const message = await Message.findById(messageId);
-        if (!message) {
-            return res.status(404).json({ success: false, message: 'Message not found' });
-        }
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
         message.reactions = message.reactions.filter(r => r.userId.toString() !== req.user._id.toString());
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
-            .populate({
-                path: 'replyTo',
-                select: '_id content sender',
-                populate: { path: 'sender', select: 'firstName lastName otherName' }
-            })
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -541,4 +495,22 @@ export const removeReaction = async (req, res) => {
         console.error('Error removing reaction:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to remove reaction' });
     }
+};
+
+export default {
+    getUsers,
+    createIndividualChat,
+    getGroups,
+    createGroup,
+    addGroupMembers,
+    getChatMessages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    uploadChatFile,
+    getChatTimestamps,
+    getUnreadTotal,
+    markMessageRead,
+    addReaction,
+    removeReaction
 };

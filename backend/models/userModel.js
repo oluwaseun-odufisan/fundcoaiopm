@@ -18,11 +18,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
-        position: {  // Position held / Job Role (from registration form "Role")
+        position: {
             type: String,
             trim: true,
         },
-        unitSector: {  // Unit/Sector of the company
+        unitSector: {
             type: String,
             trim: true,
         },
@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        role: {  // Account type (standard, team-lead, admin)
+        role: {
             type: String,
             enum: ['standard', 'team-lead', 'admin'],
             default: 'standard',
@@ -54,24 +54,25 @@ const userSchema = new mongoose.Schema(
         lastLogin: {
             type: Date,
         },
-        lastActive: {  
+        lastActive: {
             type: Date,
         },
-                activityLogs: {
+        avatar: {
+            type: String,
+            trim: true,
+            default: '',
+        },
+        online: {
+            type: Boolean,
+            default: false,
+        },
+        activityLogs: {
             type: [{
-                action: {
-                    type: String,
-                    required: true,
-                },
-                timestamp: {
-                    type: Date,
-                    default: Date.now,
-                },
-                details: {
-                    type: String,
-                },
+                action: { type: String, required: true },
+                timestamp: { type: Date, default: Date.now },
+                details: { type: String },
             }],
-            default: [],   
+            default: [],
         },
         pushToken: {
             type: String,
@@ -94,17 +95,9 @@ const userSchema = new mongoose.Schema(
                 },
             },
         },
-        points: {
-            type: Number,
-            default: 0,
-        },
-        badges: [{
-            type: String,
-        }],
-        level: {
-            type: String,
-            default: 'Novice',
-        },
+        points: { type: Number, default: 0 },
+        badges: [{ type: String }],
+        level: { type: String, default: 'Novice' },
         redemptionHistory: [{
             amount: Number,
             date: { type: Date, default: Date.now },
@@ -114,7 +107,6 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Virtual fullName for backward compatibility in UI components
 userSchema.virtual('fullName').get(function() {
     const parts = [this.firstName, this.lastName];
     if (this.otherName) parts.push(this.otherName);
