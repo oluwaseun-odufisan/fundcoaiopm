@@ -507,7 +507,7 @@ const Goals = () => {
           </div>
         </motion.div>
       </div>
-      {/* Create Goal Modal */}
+      {/* Create Goal Modal - FIXED */}
       <AnimatePresence>
         {showCreateGoal && (
           <motion.div
@@ -515,17 +515,18 @@ const Goals = () => {
             animate="visible"
             exit="exit"
             variants={modalVariants}
-            className="fixed inset-0 bg-black/50 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6"
+            className="fixed inset-0 bg-black/50 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6"
             role="dialog"
             aria-label="Create Goal"
             ref={modalRef}
             tabIndex={-1}
           >
             <motion.div
-              className="bg-white dark:bg-gray-800 rounded-3xl p-6 sm:p-8 w-full max-w-md border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
+              className="bg-white dark:bg-gray-800 rounded-3xl p-6 sm:p-8 w-full max-w-md max-h-[90vh] border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-center mb-6">
+              {/* Fixed header */}
+              <div className="flex justify-between items-center mb-6 flex-shrink-0">
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 truncate">Create New Goal</h2>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -537,7 +538,9 @@ const Goals = () => {
                   <X className="w-6 h-6" />
                 </motion.button>
               </div>
-              <div className="space-y-6">
+
+              {/* Scrollable content area - THIS IS THE KEY FIX */}
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2 scrollbar-thin">
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Goal Title</label>
                   <input
@@ -549,6 +552,7 @@ const Goals = () => {
                     maxLength={100}
                   />
                 </div>
+
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Sub-Goals</label>
                   <div className="flex gap-3">
@@ -598,6 +602,7 @@ const Goals = () => {
                     ))}
                   </div>
                 </div>
+
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Goal Type</label>
                   <select
@@ -609,6 +614,7 @@ const Goals = () => {
                     <option value="task">Task</option>
                   </select>
                 </div>
+
                 {newGoal.type === 'task' && (
                   <div>
                     <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Attach Task to Sub-Goals</label>
@@ -635,6 +641,7 @@ const Goals = () => {
                     ))}
                   </div>
                 )}
+
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Timeframe</label>
                   <select
@@ -652,6 +659,7 @@ const Goals = () => {
                     <option value="custom">Custom</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">Start Date</label>
                   <DatePicker
@@ -663,6 +671,7 @@ const Goals = () => {
                     minDate={new Date()}
                   />
                 </div>
+
                 <div>
                   <label className="text-base font-semibold text-gray-900 dark:text-gray-100">End Date</label>
                   <DatePicker
@@ -675,7 +684,9 @@ const Goals = () => {
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-4 mt-6">
+
+              {/* Fixed footer buttons */}
+              <div className="flex justify-end gap-4 mt-6 flex-shrink-0">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
