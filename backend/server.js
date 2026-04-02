@@ -1,4 +1,4 @@
-// backend/server.js
+// backend/server.js - FULLY IMPROVED & FIXED VERSION
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -40,23 +40,36 @@ import reportRouter from './routes/reportRoutes.js';
 
 const app = express();
 const httpServer = createServer(app);
-const port = process.env.PORT || 5000;
 
-// Socket.IO setup with improved CORS
+// Force port to 4001 to match .env + frontend (no more fallback to 5000)
+const port = parseInt(process.env.PORT || '4001', 10);
+
+console.log(`Starting server on port: ${port}`);
+
+// Improved Socket.IO configuration - fixes Firefox WebSocket issue
 const io = new Server(httpServer, {
     cors: {
         origin: [
             process.env.FRONTEND_URL || 'http://localhost:5173',
             process.env.ADMIN_FRONTEND_URL || 'http://localhost:5174',
+            'http://localhost:5173',
+            'http://localhost:5174'
         ],
-        methods: ['GET', 'POST', 'PUT', 'DELETE'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true,
     },
+    transports: ['polling', 'websocket'],   // Critical fix for Firefox
+    allowUpgrades: true,
     pingTimeout: 60000,
     pingInterval: 25000,
+    upgradeTimeout: 10000,
+    maxHttpBufferSize: 1e8,                 // 100MB - good for files/messages
+    path: '/socket.io',
+    connectTimeout: 45000,
 });
 
-// Make io globally accessible
+// Make io globally accessible (used by all controllers)
 global.io = io;
 
 // Attach io to every request
@@ -65,24 +78,28 @@ app.use((req, res, next) => {
     next();
 });
 
-// Global middleware
+// Global CORS middleware (must match Socket.IO exactly)
 app.use(cors({
     origin: [
         process.env.FRONTEND_URL || 'http://localhost:5173',
         process.env.ADMIN_FRONTEND_URL || 'http://localhost:5174',
+        'http://localhost:5173',
+        'http://localhost:5174'
     ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// File upload middleware for specific routes
+// File upload middleware
 app.use('/api/chats', fileUpload());
 app.use('/api/bot', fileUpload());
 app.use('/api/posts', fileUpload());
 
-// Routes
+// All routes (unchanged)
 app.use('/api/user', userRouter);
 app.use('/api/tasks', taskRouter);
 app.use('/api/files', fileRouter);
@@ -106,8 +123,6 @@ const requiredEnvVars = [
     'MONGO_URI', 'JWT_SECRET', 'WIT_AI_TOKEN', 'PINATA_API_KEY',
     'PINATA_SECRET_API_KEY', 'PINATA_JWT', 'BASE_URL', 'FRONTEND_URL',
     'EMAIL_USER', 'EMAIL_PASS', 'FIREBASE_CREDENTIALS', 'GROK_API_KEY',
-    'ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET', 'ZOOM_ACCOUNT_ID',
-    'ZOOM_SDK_KEY', 'ZOOM_SDK_SECRET',
 ];
 
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
@@ -116,45 +131,55 @@ if (missingEnvVars.length > 0) {
     process.exit(1);
 }
 
-// Socket.IO authentication + connection handlers (improved)
+// Improved Socket.IO authentication middleware
 io.use(async (socket, next) => {
     try {
-        const token = socket.handshake.auth.token;
-        if (!token) throw new Error('No token provided');
+        const token = socket.handshake.auth?.token || 
+                     socket.handshake.headers?.authorization?.split(' ')[1];
+        
+        if (!token) {
+            console.warn('Socket connection attempt without token');
+            return next(new Error('Authentication token required'));
+        }
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.user = { id: decoded.id };
+        socket.user = { id: decoded.id, email: decoded.email };
         next();
     } catch (error) {
         console.error('Socket auth error:', error.message);
-        next(new Error('Authentication error'));
+        next(new Error('Authentication failed'));
     }
 });
 
 io.on('connection', async (socket) => {
-    console.log(`Socket connected: ${socket.id} for user ${socket.user?.id}`);
+    console.log(`✅ Socket connected: ${socket.id} | User: ${socket.user?.id || 'unknown'}`);
 
     try {
-        const user = await User.findById(socket.user.id);
+        const user = await User.findById(socket.user.id).select('lastActive');
         if (user) {
             user.lastActive = new Date();
-            await user.save();
+            await user.save({ validateBeforeSave: false });
         }
     } catch (err) {
-        console.error('Error updating lastActive on socket connect:', err);
+        console.error('Error updating lastActive:', err.message);
     }
 
-    // All socket events (kept from original + minor safety checks)
+    // Join user-specific room for live notifications
+    socket.join(`user:${socket.user.id}`);
+
+    // Original + improved event handlers
     socket.on('joinChat', (chatId) => {
-        if (typeof chatId === 'string') socket.join(chatId);
+        if (typeof chatId === 'string' && chatId) socket.join(chatId);
     });
     socket.on('leaveChat', (chatId) => {
-        if (typeof chatId === 'string') socket.leave(chatId);
+        if (typeof chatId === 'string' && chatId) socket.leave(chatId);
     });
     socket.on('typing', ({ chatId, userId, isTyping }) => {
         if (typeof chatId === 'string' && typeof userId === 'string') {
             socket.to(chatId).emit('typing', { chatId, userId, isTyping });
         }
     });
+
     socket.on('joinPost', (postId) => {
         if (typeof postId === 'string') socket.join(`post:${postId}`);
     });
@@ -166,52 +191,62 @@ io.on('connection', async (socket) => {
             socket.to(`post:${postId}`).emit('posting', { postId, userId, isPosting });
         }
     });
+
     socket.on('newPost', (post) => io.emit('newPost', post));
     socket.on('postUpdated', (post) => io.emit('postUpdated', post));
     socket.on('postDeleted', (postId) => io.emit('postDeleted', postId));
-    socket.on('newReminder', (reminder) => {
-        io.to(`user:${socket.user.id}`).emit('newReminder', reminder);
-    });
-    socket.on('reminderUpdated', (reminder) => {
-        io.to(`user:${socket.user.id}`).emit('reminderUpdated', reminder);
-    });
-    socket.on('reminderTriggered', (reminder) => {
-        io.to(`user:${socket.user.id}`).emit('reminderTriggered', reminder);
-    });
+
+    socket.on('newReminder', (reminder) => io.to(`user:${socket.user.id}`).emit('newReminder', reminder));
+    socket.on('reminderUpdated', (reminder) => io.to(`user:${socket.user.id}`).emit('reminderUpdated', reminder));
+    socket.on('reminderTriggered', (reminder) => io.to(`user:${socket.user.id}`).emit('reminderTriggered', reminder));
+
     socket.on('newGoal', (goal) => io.to(`user:${socket.user.id}`).emit('newGoal', goal));
     socket.on('goalUpdated', (goal) => io.to(`user:${socket.user.id}`).emit('goalUpdated', goal));
     socket.on('goalDeleted', (id) => io.to(`user:${socket.user.id}`).emit('goalDeleted', id));
+
     socket.on('newMeeting', (meeting) => io.emit('newMeeting', meeting));
     socket.on('meetingUpdated', (meeting) => io.emit('meetingUpdated', meeting));
     socket.on('meetingDeleted', (id) => io.emit('meetingDeleted', id));
     socket.on('newMeetingInvitation', (data) => {
         io.to(`user:${data.participantId}`).emit('newMeetingInvitation', data);
     });
+
     socket.on('error', (error) => console.error('Socket error:', error.message));
 
-    socket.join(`user:${socket.user.id}`);
-
-    socket.on('disconnect', () => {
-        console.log(`Socket disconnected: ${socket.id}`);
+    socket.on('disconnect', (reason) => {
+        console.log(`❌ Socket disconnected: ${socket.id} | Reason: ${reason}`);
     });
 });
 
-// Health check & admin emit
-app.get('/', (req, res) => res.json({ success: true, message: 'API is running' }));
+// Health check
+app.get('/', (req, res) => res.json({ 
+    success: true, 
+    message: 'API is running', 
+    port: port,
+    socketEnabled: true 
+}));
+
+// Admin emit endpoint
 app.post('/api/emit', (req, res) => {
     const { event, data } = req.body;
-    if (!event || !data) return res.status(400).json({ success: false, message: 'Event and data are required' });
+    if (!event || !data) {
+        return res.status(400).json({ success: false, message: 'Event and data are required' });
+    }
     io.emit(event, data);
-    res.json({ success: true, message: 'Event emitted' });
+    res.json({ success: true, message: 'Event emitted successfully' });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Server error:', err.stack);
-    res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+    res.status(500).json({ 
+        success: false, 
+        message: 'Internal server error', 
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
 });
 
-// Meeting status cron (every 5 min)
+// Meeting status cron (unchanged)
 cron.schedule('*/5 * * * *', async () => {
     try {
         const now = new Date();
@@ -223,7 +258,7 @@ cron.schedule('*/5 * * * *', async () => {
             { status: 'ongoing', $expr: { $gt: [{ $subtract: [now, '$startTime'] }, { $multiply: ['$duration', 60000] }] } },
             { status: 'ended', endedAt: now }
         );
-        console.log('Meeting statuses updated');
+        console.log('Meeting statuses updated via cron');
     } catch (err) {
         console.error('Cron meeting status error:', err);
     }
@@ -233,12 +268,13 @@ cron.schedule('*/5 * * * *', async () => {
 async function startServer() {
     try {
         await connectDB();
-        console.log('MongoDB connected successfully');
-        
-        httpServer.listen(port, () => {
-            console.log(`Server started on http://localhost:${port}`);
+        console.log('✅ MongoDB connected successfully');
+
+        httpServer.listen(port, '0.0.0.0', () => {
+            console.log(`🚀 Server running on http://localhost:${port}`);
+            console.log(`📡 Socket.IO ready on ws://localhost:${port}/socket.io`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-            startReminderScheduler(); // Scheduler now starts AFTER DB connection
+            startReminderScheduler();
         });
     } catch (err) {
         console.error('Failed to start server:', err.message);
@@ -246,9 +282,8 @@ async function startServer() {
     }
 }
 
-export { app };
+export { app, io };
 
-// Start only when run directly
 if (process.env.NODE_ENV !== 'test') {
     startServer();
 }

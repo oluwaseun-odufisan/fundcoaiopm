@@ -1,3 +1,4 @@
+// models/chatModel.js
 import mongoose from 'mongoose';
 
 const chatSchema = new mongoose.Schema(
@@ -17,6 +18,15 @@ const chatSchema = new mongoose.Schema(
                 'Group name is required',
             ],
         },
+        avatar: {
+            type: String,
+            trim: true,
+            default: '',
+        },
+        adminId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'user',
+        },
         members: [
             {
                 type: mongoose.Schema.Types.ObjectId,
@@ -28,6 +38,11 @@ const chatSchema = new mongoose.Schema(
                 },
             },
         ],
+        unreadCounts: {
+            type: Map,
+            of: Number,
+            default: new Map(),
+        },
         updatedAt: {
             type: Date,
             default: Date.now,

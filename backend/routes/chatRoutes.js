@@ -1,29 +1,37 @@
+// routes/chatRoutes.js
 import express from 'express';
 import validator from 'validator';
 import sanitizeHtml from 'sanitize-html';
 import mongoose from 'mongoose';
 import Chat from '../models/chatModel.js';
 import Message from '../models/messageModel.js';
-import userModel from '../models/userModel.js';
+import User from '../models/userModel.js';
 import authMiddleware from '../middleware/auth.js';
 import { uploadFileToIPFS } from '../pinning/pinata.js';
+
 const router = express.Router();
+
 router.get('/users', authMiddleware, async (req, res) => {
     try {
-        const users = await userModel.find({ _id: { $ne: req.user._id } }).select('_id name email').lean();
+        const users = await User.find({ _id: { $ne: req.user._id } })
+            .select('firstName lastName otherName avatar online lastActive')
+            .lean();
         res.json({ success: true, users });
     } catch (error) {
         console.error('Error fetching users:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to fetch users' });
     }
 });
+
 router.post('/individual', authMiddleware, async (req, res) => {
     const { recipientId } = req.body;
     if (!recipientId || !mongoose.isValidObjectId(recipientId)) {
         return res.status(400).json({ success: false, message: 'Valid recipient ID required' });
     }
     try {
-        const recipient = await userModel.findById(recipientId).select('_id name').lean();
+        const recipient = await User.findById(recipientId)
+            .select('firstName lastName otherName avatar online lastActive')
+            .lean();
         if (!recipient) {
             return res.status(404).json({ success: false, message: 'Recipient not found' });
         }
@@ -42,7 +50,7 @@ router.post('/individual', authMiddleware, async (req, res) => {
         }
         const populatedChat = await Chat.findById(chat._id)
             .select('_id type members updatedAt')
-            .populate('members', '_id name lastActive')  // Updated: Include lastActive
+            .populate('members', 'firstName lastName otherName avatar online lastActive')
             .lean();
         res.json({ success: true, chat: populatedChat });
     } catch (error) {
@@ -50,14 +58,15 @@ router.post('/individual', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to create chat' });
     }
 });
+
 router.get('/groups', authMiddleware, async (req, res) => {
     try {
         const groups = await Chat.find({
             type: 'group',
             members: req.user._id,
         })
-            .select('_id name members updatedAt')
-            .populate('members', '_id name lastActive')  // Updated: Include lastActive
+            .select('_id name avatar members updatedAt')
+            .populate('members', 'firstName lastName otherName avatar online lastActive')
             .lean();
         res.json({ success: true, groups });
     } catch (error) {
@@ -65,38 +74,29 @@ router.get('/groups', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch groups' });
     }
 });
+
 router.post('/groups', authMiddleware, async (req, res) => {
     const { name, members } = req.body;
     if (!members || !Array.isArray(members) || members.length < 1) {
-        return res.status(400).json({
-            success: false,
-            message: 'At least one member required',
-        });
+        return res.status(400).json({ success: false, message: 'At least one member required' });
     }
     const sanitizedName = sanitizeHtml(name || 'Unnamed Group', { allowedTags: [], allowedAttributes: {} });
     if (!validator.isLength(sanitizedName, { min: 1, max: 50 })) {
-        return res.status(400).json({
-            success: false,
-            message: 'Group name must be between 1 and 50 characters',
-        });
+        return res.status(400).json({ success: false, message: 'Group name must be between 1 and 50 characters' });
     }
     try {
         const uniqueMembers = [...new Set(members)];
         const invalidIds = uniqueMembers.filter((id) => !mongoose.isValidObjectId(id));
         if (invalidIds.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid member IDs: ${invalidIds.join(', ')}`,
-            });
+            return res.status(400).json({ success: false, message: `Invalid member IDs: ${invalidIds.join(', ')}` });
         }
-        const validMembers = await userModel.find({ _id: { $in: uniqueMembers } }).select('_id name').lean();
+        const validMembers = await User.find({ _id: { $in: uniqueMembers } })
+            .select('firstName lastName otherName avatar online lastActive')
+            .lean();
         if (validMembers.length !== uniqueMembers.length) {
             const foundIds = validMembers.map((m) => m._id.toString());
             const missingIds = uniqueMembers.filter((id) => !foundIds.includes(id));
-            return res.status(400).json({
-                success: false,
-                message: `Members not found: ${missingIds.join(', ')}`,
-            });
+            return res.status(400).json({ success: false, message: `Members not found: ${missingIds.join(', ')}` });
         }
         const chat = new Chat({
             type: 'group',
@@ -107,11 +107,8 @@ router.post('/groups', authMiddleware, async (req, res) => {
         await chat.save();
         const populatedChat = await Chat.findById(chat._id)
             .select('_id type name members updatedAt')
-            .populate('members', '_id name lastActive')  // Updated: Include lastActive
+            .populate('members', 'firstName lastName otherName avatar online lastActive')
             .lean();
-        if (!req.io) {
-            return res.status(500).json({ success: false, message: 'Internal server error' });
-        }
         req.io.to(chat._id.toString()).emit('groupCreated', {
             success: true,
             group: populatedChat,
@@ -122,6 +119,7 @@ router.post('/groups', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to create group' });
     }
 });
+
 router.put('/groups/:groupId/members', authMiddleware, async (req, res) => {
     const { members } = req.body;
     const { groupId } = req.params;
@@ -135,23 +133,19 @@ router.put('/groups/:groupId/members', authMiddleware, async (req, res) => {
         const uniqueMembers = [...new Set(members)];
         const invalidIds = uniqueMembers.filter((id) => !mongoose.isValidObjectId(id));
         if (invalidIds.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid member IDs: ${invalidIds.join(', ')}`,
-            });
+            return res.status(400).json({ success: false, message: `Invalid member IDs: ${invalidIds.join(', ')}` });
         }
         const chat = await Chat.findOne({ _id: groupId, type: 'group', members: req.user._id });
         if (!chat) {
             return res.status(404).json({ success: false, message: 'Group not found or access denied' });
         }
-        const validMembers = await userModel.find({ _id: { $in: uniqueMembers } }).select('_id name').lean();
+        const validMembers = await User.find({ _id: { $in: uniqueMembers } })
+            .select('firstName lastName otherName avatar online lastActive')
+            .lean();
         if (validMembers.length !== uniqueMembers.length) {
             const foundIds = validMembers.map((m) => m._id.toString());
             const missingIds = uniqueMembers.filter((id) => !foundIds.includes(id));
-            return res.status(400).json({
-                success: false,
-                message: `Members not found: ${missingIds.join(', ')}`,
-            });
+            return res.status(400).json({ success: false, message: `Members not found: ${missingIds.join(', ')}` });
         }
         const newMembers = uniqueMembers.filter((id) => !chat.members.includes(id));
         if (newMembers.length === 0) {
@@ -162,11 +156,8 @@ router.put('/groups/:groupId/members', authMiddleware, async (req, res) => {
         await chat.save();
         const populatedChat = await Chat.findById(chat._id)
             .select('_id type name members updatedAt')
-            .populate('members', '_id name lastActive')  // Updated: Include lastActive
+            .populate('members', 'firstName lastName otherName avatar online lastActive')
             .lean();
-        if (!req.io) {
-            return res.status(500).json({ success: false, message: 'Internal server error' });
-        }
         req.io.to(chat._id.toString()).emit('groupUpdated', {
             success: true,
             group: populatedChat,
@@ -177,6 +168,7 @@ router.put('/groups/:groupId/members', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to add members' });
     }
 });
+
 router.get('/:chatId/messages', authMiddleware, async (req, res) => {
     const { chatId } = req.params;
     const { limit = 20, page = 1 } = req.query;
@@ -190,8 +182,9 @@ router.get('/:chatId/messages', authMiddleware, async (req, res) => {
         }
         const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
         const messages = await Message.find({ chatId })
-            .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited')
-            .populate('sender', '_id name')
+            .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
+            .populate('sender', 'firstName lastName otherName avatar')
+            .populate('replyTo', '_id content sender')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit, 10))
@@ -213,6 +206,7 @@ router.get('/:chatId/messages', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch messages' });
     }
 });
+
 router.post('/:chatId/messages', authMiddleware, async (req, res) => {
     const { chatId } = req.params;
     const { content, fileUrl, contentType, fileName } = req.body;
@@ -243,18 +237,15 @@ router.post('/:chatId/messages', authMiddleware, async (req, res) => {
             fileName,
         });
         await message.save();
-        
-        // Added: Update sender's lastActive on message send
-        const sender = await userModel.findById(req.user._id);
+        // Update sender's lastActive
+        const sender = await User.findById(req.user._id);
         sender.lastActive = new Date();
         await sender.save();
-
-        const populatedMessage = await Message.findById(message._id).populate('sender', '_id name').lean();
+        const populatedMessage = await Message.findById(message._id)
+            .populate('sender', 'firstName lastName otherName avatar')
+            .lean();
         chat.updatedAt = Date.now();
         await chat.save();
-        if (!req.io) {
-            return res.status(500).json({ success: false, message: 'Internal server error' });
-        }
         req.io.to(chatId).emit('message', populatedMessage);
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
@@ -262,6 +253,7 @@ router.post('/:chatId/messages', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to send message' });
     }
 });
+
 router.put('/messages/:messageId', authMiddleware, async (req, res) => {
     const { messageId } = req.params;
     const { content } = req.body;
@@ -285,10 +277,9 @@ router.put('/messages/:messageId', authMiddleware, async (req, res) => {
         message.content = sanitizeHtml(content, { allowedTags: [], allowedAttributes: {} });
         message.isEdited = true;
         await message.save();
-        const populatedMessage = await Message.findById(message._id).populate('sender', '_id name').lean();
-        if (!req.io) {
-            return res.status(500).json({ success: false, message: 'Internal server error' });
-        }
+        const populatedMessage = await Message.findById(message._id)
+            .populate('sender', 'firstName lastName otherName avatar')
+            .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
@@ -296,6 +287,7 @@ router.put('/messages/:messageId', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to edit message' });
     }
 });
+
 router.delete('/messages/:messageId', authMiddleware, async (req, res) => {
     const { messageId } = req.params;
     if (!mongoose.isValidObjectId(messageId)) {
@@ -315,10 +307,9 @@ router.delete('/messages/:messageId', authMiddleware, async (req, res) => {
         message.fileName = null;
         message.contentType = '';
         await message.save();
-        const populatedMessage = await Message.findById(message._id).populate('sender', '_id name').lean();
-        if (!req.io) {
-            return res.status(500).json({ success: false, message: 'Internal server error' });
-        }
+        const populatedMessage = await Message.findById(message._id)
+            .populate('sender', 'firstName lastName otherName avatar')
+            .lean();
         req.io.to(message.chatId.toString()).emit('messageDeleted', populatedMessage);
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
@@ -326,6 +317,7 @@ router.delete('/messages/:messageId', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to delete message' });
     }
 });
+
 router.post('/upload', authMiddleware, async (req, res) => {
     try {
         if (!req.files || !req.files.file) {
@@ -347,6 +339,7 @@ router.post('/upload', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to upload file' });
     }
 });
+
 router.get('/timestamps', authMiddleware, async (req, res) => {
     try {
         const lastMessages = await Message.aggregate([
@@ -376,4 +369,5 @@ router.get('/timestamps', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch timestamps' });
     }
 });
+
 export default router;
