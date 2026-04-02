@@ -1,16 +1,76 @@
+// reminderScheduler.js
 import cron from 'node-cron';
-import mongoose from 'mongoose';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
+import Task from '../models/taskModel.js';
 import { sendEmail } from './emailService.js';
 import { sendPushNotification } from './pushService.js';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+    apiKey: process.env.GROK_API_KEY,
+    baseURL: 'https://api.x.ai/v1',
+});
+
+// Generate short, natural, contextual AI reminder
+const generateSmartReminderMessage = async (task, remindAt) => {
+    if (!task) return null;
+
+    const dueTime = new Date(remindAt).toLocaleString('en-US', {
+        timeZone: 'Africa/Lagos',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+
+    const checklistSummary = task.checklist && task.checklist.length
+        ? `Checklist has ${task.checklist.filter(c => !c.completed).length} items remaining.`
+        : '';
+
+    const prompt = `You are a helpful assistant sending a very short reminder.
+Task title: "${task.title}"
+Description: "${task.description || 'No description'}"
+${checklistSummary}
+Due: ${dueTime}
+
+Write ONE short, natural, friendly reminder message (max 160 characters).
+Mention the task title and due time.
+Give one practical, actionable suggestion based on the description and checklist.
+Speak directly to the user. Be warm and encouraging. No emojis, no dashes, no titles.`;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: 'grok-4',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 120,
+        });
+        return response.choices[0].message.content.trim();
+    } catch (err) {
+        console.error('AI reminder generation failed:', err.message);
+        return null;
+    }
+};
 
 const sendReminder = async (reminder) => {
-    console.log(`Processing reminder ${reminder._id} for user ${reminder.user} at ${new Date().toISOString()}`);
+    console.log(`🔄 Processing reminder ${reminder._id} for user ${reminder.user}`);
+
     const user = await User.findById(reminder.user);
     if (!user) {
-        console.error(`User ${reminder.user} not found for reminder ${reminder._id}`);
+        console.error(`❌ User ${reminder.user} not found`);
         return false;
+    }
+
+    let finalMessage = reminder.message;
+
+    // Generate smart AI message for task reminders
+    if (reminder.type === 'task_due' && reminder.targetId && reminder.targetModel === 'Task') {
+        const task = await Task.findById(reminder.targetId).select('title description checklist').lean();
+        if (task) {
+            const aiMessage = await generateSmartReminderMessage(task, reminder.remindAt);
+            if (aiMessage) finalMessage = aiMessage;
+        }
     }
 
     let emailSent = false;
@@ -18,102 +78,68 @@ const sendReminder = async (reminder) => {
     let inAppSent = false;
 
     try {
-        // In-app notification
         if (reminder.deliveryChannels.inApp) {
-            console.log(`Emitting inApp notification for reminder ${reminder._id}`);
-            global.io.to(`user:${user._id}`).emit('reminderTriggered', reminder);
+            global.io.to(`user:${user._id}`).emit('reminderTriggered', { ...reminder.toObject(), message: finalMessage });
             inAppSent = true;
         }
 
-        // Email notification with retry
         if (reminder.deliveryChannels.email) {
             const emailTo = reminder.emailOverride || user.email;
             if (emailTo) {
-                console.log(`Sending email for reminder ${reminder._id} to ${emailTo}`);
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    try {
-                        await sendEmail({
-                            to: emailTo,
-                            subject: `Reminder: ${reminder.message}`,
-                            text: `You have a ${reminder.type.replace('_', ' ')} scheduled for ${new Date(reminder.remindAt).toLocaleString('en-US', { timeZone: 'UTC' })}.`,
-                        });
-                        emailSent = true;
-                        console.log(`Email sent successfully for reminder ${reminder._id} to ${emailTo}`);
-                        break;
-                    } catch (error) {
-                        console.error(`Email attempt ${attempt} failed for ${emailTo}: ${error.message}`);
-                        if (attempt === 3) throw error;
-                        await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait before retry
-                    }
-                }
-            } else {
-                console.warn(`No email address found for reminder ${reminder._id}`);
+                await sendEmail({
+                    to: emailTo,
+                    subject: `Reminder: ${finalMessage.substring(0, 60)}...`,
+                    text: finalMessage,
+                });
+                emailSent = true;
             }
         }
 
-        // Push notification with retry
         if (reminder.deliveryChannels.push && user.pushToken) {
-            console.log(`Sending push notification for reminder ${reminder._id} to ${user.pushToken}`);
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    await sendPushNotification({
-                        to: user.pushToken,
-                        title: 'Reminder',
-                        body: reminder.message,
-                    });
-                    pushSent = true;
-                    console.log(`Push notification sent for reminder ${reminder._id}`);
-                    break;
-                } catch (error) {
-                    console.error(`Push attempt ${attempt} failed for ${user.pushToken}: ${error.message}`);
-                    if (attempt === 3) throw error;
-                    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait before retry
-                }
-            }
+            await sendPushNotification({
+                to: user.pushToken,
+                title: 'Reminder',
+                body: finalMessage,
+            });
+            pushSent = true;
         }
 
-        // Update reminder status
-        reminder.status = emailSent || pushSent || inAppSent ? 'sent' : 'pending';
+        reminder.status = (emailSent || pushSent || inAppSent) ? 'sent' : 'pending';
+
         if (reminder.repeatInterval && reminder.isActive) {
             reminder.remindAt = new Date(reminder.remindAt.getTime() + reminder.repeatInterval * 60 * 1000);
             reminder.status = 'pending';
-            console.log(`Rescheduling repeating reminder ${reminder._id} to ${reminder.remindAt.toISOString()}`);
         } else if (!reminder.repeatInterval) {
             reminder.isActive = false;
         }
+
         await reminder.save();
-        console.log(`Reminder ${reminder._id} status updated to ${reminder.status}`);
         global.io.to(`user:${user._id}`).emit('reminderUpdated', reminder);
         return true;
     } catch (error) {
-        console.error(`Error processing reminder ${reminder._id}:`, error.message, error.stack);
-        reminder.status = 'pending'; // Keep pending to retry in next cycle
+        console.error(`❌ Error processing reminder ${reminder._id}:`, error.message);
+        reminder.status = 'pending';
         await reminder.save();
         return false;
     }
 };
 
-// Run every 30 seconds for more frequent checks
 const startReminderScheduler = () => {
-    console.log('Starting reminder scheduler...');
+    console.log('🚀 Reminder scheduler started (runs every 30 seconds)');
     cron.schedule('*/30 * * * * *', async () => {
-        console.log(`Running reminder scheduler at ${new Date().toISOString()}`);
+        console.log(`⏰ Scheduler tick at ${new Date().toISOString()}`);
         try {
             const now = new Date();
             const reminders = await Reminder.find({
                 status: { $in: ['pending', 'snoozed'] },
                 remindAt: { $lte: now },
                 isActive: true,
-            }).limit(100); // Prevent overload
-            console.log(`Found ${reminders.length} reminders to process`);
-            await Promise.all(
-                reminders.map(async (reminder) => {
-                    const success = await sendReminder(reminder);
-                    console.log(`Reminder ${reminder._id} processed ${success ? 'successfully' : 'with errors'}`);
-                })
-            );
+            }).limit(100);
+
+            console.log(`📋 Found ${reminders.length} reminders to process`);
+            await Promise.all(reminders.map(reminder => sendReminder(reminder)));
         } catch (error) {
-            console.error('Reminder scheduler error:', error.message, error.stack);
+            console.error('Scheduler error:', error.message);
         }
     });
 };

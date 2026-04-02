@@ -1,3 +1,4 @@
+// routes/postRoutes.js
 import express from 'express';
 import validator from 'validator';
 import sanitizeHtml from 'sanitize-html';
@@ -33,7 +34,8 @@ router.post('/', authMiddleware, async (req, res, next) => {
             contentType,
         });
         await post.save();
-        await post.populate('user', 'name _id');
+        // Updated populate to use new name fields
+        await post.populate('user', 'firstName lastName otherName _id');
         req.io.emit('newPost', post);
         res.json({ success: true, post });
     } catch (error) {
@@ -78,7 +80,8 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
         post.fileUrl = fileUrl !== undefined ? fileUrl : post.fileUrl;
         post.contentType = contentType !== undefined ? contentType : post.contentType;
         await post.save();
-        await post.populate('user', 'name _id');
+        // Updated populate to use new name fields
+        await post.populate('user', 'firstName lastName otherName _id');
         req.io.emit('postUpdated', post);
         res.json({ success: true, post });
     } catch (error) {
@@ -127,7 +130,8 @@ router.get('/', authMiddleware, async (req, res, next) => {
 
     try {
         const posts = await Post.find()
-            .populate('user', 'name _id')
+            // Updated populate to use new name fields
+            .populate('user', 'firstName lastName otherName _id')
             .sort({ createdAt: -1 })
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum);

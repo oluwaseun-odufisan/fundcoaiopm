@@ -3,7 +3,7 @@ import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 
-// Helper function to create or update reminder for a task
+// Helper to create smart reminder after task creation / update
 const createOrUpdateTaskReminder = async (task, userId, io) => {
     if (!task.dueDate) {
         await Reminder.deleteMany({ targetId: task._id, targetModel: 'Task', user: userId });
@@ -11,12 +11,13 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
     }
 
     const user = await User.findById(userId);
-    if (!user) throw new Error('User not found');
+    if (!user) return;
 
-    const reminderTime = user.preferences?.reminders?.defaultReminderTimes?.task_due || 60;
-    const remindAt = new Date(task.dueDate.getTime() - reminderTime * 60 * 1000);
+    const reminderMinutes = user.preferences?.reminders?.defaultReminderTimes?.task_due ?? 60;
+    const remindAt = new Date(task.dueDate.getTime() - reminderMinutes * 60 * 1000);
 
     let reminder = await Reminder.findOne({ targetId: task._id, targetModel: 'Task', user: userId });
+
     if (reminder) {
         reminder.message = `Task "${task.title}" is due soon`;
         reminder.remindAt = remindAt;
@@ -26,7 +27,6 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
             push: user.preferences?.reminders?.defaultDeliveryChannels?.push ?? false,
         };
         reminder.status = 'pending';
-        reminder.snoozeUntil = null;
         await reminder.save();
         io.to(`user:${userId}`).emit('reminderUpdated', reminder);
     } else {
@@ -51,23 +51,18 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
     }
 };
 
-// CREATE A NEW TASK
+// CREATE TASK
 export const createTask = async (req, res) => {
     try {
         const { title, description, priority, dueDate, checklist = [] } = req.body;
 
-        // === NEW: Strict date validation for creation ===
         let dueDateObj = null;
         if (dueDate) {
             dueDateObj = new Date(dueDate);
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
-
             if (dueDateObj < todayStart) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Due date for a new task cannot be in the past. Must be today or later.'
-                });
+                return res.status(400).json({ success: false, message: 'Due date for a new task cannot be in the past.' });
             }
         }
 
@@ -91,10 +86,54 @@ export const createTask = async (req, res) => {
         }
 
         req.io.to(`user:${req.user._id}`).emit('newTask', saved);
-
         res.status(201).json({ success: true, task: saved });
     } catch (err) {
         console.error('Error creating task:', err.message);
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// UPDATE TASK
+export const updateTask = async (req, res) => {
+    try {
+        const data = { ...req.body };
+        const existing = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+        if (!existing) return res.status(404).json({ success: false, message: 'Task not found or not yours' });
+
+        if (data.dueDate !== undefined) {
+            if (data.dueDate === '' || data.dueDate === null) {
+                data.dueDate = undefined;
+            } else {
+                const dueDateObj = new Date(data.dueDate);
+                const createdStart = new Date(existing.createdAt);
+                createdStart.setHours(0, 0, 0, 0);
+                if (dueDateObj < createdStart) {
+                    return res.status(400).json({ success: false, message: `Due date cannot be earlier than the task creation date.` });
+                }
+                data.dueDate = dueDateObj;
+            }
+        }
+
+        const updated = await Task.findOneAndUpdate(
+            { _id: req.params.id, owner: req.user._id },
+            data,
+            { new: true, runValidators: true }
+        );
+
+        if (updated.checklist && updated.checklist.length > 0) {
+            const allCompleted = updated.checklist.every(item => item.completed);
+            if (updated.completed !== allCompleted) {
+                updated.completed = allCompleted;
+                await updated.save();
+            }
+        }
+
+        await createOrUpdateTaskReminder(updated, req.user._id, req.io);
+
+        req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+        res.json({ success: true, task: updated });
+    } catch (err) {
+        console.error('Error updating task:', err.message);
         res.status(400).json({ success: false, message: err.message });
     }
 };
@@ -119,71 +158,6 @@ export const getTaskById = async (req, res) => {
     } catch (err) {
         console.error('Error fetching task:', err.message);
         res.status(500).json({ success: false, message: err.message });
-    }
-};
-
-// UPDATE A TASK BY ID
-export const updateTask = async (req, res) => {
-    try {
-        const data = { ...req.body };
-        const existing = await Task.findOne({ _id: req.params.id, owner: req.user._id });
-        if (!existing) {
-            return res.status(404).json({ success: false, message: 'Task not found or not yours' });
-        }
-        if (existing.submissionStatus === 'approved') {
-            return res.status(400).json({ success: false, message: 'Approved tasks cannot be edited' });
-        }
-
-        // === NEW: Strict date validation for updates ===
-        if (data.dueDate !== undefined) {
-            if (data.dueDate === '' || data.dueDate === null) {
-                data.dueDate = undefined; // allow clearing due date
-            } else {
-                const dueDateObj = new Date(data.dueDate);
-                const createdStart = new Date(existing.createdAt);
-                createdStart.setHours(0, 0, 0, 0);
-
-                if (dueDateObj < createdStart) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Due date cannot be earlier than the task creation date (${createdStart.toLocaleDateString()}).`
-                    });
-                }
-                data.dueDate = dueDateObj;
-            }
-        }
-
-        let hasChecklist = existing.checklist.length > 0;
-        if (data.checklist) hasChecklist = data.checklist.length > 0;
-
-        if (data.completed !== undefined && hasChecklist) {
-            delete data.completed;
-        } else if (data.completed !== undefined) {
-            data.completed = data.completed === 'Yes' || data.completed === true;
-        }
-
-        const updated = await Task.findOneAndUpdate(
-            { _id: req.params.id, owner: req.user._id },
-            data,
-            { new: true, runValidators: true }
-        );
-
-        // Re-compute completed status from checklist if present
-        if (updated.checklist && updated.checklist.length > 0) {
-            const allCompleted = updated.checklist.every(item => item.completed);
-            if (updated.completed !== allCompleted) {
-                updated.completed = allCompleted;
-                await updated.save();
-            }
-        }
-
-        await createOrUpdateTaskReminder(updated, req.user._id, req.io);
-        req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
-
-        res.json({ success: true, task: updated });
-    } catch (err) {
-        console.error('Error updating task:', err.message);
-        res.status(400).json({ success: false, message: err.message });
     }
 };
 

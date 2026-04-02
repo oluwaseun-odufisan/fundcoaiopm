@@ -1,3 +1,4 @@
+// src/pages/SocialFeed.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { Send, Paperclip, Image, Video, FileText, ArrowLeft, Smile, Edit2, Trash2, X } from 'lucide-react';
@@ -8,7 +9,25 @@ import moment from 'moment-timezone';
 import { Tooltip } from 'react-tooltip';
 import io from 'socket.io-client';
 import EmojiPicker from 'emoji-picker-react';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+
+// Safe full name helper (works with new user model)
+const getFullName = (user) => {
+    if (!user) return 'Unknown User';
+    if (user.fullName) return user.fullName.trim();
+    if (user.firstName || user.lastName) {
+        return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
+    }
+    return user.name?.trim() || 'Unknown User';
+};
+
+// Safe avatar initial helper
+const getInitial = (user) => {
+    const name = user?.firstName || user?.name || 'U';
+    return name.charAt(0).toUpperCase();
+};
+
 const SocialFeed = () => {
     const { user, onLogout } = useOutletContext();
     const navigate = useNavigate();
@@ -36,6 +55,7 @@ const SocialFeed = () => {
     const feedRef = useRef(null);
     const fetchedPages = useRef(new Set());
     const fetchTimeout = useRef(null);
+
     // Debug user context
     useEffect(() => {
         console.log('User from context:', user);
@@ -43,6 +63,7 @@ const SocialFeed = () => {
             console.warn('User ID is missing or undefined');
         }
     }, [user]);
+
     // Socket.IO for real-time posts
     useEffect(() => {
         const socket = io(API_BASE_URL, {
@@ -84,6 +105,7 @@ const SocialFeed = () => {
             socket.disconnect();
         };
     }, [postIds]);
+
     // Axios interceptor for 401 handling
     useEffect(() => {
         const interceptor = axios.interceptors.response.use(
@@ -101,6 +123,7 @@ const SocialFeed = () => {
         );
         return () => axios.interceptors.response.eject(interceptor);
     }, [onLogout, navigate]);
+
     // Modal focus trap and escape key handling
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -119,6 +142,7 @@ const SocialFeed = () => {
         }
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedImage, selectedDoc, showCreateEmojiPicker, showEditEmojiPicker, editingPost, showDeleteConfirm]);
+
     // Close emoji picker, edit modal, or delete confirm when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -157,6 +181,7 @@ const SocialFeed = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showCreateEmojiPicker, showEditEmojiPicker, editingPost, showDeleteConfirm]);
+
     const getAuthHeaders = useCallback(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -169,6 +194,7 @@ const SocialFeed = () => {
         }
         return { Authorization: `Bearer ${token}` };
     }, [onLogout, navigate]);
+
     const fetchPosts = useCallback(
         async (pageNum) => {
             if (isLoading || !hasMore || fetchedPages.current.has(pageNum)) return;
@@ -200,6 +226,7 @@ const SocialFeed = () => {
         },
         [getAuthHeaders, isLoading, hasMore, postIds]
     );
+
     useEffect(() => {
         if (!user || !localStorage.getItem('token')) {
             navigate('/login');
@@ -207,6 +234,7 @@ const SocialFeed = () => {
         }
         fetchPosts(page);
     }, [user, page, fetchPosts, navigate]);
+
     const lastPostElementRef = useCallback(
         (node) => {
             if (isLoading || !hasMore) return;
@@ -227,6 +255,7 @@ const SocialFeed = () => {
         },
         [isLoading, hasMore]
     );
+
     const handleFileChange = useCallback((e) => {
         const selectedFile = e.target.files[0];
         if (selectedFile) {
@@ -243,6 +272,7 @@ const SocialFeed = () => {
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
     }, []);
+
     const uploadFile = useCallback(
         async (file) => {
             try {
@@ -262,6 +292,7 @@ const SocialFeed = () => {
         },
         [getAuthHeaders]
     );
+
     const handleEmojiClick = useCallback((emojiObject) => {
         if (editingPost) {
             setEditContent((prev) => prev + emojiObject.emoji);
@@ -271,6 +302,7 @@ const SocialFeed = () => {
             setShowCreateEmojiPicker(false);
         }
     }, [editingPost]);
+
     const handleCreatePost = useCallback(async () => {
         if (!newPost.trim() && !file) {
             toast.error('Post content or file required.', { style: { background: '#dc2626', color: '#fff' } });
@@ -312,6 +344,7 @@ const SocialFeed = () => {
             setIsPosting(false);
         }
     }, [newPost, file, getAuthHeaders]);
+
     const handleEditPost = useCallback(async (postId) => {
         if (!editContent.trim() && !file) {
             toast.error('Post content or file required.', { style: { background: '#dc2626', color: '#fff' } });
@@ -359,6 +392,7 @@ const SocialFeed = () => {
             setIsPosting(false);
         }
     }, [editContent, file, getAuthHeaders]);
+
     const handleDeletePost = useCallback(async (postId) => {
         try {
             await axios.delete(`${API_BASE_URL}/api/posts/${postId}`, {
@@ -374,37 +408,45 @@ const SocialFeed = () => {
             }
         }
     }, [getAuthHeaders]);
+
     const handleConfirmDelete = useCallback((postId) => {
         setShowDeleteConfirm(postId);
     }, []);
+
     const handleCancelDelete = useCallback(() => {
         setShowDeleteConfirm(null);
     }, []);
+
     const handleConfirmDeleteAction = useCallback(async () => {
         if (showDeleteConfirm) {
             await handleDeletePost(showDeleteConfirm);
             setShowDeleteConfirm(null);
         }
     }, [showDeleteConfirm, handleDeletePost]);
+
     const startEditing = (post) => {
         setEditingPost(post._id);
         setEditContent(post.content || '');
         setFile(null);
         setFilePreview(null);
     };
+
     const modalVariants = {
         hidden: { opacity: 0, scale: 0.9 },
         visible: { opacity: 1, scale: 1 },
         exit: { opacity: 0, scale: 0.9 },
     };
+
     const pickerVariants = {
         hidden: { opacity: 0, y: -10, scale: 0.95 },
         visible: { opacity: 1, y: 0, scale: 1 },
         exit: { opacity: 0, y: -10, scale: 0.95 },
     };
+
     if (!user || !localStorage.getItem('token')) {
         return null;
     }
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -438,7 +480,7 @@ const SocialFeed = () => {
                                 Dashboard
                             </button>
                             <img
-                                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=1e40af&color=fff&bold=true`}
+                                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(getFullName(user))}&background=1e40af&color=fff&bold=true`}
                                 alt="User Avatar"
                                 className="w-11 h-11 rounded-full border-2 border-blue-100 dark:border-blue-900 shadow-sm"
                             />
@@ -453,13 +495,7 @@ const SocialFeed = () => {
                         >
                             <div className="flex items-start gap-4">
                                 <div className="w-11 h-11 rounded-full bg-blue-600 dark:bg-blue-700 text-white flex items-center justify-center text-base font-bold flex-shrink-0 shadow-sm">
-                                    {user.name
-                                        .trim()
-                                        .split(' ')
-                                        .map((word) => word[0])
-                                        .slice(0, 2)
-                                        .join('')
-                                        .toUpperCase()}
+                                    {getInitial(user)}
                                 </div>
                                 <div className="flex-1">
                                     <textarea
@@ -607,16 +643,10 @@ const SocialFeed = () => {
                                     >
                                         <div className="flex items-center gap-4 mb-4">
                                             <div className="w-11 h-11 rounded-full bg-blue-600 dark:bg-blue-700 text-white flex items-center justify-center text-base font-bold flex-shrink-0 shadow-sm">
-                                                {post.user.name
-                                                    .trim()
-                                                    .split(' ')
-                                                    .map((word) => word[0])
-                                                    .slice(0, 2)
-                                                    .join('')
-                                                    .toUpperCase()}
+                                                {getInitial(post.user)}
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{post.user.name}</p>
+                                                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{getFullName(post.user)}</p>
                                                 <p className="text-xs text-blue-600 dark:text-blue-400">
                                                     {moment(post.createdAt).tz('Africa/Lagos').format('MMM D, YYYY [at] h:mm A')}
                                                 </p>
@@ -691,6 +721,7 @@ const SocialFeed = () => {
                         </div>
                     </main>
                 </motion.div>
+
                 {/* Image Modal */}
                 <AnimatePresence>
                     {selectedImage && (
@@ -726,6 +757,7 @@ const SocialFeed = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
                 {/* Document Modal */}
                 <AnimatePresence>
                     {selectedDoc && (
@@ -761,6 +793,7 @@ const SocialFeed = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
                 {/* Delete Confirmation Modal */}
                 <AnimatePresence>
                     {showDeleteConfirm && (
@@ -799,6 +832,7 @@ const SocialFeed = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
                 {/* Edit Post Modal */}
                 <AnimatePresence>
                     {editingPost && (
@@ -946,6 +980,7 @@ const SocialFeed = () => {
                     )}
                 </AnimatePresence>
             </div>
+
             <style jsx>{`
                 .scrollbar-thin {
                     scrollbar-width: thin;
@@ -967,4 +1002,5 @@ const SocialFeed = () => {
         </motion.div>
     );
 };
+
 export default SocialFeed;

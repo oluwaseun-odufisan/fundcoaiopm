@@ -1,3 +1,4 @@
+// reminderModel.js
 import mongoose from 'mongoose';
 
 const reminderSchema = new mongoose.Schema(
@@ -6,6 +7,7 @@ const reminderSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'user',
             required: true,
+            index: true,
         },
         type: {
             type: String,
@@ -25,6 +27,8 @@ const reminderSchema = new mongoose.Schema(
             type: String,
             trim: true,
             required: true,
+            minlength: 1,
+            maxlength: 200,
         },
         deliveryChannels: {
             inApp: { type: Boolean, default: true },
@@ -34,6 +38,7 @@ const reminderSchema = new mongoose.Schema(
         remindAt: {
             type: Date,
             required: true,
+            index: true,
         },
         status: {
             type: String,
@@ -56,23 +61,44 @@ const reminderSchema = new mongoose.Schema(
         repeatInterval: {
             type: Number,
             default: null,
+            min: 5,
+            max: 1440,
         },
         isActive: {
             type: Boolean,
             default: true,
+            index: true,
         },
         emailOverride: {
             type: String,
             trim: true,
             lowercase: true,
             default: null,
+            validate: {
+                validator: function(v) {
+                    return !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+                },
+                message: 'Invalid email address',
+            },
         },
     },
-    { timestamps: true }
+    {
+        timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
+    }
 );
 
-reminderSchema.index({ user: 1, remindAt: 1, status: 1 });
+// Compound index for fast scheduler queries
+reminderSchema.index({ user: 1, remindAt: 1, status: 1, isActive: 1 });
+
+// Virtual for populated user (used in scheduler)
+reminderSchema.virtual('populatedUser', {
+    ref: 'user',
+    localField: 'user',
+    foreignField: '_id',
+    justOne: true,
+});
 
 const Reminder = mongoose.models.Reminder || mongoose.model('Reminder', reminderSchema);
-
 export default Reminder;
