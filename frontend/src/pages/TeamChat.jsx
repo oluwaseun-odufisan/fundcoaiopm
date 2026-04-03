@@ -690,22 +690,33 @@ const TeamChat = () => {
         }
         try {
             setIsLoading(true);
+            // Only send the selected non-creator members — backend always adds the creator
             const validSelectedUsers = selectedUsers.filter((id) => users.some((u) => u._id === id));
             if (validSelectedUsers.length === 0) {
                 toast.error('No valid members selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
                 return;
             }
             const payload = {
-                name: groupName || 'Unnamed Group',
-                members: [...new Set([...validSelectedUsers, user._id])],
+                name: groupName.trim() || 'Unnamed Group',
+                members: validSelectedUsers, // Do NOT include user._id — backend handles this
             };
-            await axios.post(`${API_BASE_URL}/api/chats/groups`, payload, {
+            const response = await axios.post(`${API_BASE_URL}/api/chats/groups`, payload, {
                 headers: getAuthHeaders(),
             });
+            // Immediately add the new group to local state so it appears without waiting for socket
+            if (response.data.success && response.data.group) {
+                setGroups((prev) => {
+                    if (prev.some((g) => g._id === response.data.group._id)) return prev;
+                    return [...prev, response.data.group];
+                });
+                socket.current?.emit('joinChat', response.data.group._id);
+            }
             setShowGroupModal(false);
             setGroupName('');
             setSelectedUsers([]);
+            toast.success('Group created!', { style: { background: '#16A34A', color: '#FFFFFF' } });
         } catch (error) {
+            console.error('Create group error:', error.response?.data || error.message);
             toast.error(error.response?.data?.message || 'Failed to create group.', { style: { background: '#16A34A', color: '#FFFFFF' } });
             if (error.response?.status === 401) onLogout?.();
         } finally {
@@ -1392,7 +1403,14 @@ const TeamChat = () => {
                         <p className="text-sm font-medium mb-2 text-[#1F2937] dark:text-gray-200">Select members</p>
                         <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
                             {users
-                                .filter((u) => !selectedChat?.members?.some((m) => m._id === u._id))
+                                .filter((u) => {
+                                    // When adding members to an existing group, hide current members
+                                    if (selectedChat?.type === 'group') {
+                                        return !selectedChat.members?.some((m) => m._id === u._id);
+                                    }
+                                    // When creating a new group, show ALL users (don't filter by selectedChat)
+                                    return true;
+                                })
                                 .map((u) => (
                                     <label key={u._id} className="flex items-center gap-2 cursor-pointer text-[#1F2937] dark:text-gray-200">
                                         <input

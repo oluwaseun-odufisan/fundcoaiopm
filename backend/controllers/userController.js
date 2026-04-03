@@ -9,62 +9,12 @@ const TOKEN_EXPIRES = '24h';
 // Create JWT token
 const createToken = (userId) => jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRES });
 
-// Register user - UPDATED for new fields
+// Register user - DISABLED: Admin creates accounts manually
 export async function registerUser(req, res) {
-    const { firstName, lastName, otherName, position, unitSector, email, password, role } = req.body;
-
-    if (!firstName || !lastName || !email || !password || !role) {
-        return res.status(400).json({ success: false, message: 'First name, last name, email, password and account type are required' });
-    }
-    if (!validator.isEmail(email)) {
-        return res.status(400).json({ success: false, message: 'Invalid email' });
-    }
-    if (password.length < 8) {
-        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
-    }
-    if (!['standard', 'team-lead', 'admin'].includes(role)) {
-        return res.status(400).json({ success: false, message: 'Invalid account type' });
-    }
-
-    try {
-        if (await User.findOne({ email })) {
-            return res.status(409).json({ success: false, message: 'User already exists' });
-        }
-        const hashed = await bcrypt.hash(password, 10);
-        const user = await User.create({ 
-            firstName, 
-            lastName, 
-            otherName: otherName || '', 
-            position: position || '', 
-            unitSector: unitSector || '', 
-            email, 
-            password: hashed, 
-            role 
-        });
-        const token = createToken(user._id);
-        // Log registration activity
-        user.activityLogs.push({ action: 'register', details: `User registered from IP ${req.ip}` });
-        await user.save();
-
-        res.status(201).json({
-            success: true,
-            token,
-            user: { 
-                id: user._id, 
-                firstName: user.firstName,
-                lastName: user.lastName,
-                otherName: user.otherName,
-                fullName: user.fullName,
-                position: user.position,
-                unitSector: user.unitSector,
-                email: user.email, 
-                role: user.role 
-            },
-        });
-    } catch (err) {
-        console.error('Error registering user:', err.message);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+    return res.status(403).json({
+        success: false,
+        message: 'Self-registration is currently disabled. Please contact your Administrator to have your account created.',
+    });
 }
 
 // Login user - UPDATED response to include new fields

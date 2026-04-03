@@ -114,15 +114,25 @@ export const createGroup = async (req, res) => {
             return res.status(400).json({ success: false, message: `Invalid member IDs: ${invalidIds.join(', ')}` });
         }
         const uniqueMembers = uniqueMemberStrings.map(id => new mongoose.Types.ObjectId(id));
-        const validMembers = await User.find({ _id: { $in: uniqueMembers } })
+
+        // Exclude the creator from member validation — they may or may not be in the list
+        const nonCreatorIds = uniqueMemberStrings.filter(id => id !== req.user._id.toString());
+        const nonCreatorObjectIds = nonCreatorIds.map(id => new mongoose.Types.ObjectId(id));
+
+        const validMembers = await User.find({ _id: { $in: nonCreatorObjectIds.length ? nonCreatorObjectIds : uniqueMembers } })
             .select('firstName lastName otherName avatar online lastActive')
             .lean();
-        if (validMembers.length !== uniqueMemberStrings.length) {
+
+        // Only validate non-creator members exist
+        if (nonCreatorIds.length > 0 && validMembers.length !== nonCreatorIds.length) {
             const foundIds = validMembers.map((m) => m._id.toString());
-            const missingIds = uniqueMemberStrings.filter((id) => !foundIds.includes(id));
+            const missingIds = nonCreatorIds.filter((id) => !foundIds.includes(id));
             return res.status(400).json({ success: false, message: `Members not found: ${missingIds.join(', ')}` });
         }
-        const allMembers = [...new Set([...uniqueMembers, req.user._id])];
+
+        // Build allMembers using string dedup then convert — ObjectId Set dedup is unreliable
+        const allMemberStrings = [...new Set([...uniqueMemberStrings, req.user._id.toString()])];
+        const allMembers = allMemberStrings.map(id => new mongoose.Types.ObjectId(id));
         const unreadMap = new Map();
         allMembers.forEach(id => unreadMap.set(id.toString(), 0));
         const chat = new Chat({
