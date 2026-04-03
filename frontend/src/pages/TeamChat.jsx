@@ -832,11 +832,17 @@ const TeamChat = () => {
 
     const filteredMessages = messages.filter((msg) => msg.content?.toLowerCase().includes(messageSearch.toLowerCase()));
 
-    // Compute total unread badge for the tab title
+    // Compute total unread badge for the tab title and sidebar sync
     const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
     useEffect(() => {
         document.title = totalUnread > 0 ? `(${totalUnread}) TeamChat` : 'TeamChat';
         return () => { document.title = 'TeamChat'; };
+    }, [totalUnread]);
+
+    // Notify the Sidebar (and any other component) of the current total
+    // so it can update its badge without needing a separate API call
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('chatUnreadUpdate', { detail: { total: totalUnread } }));
     }, [totalUnread]);
 
     if (!user) {

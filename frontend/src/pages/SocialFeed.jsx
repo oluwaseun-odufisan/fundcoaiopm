@@ -1,7 +1,7 @@
 // src/pages/SocialFeed.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { Send, Paperclip, Image, Video, FileText, ArrowLeft, Smile, Edit2, Trash2, X } from 'lucide-react';
+import { Send, Paperclip, Image, Video, FileText, ArrowLeft, Smile, Edit2, Trash2, X, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
@@ -12,7 +12,11 @@ import EmojiPicker from 'emoji-picker-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-// Safe full name helper (works with new user model)
+// localStorage key for persisting unread post count across refreshes
+const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
+const LAST_SEEN_POST_KEY = 'socialFeedLastSeenAt';
+
+// Safe full name helper
 const getFullName = (user) => {
     if (!user) return 'Unknown User';
     if (user.fullName) return user.fullName.trim();
@@ -47,6 +51,15 @@ const SocialFeed = () => {
     const [editingPost, setEditingPost] = useState(null);
     const [editContent, setEditContent] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+
+    // ── Unread post notification state ───────────────────────────────────────
+    // Loaded from localStorage so it survives page refresh
+    const [unreadPostCount, setUnreadPostCount] = useState(() => {
+        const stored = localStorage.getItem(UNREAD_POSTS_KEY);
+        return stored ? parseInt(stored, 10) : 0;
+    });
+    const [newPostsBanner, setNewPostsBanner] = useState(false); // top banner
+
     const fileInputRef = useRef(null);
     const observer = useRef();
     const modalRef = useRef(null);
@@ -56,6 +69,29 @@ const SocialFeed = () => {
     const fetchedPages = useRef(new Set());
     const fetchTimeout = useRef(null);
 
+    // ── Persist unread count to localStorage and notify Sidebar ─────────────
+    useEffect(() => {
+        localStorage.setItem(UNREAD_POSTS_KEY, String(unreadPostCount));
+        // Dispatch to Sidebar so its badge updates in real time
+        window.dispatchEvent(
+            new CustomEvent('socialFeedUnreadUpdate', { detail: { total: unreadPostCount } })
+        );
+    }, [unreadPostCount]);
+
+    // Mark feed as read — called when user scrolls to top or clicks banner
+    const markFeedAsRead = useCallback(() => {
+        setUnreadPostCount(0);
+        setNewPostsBanner(false);
+        localStorage.setItem(UNREAD_POSTS_KEY, '0');
+        localStorage.setItem(LAST_SEEN_POST_KEY, new Date().toISOString());
+        window.dispatchEvent(new CustomEvent('socialFeedUnreadUpdate', { detail: { total: 0 } }));
+    }, []);
+
+    // When the user mounts this page, mark as read automatically
+    useEffect(() => {
+        markFeedAsRead();
+    }, [markFeedAsRead]);
+
     // Debug user context
     useEffect(() => {
         console.log('User from context:', user);
@@ -64,11 +100,12 @@ const SocialFeed = () => {
         }
     }, [user]);
 
-    // Socket.IO for real-time posts
+    // ── Socket.IO for real-time posts ─────────────────────────────────────────
     useEffect(() => {
         const socket = io(API_BASE_URL, {
             auth: { token: localStorage.getItem('token') },
         });
+
         socket.on('newPost', (post) => {
             console.log('Received new post:', post);
             setPosts((prev) => {
@@ -76,7 +113,57 @@ const SocialFeed = () => {
                 setPostIds((prevIds) => new Set([...prevIds, post._id]));
                 return [post, ...prev];
             });
+
+            // Only notify if someone else posted
+            if (post.user?._id !== user?._id && post.user !== user?._id) {
+                // Increment persistent unread counter
+                setUnreadPostCount((prev) => {
+                    const next = prev + 1;
+                    localStorage.setItem(UNREAD_POSTS_KEY, String(next));
+                    return next;
+                });
+
+                // Show "new posts" banner at top of feed
+                setNewPostsBanner(true);
+
+                // Rich in-app toast notification
+                toast.custom(
+                    (t) => (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className="flex items-start gap-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg rounded-xl px-4 py-3 max-w-sm cursor-pointer"
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                                feedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                markFeedAsRead();
+                            }}
+                        >
+                            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                {getInitial(post.user)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                    {getFullName(post.user)}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                    {post.content
+                                        ? post.content.slice(0, 60) + (post.content.length > 60 ? '…' : '')
+                                        : '📎 Shared a file'}
+                                </p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                                    Tap to view →
+                                </p>
+                            </div>
+                            <Bell className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-1" />
+                        </motion.div>
+                    ),
+                    { duration: 6000, position: 'bottom-right' }
+                );
+            }
         });
+
         socket.on('postUpdated', (updatedPost) => {
             console.log('Received updated post:', updatedPost);
             setPosts((prev) =>
@@ -85,6 +172,7 @@ const SocialFeed = () => {
                 )
             );
         });
+
         socket.on('postDeleted', (postId) => {
             console.log('Received deleted post ID:', postId);
             setPosts((prev) => prev.filter((post) => post._id !== postId));
@@ -94,17 +182,19 @@ const SocialFeed = () => {
                 return newIds;
             });
         });
+
         socket.on('connect_error', (error) => {
             console.error('Socket connect error:', error.message);
             toast.error('Real-time updates unavailable.', { style: { background: '#dc2626', color: '#fff' } });
         });
+
         return () => {
             socket.off('newPost');
             socket.off('postUpdated');
             socket.off('postDeleted');
             socket.disconnect();
         };
-    }, [postIds]);
+    }, [postIds, user, markFeedAsRead]);
 
     // Axios interceptor for 401 handling
     useEffect(() => {
@@ -143,7 +233,7 @@ const SocialFeed = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedImage, selectedDoc, showCreateEmojiPicker, showEditEmojiPicker, editingPost, showDeleteConfirm]);
 
-    // Close emoji picker, edit modal, or delete confirm when clicking outside
+    // Close emoji picker / modals when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (
@@ -162,19 +252,11 @@ const SocialFeed = () => {
             ) {
                 setShowEditEmojiPicker(false);
             }
-            if (
-                editingPost &&
-                modalRef.current &&
-                !modalRef.current.contains(e.target)
-            ) {
+            if (editingPost && modalRef.current && !modalRef.current.contains(e.target)) {
                 setEditingPost(null);
                 setEditContent('');
             }
-            if (
-                showDeleteConfirm &&
-                modalRef.current &&
-                !modalRef.current.contains(e.target)
-            ) {
+            if (showDeleteConfirm && modalRef.current && !modalRef.current.contains(e.target)) {
                 setShowDeleteConfirm(null);
             }
         };
@@ -279,10 +361,7 @@ const SocialFeed = () => {
                 const formData = new FormData();
                 formData.append('file', file);
                 const response = await axios.post(`${API_BASE_URL}/api/posts/upload`, formData, {
-                    headers: {
-                        ...getAuthHeaders(),
-                        'Content-Type': 'multipart/form-data',
-                    },
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
                 });
                 return response.data;
             } catch (error) {
@@ -343,7 +422,7 @@ const SocialFeed = () => {
         } finally {
             setIsPosting(false);
         }
-    }, [newPost, file, getAuthHeaders]);
+    }, [newPost, file, getAuthHeaders, uploadFile]);
 
     const handleEditPost = useCallback(async (postId) => {
         if (!editContent.trim() && !file) {
@@ -391,13 +470,11 @@ const SocialFeed = () => {
         } finally {
             setIsPosting(false);
         }
-    }, [editContent, file, getAuthHeaders]);
+    }, [editContent, file, getAuthHeaders, uploadFile]);
 
     const handleDeletePost = useCallback(async (postId) => {
         try {
-            await axios.delete(`${API_BASE_URL}/api/posts/${postId}`, {
-                headers: getAuthHeaders(),
-            });
+            await axios.delete(`${API_BASE_URL}/api/posts/${postId}`, { headers: getAuthHeaders() });
             toast.success('Post deleted!', { style: { background: '#16a34a', color: '#fff' } });
         } catch (error) {
             console.error('Delete post error:', error.response?.data || error.message);
@@ -409,14 +486,8 @@ const SocialFeed = () => {
         }
     }, [getAuthHeaders]);
 
-    const handleConfirmDelete = useCallback((postId) => {
-        setShowDeleteConfirm(postId);
-    }, []);
-
-    const handleCancelDelete = useCallback(() => {
-        setShowDeleteConfirm(null);
-    }, []);
-
+    const handleConfirmDelete = useCallback((postId) => setShowDeleteConfirm(postId), []);
+    const handleCancelDelete = useCallback(() => setShowDeleteConfirm(null), []);
     const handleConfirmDeleteAction = useCallback(async () => {
         if (showDeleteConfirm) {
             await handleDeletePost(showDeleteConfirm);
@@ -443,9 +514,7 @@ const SocialFeed = () => {
         exit: { opacity: 0, y: -10, scale: 0.95 },
     };
 
-    if (!user || !localStorage.getItem('token')) {
-        return null;
-    }
+    if (!user || !localStorage.getItem('token')) return null;
 
     return (
         <motion.div
@@ -455,6 +524,7 @@ const SocialFeed = () => {
             className="min-h-screen bg-white dark:bg-gray-900 flex flex-col font-sans antialiased"
         >
             <Toaster position="bottom-right" />
+
             <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-8">
                 <motion.div
                     initial={{ y: 20, opacity: 0 }}
@@ -486,7 +556,35 @@ const SocialFeed = () => {
                             />
                         </div>
                     </header>
+
                     <main className="p-8">
+                        {/* ── New Posts Banner ───────────────────────────────── */}
+                        <AnimatePresence>
+                            {newPostsBanner && (
+                                <motion.button
+                                    initial={{ opacity: 0, y: -12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -12 }}
+                                    transition={{ duration: 0.25 }}
+                                    onClick={() => {
+                                        feedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                                        markFeedAsRead();
+                                    }}
+                                    className="w-full mb-6 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-2xl text-sm font-semibold shadow-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200"
+                                >
+                                    <Bell className="w-4 h-4" />
+                                    {unreadPostCount > 1
+                                        ? `${unreadPostCount} new posts — tap to view`
+                                        : 'New post — tap to view'}
+                                    <X
+                                        className="w-4 h-4 ml-auto opacity-70 hover:opacity-100"
+                                        onClick={(e) => { e.stopPropagation(); markFeedAsRead(); }}
+                                    />
+                                </motion.button>
+                            )}
+                        </AnimatePresence>
+
+                        {/* ── Create Post ────────────────────────────────────── */}
                         <motion.div
                             initial={{ y: 10, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
@@ -501,7 +599,7 @@ const SocialFeed = () => {
                                     <textarea
                                         value={newPost}
                                         onChange={(e) => setNewPost(e.target.value)}
-                                        placeholder="What’s on your mind?"
+                                        placeholder="What's on your mind?"
                                         className="w-full p-3 text-base text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none transition-all duration-200 placeholder-gray-400 dark:placeholder-gray-500"
                                         rows="3"
                                         maxLength={1000}
@@ -521,10 +619,7 @@ const SocialFeed = () => {
                                             )}
                                             <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-xs">{file.name}</span>
                                             <button
-                                                onClick={() => {
-                                                    setFile(null);
-                                                    setFilePreview(null);
-                                                }}
+                                                onClick={() => { setFile(null); setFilePreview(null); }}
                                                 className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200"
                                                 aria-label="Remove file"
                                             >
@@ -612,18 +707,17 @@ const SocialFeed = () => {
                                                     ? 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 hover:shadow-md'
                                                     : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                                             } ${isPosting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                            data-tooltip-id="post"
-                                            data-tooltip-content="Post"
                                             aria-label="Share Post"
                                         >
                                             <Send className="w-5 h-5" />
                                             {isPosting ? 'Posting...' : 'Post'}
-                                            <Tooltip id="post" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </motion.div>
+
+                        {/* ── Post Feed ──────────────────────────────────────── */}
                         <div
                             className="space-y-6 overflow-y-auto pb-8 scroll-smooth"
                             role="region"
@@ -726,26 +820,13 @@ const SocialFeed = () => {
                 <AnimatePresence>
                     {selectedImage && (
                         <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            variants={modalVariants}
+                            initial="hidden" animate="visible" exit="exit" variants={modalVariants}
                             className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-6"
                             onClick={() => setSelectedImage(null)}
-                            role="dialog"
-                            aria-label="Image Preview"
-                            ref={modalRef}
-                            tabIndex={-1}
+                            role="dialog" aria-label="Image Preview" ref={modalRef} tabIndex={-1}
                         >
-                            <div
-                                className="relative max-w-5xl w-full"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <img
-                                    src={selectedImage}
-                                    alt="Full preview"
-                                    className="w-full h-auto rounded-2xl shadow-2xl"
-                                />
+                            <div className="relative max-w-5xl w-full" onClick={(e) => e.stopPropagation()}>
+                                <img src={selectedImage} alt="Full preview" className="w-full h-auto rounded-2xl shadow-2xl" />
                                 <button
                                     onClick={() => setSelectedImage(null)}
                                     className="absolute top-4 right-4 p-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-800 dark:text-gray-200 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-all duration-200 shadow-lg"
@@ -762,21 +843,12 @@ const SocialFeed = () => {
                 <AnimatePresence>
                     {selectedDoc && (
                         <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            variants={modalVariants}
+                            initial="hidden" animate="visible" exit="exit" variants={modalVariants}
                             className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-6"
                             onClick={() => setSelectedDoc(null)}
-                            role="dialog"
-                            aria-label="Document Preview"
-                            ref={modalRef}
-                            tabIndex={-1}
+                            role="dialog" aria-label="Document Preview" ref={modalRef} tabIndex={-1}
                         >
-                            <div
-                                className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-2xl"
-                                onClick={(e) => e.stopPropagation()}
-                            >
+                            <div className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
                                 <iframe
                                     src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedDoc)}&embedded=true`}
                                     className="w-full h-full border-0"
@@ -798,33 +870,18 @@ const SocialFeed = () => {
                 <AnimatePresence>
                     {showDeleteConfirm && (
                         <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            variants={modalVariants}
+                            initial="hidden" animate="visible" exit="exit" variants={modalVariants}
                             className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-6"
-                            role="dialog"
-                            aria-label="Delete Confirmation"
-                            ref={modalRef}
-                            tabIndex={-1}
+                            role="dialog" aria-label="Delete Confirmation" ref={modalRef} tabIndex={-1}
                         >
-                            <div
-                                className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-100 dark:border-gray-700"
-                                onClick={(e) => e.stopPropagation()}
-                            >
+                            <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Delete Post?</h2>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">This action cannot be undone.</p>
                                 <div className="flex justify-end gap-3">
-                                    <button
-                                        onClick={handleCancelDelete}
-                                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
-                                    >
+                                    <button onClick={handleCancelDelete} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200">
                                         Cancel
                                     </button>
-                                    <button
-                                        onClick={handleConfirmDeleteAction}
-                                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 dark:bg-red-700 rounded-xl hover:bg-red-700 dark:hover:bg-red-600 transition-all duration-200"
-                                    >
+                                    <button onClick={handleConfirmDeleteAction} className="px-4 py-2 text-sm font-medium text-white bg-red-600 dark:bg-red-700 rounded-xl hover:bg-red-700 dark:hover:bg-red-600 transition-all duration-200">
                                         Delete
                                     </button>
                                 </div>
@@ -837,20 +894,11 @@ const SocialFeed = () => {
                 <AnimatePresence>
                     {editingPost && (
                         <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            variants={modalVariants}
+                            initial="hidden" animate="visible" exit="exit" variants={modalVariants}
                             className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-6"
-                            role="dialog"
-                            aria-label="Edit Post"
-                            ref={modalRef}
-                            tabIndex={-1}
+                            role="dialog" aria-label="Edit Post" ref={modalRef} tabIndex={-1}
                         >
-                            <div
-                                className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-100 dark:border-gray-700"
-                                onClick={(e) => e.stopPropagation()}
-                            >
+                            <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-100 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Post</h2>
                                 <textarea
                                     value={editContent}
@@ -875,10 +923,7 @@ const SocialFeed = () => {
                                         )}
                                         <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-xs">{file.name}</span>
                                         <button
-                                            onClick={() => {
-                                                setFile(null);
-                                                setFilePreview(null);
-                                            }}
+                                            onClick={() => { setFile(null); setFilePreview(null); }}
                                             className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200"
                                             aria-label="Remove file"
                                         >
@@ -898,13 +943,7 @@ const SocialFeed = () => {
                                             <Paperclip className="w-5 h-5" />
                                             <Tooltip id="attach-file-edit" className="bg-blue-600 dark:bg-blue-700 text-white text-xs" />
                                         </button>
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            className="hidden"
-                                            accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
-                                            onChange={handleFileChange}
-                                        />
+                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={handleFileChange} />
                                         <div className="relative">
                                             <button
                                                 ref={editEmojiButtonRef}
@@ -940,12 +979,7 @@ const SocialFeed = () => {
                                     </div>
                                     <div className="flex gap-3">
                                         <button
-                                            onClick={() => {
-                                                setEditingPost(null);
-                                                setEditContent('');
-                                                setFile(null);
-                                                setFilePreview(null);
-                                            }}
+                                            onClick={() => { setEditingPost(null); setEditContent(''); setFile(null); setFilePreview(null); }}
                                             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
                                         >
                                             Cancel
@@ -964,12 +998,7 @@ const SocialFeed = () => {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        setEditingPost(null);
-                                        setEditContent('');
-                                        setFile(null);
-                                        setFilePreview(null);
-                                    }}
+                                    onClick={() => { setEditingPost(null); setEditContent(''); setFile(null); setFilePreview(null); }}
                                     className="absolute top-4 right-4 p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors duration-200"
                                     aria-label="Close"
                                 >
@@ -982,22 +1011,11 @@ const SocialFeed = () => {
             </div>
 
             <style jsx>{`
-                .scrollbar-thin {
-                    scrollbar-width: thin;
-                }
-                .scrollbar-thin::-webkit-scrollbar {
-                    width: 5px;
-                }
-                .scrollbar-thin::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .scrollbar-thin::-webkit-scrollbar-thumb {
-                    background: #93c5fd;
-                    border-radius: 10px;
-                }
-                .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-                    background: #60a5fa;
-                }
+                .scrollbar-thin { scrollbar-width: thin; }
+                .scrollbar-thin::-webkit-scrollbar { width: 5px; }
+                .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+                .scrollbar-thin::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 10px; }
+                .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #60a5fa; }
             `}</style>
         </motion.div>
     );

@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   List,
   CheckCircle,
@@ -26,12 +26,81 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
+
+const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
 
 const Sidebar = ({ user, isExpanded, onToggle }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [chatUnreadTotal, setChatUnreadTotal] = useState(0);
+  // Load social feed unread count from localStorage so it persists across refreshes
+  const [socialUnreadTotal, setSocialUnreadTotal] = useState(() => {
+    const stored = localStorage.getItem(UNREAD_POSTS_KEY);
+    return stored ? parseInt(stored, 10) : 0;
+  });
 
   const fullName = user?.fullName || user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
   const initial = (user?.firstName || user?.name || 'U').charAt(0).toUpperCase();
+
+  // ── Fetch total unread count from DB on mount and whenever the window regains focus ──
+  const fetchUnreadTotal = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !user) return;
+      const response = await axios.get(`${API_BASE_URL}/api/chats/unread-counts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.data.success) {
+        const counts = response.data.counts || {};
+        const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+        setChatUnreadTotal(total);
+      }
+    } catch (error) {
+      // Silently fail — sidebar badge is non-critical
+      console.error('Sidebar: failed to fetch unread counts', error.message);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnreadTotal();
+  }, [fetchUnreadTotal]);
+
+  // Re-fetch when the user returns to the tab (e.g. after opening chats in another tab)
+  useEffect(() => {
+    const handleFocus = () => fetchUnreadTotal();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchUnreadTotal]);
+
+  // Listen for a custom event that TeamChat fires when counts change,
+  // so the sidebar badge stays in sync within the same tab session
+  useEffect(() => {
+    const handleUnreadChange = (e) => {
+      setChatUnreadTotal(e.detail?.total ?? 0);
+    };
+    window.addEventListener('chatUnreadUpdate', handleUnreadChange);
+    return () => window.removeEventListener('chatUnreadUpdate', handleUnreadChange);
+  }, []);
+
+  // Keep social feed badge in sync with localStorage changes from SocialFeed page
+  useEffect(() => {
+    const handleSocialUnreadChange = (e) => {
+      setSocialUnreadTotal(e.detail?.total ?? 0);
+    };
+    window.addEventListener('socialFeedUnreadUpdate', handleSocialUnreadChange);
+    // Also re-read from localStorage on window focus (handles cross-tab scenarios)
+    const handleFocusSocial = () => {
+      const stored = localStorage.getItem(UNREAD_POSTS_KEY);
+      setSocialUnreadTotal(stored ? parseInt(stored, 10) : 0);
+    };
+    window.addEventListener('focus', handleFocusSocial);
+    return () => {
+      window.removeEventListener('socialFeedUnreadUpdate', handleSocialUnreadChange);
+      window.removeEventListener('focus', handleFocusSocial);
+    };
+  }, []);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : 'auto';
@@ -46,8 +115,8 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'Completed', path: '/complete', icon: <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" /> },
     { text: 'Newly Assigned', path: '/assigned', icon: <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Calendar View', path: '/calendar', icon: <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    { text: 'Team Chat', path: '/team-chat', icon: <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    { text: 'Social Feeds', path: '/social-feed', icon: <Instagram className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
+    { text: 'Team Chat', path: '/team-chat', icon: <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />, badge: chatUnreadTotal },
+    { text: 'Social Feeds', path: '/social-feed', icon: <Instagram className="w-5 h-5 text-blue-600 dark:text-blue-400" />, badge: socialUnreadTotal },
     { text: 'File Storage', path: '/file-storage', icon: <File className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Reports', path: '/reports', icon: <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'AI Tools', path: '/ai-tools', icon: <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" /> },
@@ -62,7 +131,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
 
   const renderMenuItems = (isMobile = false) => (
     <ul className="space-y-1">
-      {menuItems.map(({ text, path, icon }) => (
+      {menuItems.map(({ text, path, icon, badge }) => (
         <li key={text}>
           <NavLink
             to={path}
@@ -78,8 +147,28 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
             }
             onClick={() => setMobileOpen(false)}
           >
-            <span className="flex-shrink-0 p-1.5 bg-blue-50 dark:bg-blue-900/50 rounded-md">{icon}</span>
-            {(isExpanded || isMobile) && <span className="truncate text-sm font-medium">{text}</span>}
+            {/* Icon wrapper — use relative so the collapsed badge can be positioned */}
+            <span className="relative flex-shrink-0 p-1.5 bg-blue-50 dark:bg-blue-900/50 rounded-md">
+              {icon}
+              {/* Collapsed sidebar: small dot badge on the icon */}
+              {!isExpanded && !isMobile && badge > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-green-500 dark:bg-green-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
+            </span>
+
+            {/* Label + badge (expanded or mobile) */}
+            {(isExpanded || isMobile) && (
+              <>
+                <span className="flex-1 truncate text-sm font-medium">{text}</span>
+                {badge > 0 && (
+                  <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-green-500 dark:bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
+              </>
+            )}
           </NavLink>
         </li>
       ))}
@@ -197,6 +286,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
           aria-label="Open menu"
         >
           <Menu className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          {/* Mobile hamburger dot when there are unread messages */}
+          {chatUnreadTotal > 0 && (
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+          )}
         </button>
       )}
 
