@@ -52,6 +52,7 @@ const TeamChat = () => {
     const [groupName, setGroupName] = useState('');
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [file, setFile] = useState(null);
+    // unreadCounts is the source of truth — loaded from DB on mount, updated via socket
     const [unreadCounts, setUnreadCounts] = useState({});
     const [chatTimestamps, setChatTimestamps] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +78,11 @@ const TeamChat = () => {
     const modalRef = useRef(null);
     const reconnectAttempts = useRef(0);
     const maxReconnectAttempts = 5;
+    // Keep a ref to selectedChat so socket handlers always see latest value
+    const selectedChatRef = useRef(null);
+    useEffect(() => {
+        selectedChatRef.current = selectedChat;
+    }, [selectedChat]);
 
     useEffect(() => {
         console.log('TeamChat mounted with user:', user?._id);
@@ -120,6 +126,43 @@ const TeamChat = () => {
         return { Authorization: `Bearer ${token}` };
     }, [onLogout, navigate]);
 
+    // ─── Load persistent unread counts from DB ───────────────────────────────
+    const fetchUnreadCounts = useCallback(async () => {
+        try {
+            const response = await axios.get(`${API_BASE_URL}/api/chats/unread-counts`, {
+                headers: getAuthHeaders(),
+            });
+            if (response.data.success) {
+                setUnreadCounts(response.data.counts || {});
+            }
+        } catch (error) {
+            console.error('Failed to fetch unread counts:', error.message);
+        }
+    }, [getAuthHeaders]);
+
+    // ─── Mark a chat as read in DB then clear locally ────────────────────────
+    const markChatAsRead = useCallback(async (chatId) => {
+        if (!chatId) return;
+        // Optimistically clear in UI immediately
+        setUnreadCounts((prev) => {
+            if (!prev[chatId]) return prev;
+            const next = { ...prev };
+            delete next[chatId];
+            return next;
+        });
+        try {
+            await axios.post(
+                `${API_BASE_URL}/api/chats/${chatId}/read`,
+                {},
+                { headers: getAuthHeaders() }
+            );
+        } catch (error) {
+            console.error('Failed to mark chat as read:', error.message);
+            // Re-fetch to resync if the API call failed
+            fetchUnreadCounts();
+        }
+    }, [getAuthHeaders, fetchUnreadCounts]);
+
     const fetchInitialChats = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -136,6 +179,8 @@ const TeamChat = () => {
             const validGroups = (groupsResponse.data.groups || []).filter((g) => g._id && g.members?.length > 0);
             setGroups(validGroups);
             setChatTimestamps(timestampsResponse.data.timestamps || {});
+
+            // Create/fetch individual chats to build userChatMap
             const chats = await Promise.all(
                 validUsers.map(async (u) => {
                     const chatResponse = await axios.post(
@@ -143,14 +188,30 @@ const TeamChat = () => {
                         { recipientId: u._id },
                         { headers: getAuthHeaders() }
                     );
-                    return { userId: u._id, chatId: chatResponse.data.chat._id };
+                    return {
+                        userId: u._id,
+                        chatId: chatResponse.data.chat._id,
+                        // myUnreadCount comes from the server for this chat
+                        unreadCount: chatResponse.data.chat.myUnreadCount || 0,
+                    };
                 })
             );
-            const map = chats.reduce((acc, { userId, chatId }) => {
-                acc[userId] = chatId;
-                return acc;
-            }, {});
+            const map = {};
+            const initialUnread = {};
+            chats.forEach(({ userId, chatId, unreadCount }) => {
+                map[userId] = chatId;
+                if (unreadCount > 0) initialUnread[chatId] = unreadCount;
+            });
             setUserChatMap(map);
+
+            // Also seed unread counts from groups
+            validGroups.forEach((g) => {
+                if (g.myUnreadCount > 0) initialUnread[g._id] = g.myUnreadCount;
+            });
+
+            // Merge with any already-fetched counts (socket may have arrived first)
+            setUnreadCounts((prev) => ({ ...initialUnread, ...prev }));
+
             const allChatIds = [...Object.values(map), ...validGroups.map(g => g._id)];
             const lastMessagesResponses = await Promise.all(
                 allChatIds.map(async (chatId) => {
@@ -177,7 +238,7 @@ const TeamChat = () => {
         }
     }, [user, getAuthHeaders, onLogout]);
 
-    // Socket connection with full real-time fixes
+    // ─── Socket connection ────────────────────────────────────────────────────
     useEffect(() => {
         if (!user) return;
 
@@ -194,7 +255,9 @@ const TeamChat = () => {
             console.log('✅ Socket connected:', socket.current.id);
             reconnectAttempts.current = 0;
             socket.current.emit('joinChat', `user:${user._id}`);
-            if (selectedChat?._id) socket.current.emit('joinChat', selectedChat._id);
+            if (selectedChatRef.current?._id) {
+                socket.current.emit('joinChat', selectedChatRef.current._id);
+            }
         });
 
         socket.current.on('message', (message) => {
@@ -206,34 +269,65 @@ const TeamChat = () => {
                 [message.chatId]: message.createdAt || new Date().toISOString(),
             }));
 
-            if (message.chatId === selectedChat?._id) {
+            const currentSelectedChat = selectedChatRef.current;
+
+            if (message.chatId === currentSelectedChat?._id) {
+                // Chat is open — append message, no badge needed
                 setMessages((prev) => {
                     if (prev.some((msg) => msg._id === message._id)) return prev;
                     return [...prev, message];
                 });
                 setTimeout(scrollToBottom, 0);
-            } else if (message.sender?._id !== user?._id) {
-                // INSTANT IN-APP NOTIFICATION
-                toast.success(`New message from ${getFullName(message.sender)}`, {
-                    style: { background: '#16A34A', color: '#FFFFFF' },
-                    duration: 4000,
-                });
-                setUnreadCounts((prev) => ({
-                    ...prev,
-                    [message.chatId]: (prev[message.chatId] || 0) + 1,
-                }));
             }
+            // Note: unread count increment is handled by the 'unreadUpdate' event
+            // which the backend sends to the user's personal room
+        });
 
-            if (chatMode === 'individual' && selectedChat?.type === 'individual' && message.sender?._id === selectedChat.recipient?._id) {
-                const newLastSeenTime = new Date(message.createdAt);
-                const recipientActive = selectedChat.recipient?.lastActive ? new Date(selectedChat.recipient.lastActive) : null;
-                const maxTime = recipientActive && recipientActive > newLastSeenTime ? recipientActive : newLastSeenTime;
-                setLastSeen(maxTime ? moment(maxTime).fromNow() : 'never');
+        // ── This is the key event: backend sends this to `user:<id>` room ──
+        socket.current.on('unreadUpdate', ({ chatId, count, message }) => {
+            const currentSelectedChat = selectedChatRef.current;
+
+            // If this chat is currently open, don't badge it — it's already visible
+            if (currentSelectedChat?._id === chatId) return;
+
+            // Update the badge count (this persists across refreshes via DB,
+            // but we also update state here so the badge appears instantly)
+            setUnreadCounts((prev) => ({ ...prev, [chatId]: count }));
+
+            // Show an in-app notification so the user knows a message arrived
+            if (message?.sender?._id !== user?._id) {
+                toast.custom(
+                    (t) => (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className={`flex items-start gap-3 bg-white dark:bg-gray-800 border border-[#6B7280]/20 dark:border-gray-600 shadow-lg rounded-xl px-4 py-3 max-w-sm cursor-pointer`}
+                            onClick={() => toast.dismiss(t.id)}
+                        >
+                            <div className="w-9 h-9 rounded-full bg-[#1E40AF]/10 dark:bg-blue-900/50 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                                {getInitials(message.sender)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-[#1F2937] dark:text-gray-100 truncate">
+                                    {getFullName(message.sender)}
+                                </p>
+                                <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate mt-0.5">
+                                    {message.content || (message.fileUrl ? '📎 Attachment' : 'New message')}
+                                </p>
+                            </div>
+                            <span className="text-xs text-[#6B7280] dark:text-gray-500 flex-shrink-0 mt-0.5">
+                                {moment(message.createdAt).fromNow()}
+                            </span>
+                        </motion.div>
+                    ),
+                    { duration: 5000, position: 'bottom-right' }
+                );
             }
         });
 
         socket.current.on('messageUpdated', (message) => {
-            if (message.chatId === selectedChat?._id) {
+            if (message.chatId === selectedChatRef.current?._id) {
                 setMessages((prev) =>
                     prev.map((msg) => (msg._id === message._id ? message : msg))
                 );
@@ -244,7 +338,7 @@ const TeamChat = () => {
         });
 
         socket.current.on('messageDeleted', (message) => {
-            if (message.chatId === selectedChat?._id) {
+            if (message.chatId === selectedChatRef.current?._id) {
                 setMessages((prev) =>
                     prev.map((msg) => (msg._id === message._id ? message : msg))
                 );
@@ -281,7 +375,7 @@ const TeamChat = () => {
                 setGroups((prev) =>
                     prev.map((g) => (g._id === response.group._id ? response.group : g))
                 );
-                if (selectedChat?._id === response.group._id) {
+                if (selectedChatRef.current?._id === response.group._id) {
                     setSelectedChat({ ...response.group, type: 'group' });
                 }
                 toast.success('Group updated!', { style: { background: '#16A34A', color: '#FFFFFF' } });
@@ -299,11 +393,13 @@ const TeamChat = () => {
         });
 
         return () => {
-            socket.current?.emit('leaveChat', selectedChat?._id);
+            socket.current?.emit('leaveChat', selectedChatRef.current?._id);
             socket.current?.emit('leaveChat', `user:${user._id}`);
             socket.current?.disconnect();
         };
-    }, [user, selectedChat, scrollToBottom, lastMessages, chatMode]);
+    }, [user, scrollToBottom]);
+    // NOTE: intentionally NOT including selectedChat or lastMessages in deps
+    // because we use selectedChatRef for the socket handlers to avoid stale closures
 
     useEffect(() => {
         if (!user) {
@@ -311,7 +407,8 @@ const TeamChat = () => {
             return;
         }
         fetchInitialChats();
-    }, [user, fetchInitialChats]);
+        fetchUnreadCounts(); // Load persistent counts from DB on every mount/refresh
+    }, [user, fetchInitialChats, fetchUnreadCounts]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -359,7 +456,10 @@ const TeamChat = () => {
             const chat = response.data.chat;
             if (!chat?._id) throw new Error('Invalid chat data received');
             setSelectedChat({ ...chat, type: 'individual', recipient: chat.members.find(m => m._id !== user._id) });
-            setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
+
+            // Mark this chat as read in DB and clear badge
+            await markChatAsRead(chat._id);
+
             socket.current?.emit('joinChat', chat._id);
             setCurrentPage(1);
             setSidebarCollapsed(window.innerWidth < 1024);
@@ -371,7 +471,7 @@ const TeamChat = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [getAuthHeaders, onLogout, user]);
+    }, [getAuthHeaders, onLogout, user, markChatAsRead]);
 
     const selectGroupChat = useCallback((group) => {
         if (!group?._id) {
@@ -379,11 +479,14 @@ const TeamChat = () => {
             return;
         }
         setSelectedChat({ ...group, type: 'group' });
-        setUnreadCounts((prev) => ({ ...prev, [group._id]: 0 }));
+
+        // Mark this group chat as read in DB and clear badge
+        markChatAsRead(group._id);
+
         socket.current?.emit('joinChat', group._id);
         setCurrentPage(1);
         setSidebarCollapsed(window.innerWidth < 1024);
-    }, []);
+    }, [markChatAsRead]);
 
     const fetchMessages = useCallback(async () => {
         if (!selectedChat?._id) return;
@@ -402,7 +505,6 @@ const TeamChat = () => {
             });
             setTotalPages(pagination.totalPages);
             setTimeout(scrollToBottom, 10);
-            setUnreadCounts((prev) => ({ ...prev, [selectedChat._id]: 0 }));
             if (newMessages.length > 0) {
                 setChatTimestamps((prev) => ({
                     ...prev,
@@ -429,7 +531,7 @@ const TeamChat = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout, chatMode, user]);
+    }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout, chatMode]);
 
     useEffect(() => {
         fetchMessages();
@@ -524,7 +626,7 @@ const TeamChat = () => {
                 });
                 toast.success('Message updated.', { style: { background: '#16A34A', color: '#FFFFFF' } });
             } else {
-                const response = await axios.post(
+                await axios.post(
                     `${API_BASE_URL}/api/chats/${selectedChat._id}/messages`,
                     {
                         content: newMessage.trim(),
@@ -534,7 +636,7 @@ const TeamChat = () => {
                     },
                     { headers: getAuthHeaders() }
                 );
-                // Backend already broadcasts the message via Socket.IO
+                // Backend broadcasts via Socket.IO — no need to update messages state here
             }
             setNewMessage('');
             setFile(null);
@@ -730,6 +832,13 @@ const TeamChat = () => {
 
     const filteredMessages = messages.filter((msg) => msg.content?.toLowerCase().includes(messageSearch.toLowerCase()));
 
+    // Compute total unread badge for the tab title
+    const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
+    useEffect(() => {
+        document.title = totalUnread > 0 ? `(${totalUnread}) TeamChat` : 'TeamChat';
+        return () => { document.title = 'TeamChat'; };
+    }, [totalUnread]);
+
     if (!user) {
         return (
             <div className="h-screen flex items-center justify-center bg-[#F3F4F6] dark:bg-gray-900">
@@ -745,7 +854,14 @@ const TeamChat = () => {
                 <header className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Users className="w-6 h-6 text-[#1E40AF] dark:text-blue-400" />
-                        <h1 className="text-xl font-bold text-[#1F2937] dark:text-gray-100">TeamChat</h1>
+                        <h1 className="text-xl font-bold text-[#1F2937] dark:text-gray-100">
+                            TeamChat
+                            {totalUnread > 0 && (
+                                <span className="ml-2 bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full px-2 py-0.5">
+                                    {totalUnread}
+                                </span>
+                            )}
+                        </h1>
                     </div>
                     <button
                         onClick={() => navigate('/')}
@@ -803,8 +919,9 @@ const TeamChat = () => {
                         ? sortedUsers.map((u) => {
                             const chatId = userChatMap[u._id];
                             const lastMsg = lastMessages[chatId];
-                            const snippet = lastMsg ? (lastMsg.content ? lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '') : 'Attachment') : 'No messages yet';
+                            const snippet = lastMsg ? (lastMsg.content ? lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '') : '📎 Attachment') : 'No messages yet';
                             const time = chatTimestamps[chatId] ? moment(chatTimestamps[chatId]).fromNow() : '';
+                            const unread = unreadCounts[chatId] || 0;
                             return (
                                 <div
                                     key={u._id}
@@ -815,20 +932,33 @@ const TeamChat = () => {
                                 >
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
-                                                {getInitials(u)}
+                                            <div className="relative w-10 h-10 flex-shrink-0">
+                                                <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium">
+                                                    {getInitials(u)}
+                                                </div>
+                                                {u.online && (
+                                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#16A34A] rounded-full border-2 border-white dark:border-gray-800" />
+                                                )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200 truncate">{getFullName(u)}</p>
-                                                <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate">{snippet}</p>
+                                                <p className={`text-sm truncate ${unread > 0 ? 'font-semibold text-[#1F2937] dark:text-gray-100' : 'font-medium text-[#1F2937] dark:text-gray-200'}`}>
+                                                    {getFullName(u)}
+                                                </p>
+                                                <p className={`text-xs truncate ${unread > 0 ? 'text-[#1F2937] dark:text-gray-300 font-medium' : 'text-[#6B7280] dark:text-gray-400'}`}>
+                                                    {snippet}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="text-right flex-shrink-0">
+                                        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                             <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
-                                            {unreadCounts[chatId] > 0 && (
-                                                <span className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
-                                                    {unreadCounts[chatId]}
-                                                </span>
+                                            {unread > 0 && (
+                                                <motion.span
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center"
+                                                >
+                                                    {unread > 99 ? '99+' : unread}
+                                                </motion.span>
                                             )}
                                         </div>
                                     </div>
@@ -837,8 +967,9 @@ const TeamChat = () => {
                         })
                         : sortedGroups.map((g) => {
                             const lastMsg = lastMessages[g._id];
-                            const snippet = lastMsg ? (lastMsg.content ? `${getFullName(lastMsg.sender)}: ${lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '')}` : 'Attachment') : 'No messages yet';
+                            const snippet = lastMsg ? (lastMsg.content ? `${getFullName(lastMsg.sender)}: ${lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '')}` : '📎 Attachment') : 'No messages yet';
                             const time = chatTimestamps[g._id] ? moment(chatTimestamps[g._id]).fromNow() : '';
+                            const unread = unreadCounts[g._id] || 0;
                             return (
                                 <div
                                     key={g._id}
@@ -853,16 +984,24 @@ const TeamChat = () => {
                                                 {getInitials(g)}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200 truncate">{g.name}</p>
-                                                <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate">{snippet}</p>
+                                                <p className={`text-sm truncate ${unread > 0 ? 'font-semibold text-[#1F2937] dark:text-gray-100' : 'font-medium text-[#1F2937] dark:text-gray-200'}`}>
+                                                    {g.name}
+                                                </p>
+                                                <p className={`text-xs truncate ${unread > 0 ? 'text-[#1F2937] dark:text-gray-300 font-medium' : 'text-[#6B7280] dark:text-gray-400'}`}>
+                                                    {snippet}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="text-right flex-shrink-0">
+                                        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                             <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
-                                            {unreadCounts[g._id] > 0 && (
-                                                <span className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-medium rounded-full px-2 py-0.5 mt-1 inline-block">
-                                                    {unreadCounts[g._id]}
-                                                </span>
+                                            {unread > 0 && (
+                                                <motion.span
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center"
+                                                >
+                                                    {unread > 99 ? '99+' : unread}
+                                                </motion.span>
                                             )}
                                         </div>
                                     </div>

@@ -59,7 +59,11 @@ export const createIndividualChat = async (req, res) => {
                 .populate('members', 'firstName lastName otherName avatar online lastActive')
                 .lean();
         }
-        res.json({ success: true, chat });
+        // Attach the caller's unread count for this chat
+        const unreadCount = chat.unreadCounts
+            ? (chat.unreadCounts[req.user._id.toString()] ?? 0)
+            : 0;
+        res.json({ success: true, chat: { ...chat, myUnreadCount: unreadCount } });
     } catch (error) {
         console.error('Error creating individual chat:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to create chat' });
@@ -77,7 +81,16 @@ export const getGroups = async (req, res) => {
             .populate('members', 'firstName lastName otherName avatar online lastActive')
             .populate('adminId', 'firstName lastName')
             .lean();
-        res.json({ success: true, groups });
+
+        // Attach each group's unread count for the calling user
+        const groupsWithUnread = groups.map((g) => ({
+            ...g,
+            myUnreadCount: g.unreadCounts
+                ? (g.unreadCounts[req.user._id.toString()] ?? 0)
+                : 0,
+        }));
+
+        res.json({ success: true, groups: groupsWithUnread });
     } catch (error) {
         console.error('Error fetching groups:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to fetch groups' });
@@ -185,7 +198,7 @@ export const addGroupMembers = async (req, res) => {
     }
 };
 
-// FIXED: getChatMessages - removed replyTo populate to prevent StrictPopulateError
+// getChatMessages
 export const getChatMessages = async (req, res) => {
     const { chatId } = req.params;
     const { limit = 20, page = 1 } = req.query;
@@ -201,7 +214,6 @@ export const getChatMessages = async (req, res) => {
         const messages = await Message.find({ chatId })
             .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
             .populate('sender', 'firstName lastName otherName avatar')
-            // replyTo populate removed - it is not defined in your Message schema
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit, 10))
@@ -271,21 +283,50 @@ export const sendMessage = async (req, res) => {
 
         chat.updatedAt = Date.now();
 
+        // Increment unread counts for all members except the sender
+        // and emit per-user socket events with the new counts
         chat.members.forEach((memberId) => {
             if (memberId.toString() !== req.user._id.toString()) {
                 const currentCount = chat.unreadCounts.get(memberId.toString()) || 0;
-                chat.unreadCounts.set(memberId.toString(), currentCount + 1);
-                req.io.to(`user:${memberId.toString()}`).emit('unreadUpdate', { chatId, count: currentCount + 1 });
+                const newCount = currentCount + 1;
+                chat.unreadCounts.set(memberId.toString(), newCount);
+                // Emit to that specific user's personal room with chatId + new count
+                req.io.to(`user:${memberId.toString()}`).emit('unreadUpdate', {
+                    chatId,
+                    count: newCount,
+                    message: populatedMessage,
+                });
             }
         });
         await chat.save();
 
+        // Broadcast message to everyone in the chat room
         req.io.to(chatId.toString()).emit('message', populatedMessage);
 
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
         console.error('Error sending message:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to send message' });
+    }
+};
+
+// Mark chat as read — resets unread count for the calling user
+export const markChatRead = async (req, res) => {
+    const { chatId } = req.params;
+    if (!mongoose.isValidObjectId(chatId)) {
+        return res.status(400).json({ success: false, message: 'Invalid chat ID' });
+    }
+    try {
+        const chat = await Chat.findOne({ _id: chatId, members: req.user._id });
+        if (!chat) {
+            return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
+        }
+        chat.unreadCounts.set(req.user._id.toString(), 0);
+        await chat.save();
+        res.json({ success: true, chatId, count: 0 });
+    } catch (error) {
+        console.error('Error marking chat as read:', error.message, error.stack);
+        res.status(500).json({ success: false, message: 'Failed to mark chat as read' });
     }
 };
 
@@ -418,6 +459,26 @@ export const getUnreadTotal = async (req, res) => {
     }
 };
 
+// Get all unread counts for the current user (one map of chatId -> count)
+export const getAllUnreadCounts = async (req, res) => {
+    try {
+        const chats = await Chat.find({ members: req.user._id })
+            .select('_id unreadCounts')
+            .lean();
+        const counts = {};
+        chats.forEach((chat) => {
+            const count = chat.unreadCounts
+                ? (chat.unreadCounts[req.user._id.toString()] ?? 0)
+                : 0;
+            if (count > 0) counts[chat._id.toString()] = count;
+        });
+        res.json({ success: true, counts });
+    } catch (error) {
+        console.error('Error fetching all unread counts:', error.message, error.stack);
+        res.status(500).json({ success: false, message: 'Failed to fetch unread counts' });
+    }
+};
+
 // Mark message as read
 export const markMessageRead = async (req, res) => {
     const { messageId } = req.params;
@@ -505,6 +566,8 @@ export default {
     addGroupMembers,
     getChatMessages,
     sendMessage,
+    markChatRead,
+    getAllUnreadCounts,
     editMessage,
     deleteMessage,
     uploadChatFile,
