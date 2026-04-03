@@ -12,21 +12,12 @@ const chatSchema = new mongoose.Schema(
             type: String,
             trim: true,
             required: [
-                function () {
-                    return this.type === 'group';
-                },
+                function () { return this.type === 'group'; },
                 'Group name is required',
             ],
         },
-        avatar: {
-            type: String,
-            trim: true,
-            default: '',
-        },
-        adminId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'user',
-        },
+        avatar: { type: String, trim: true, default: '' },
+        adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
         members: [
             {
                 type: mongoose.Schema.Types.ObjectId,
@@ -43,18 +34,15 @@ const chatSchema = new mongoose.Schema(
             of: Number,
             default: new Map(),
         },
-        updatedAt: {
-            type: Date,
-            default: Date.now,
-        },
+        updatedAt: { type: Date, default: Date.now },
     },
     { timestamps: true }
 );
 
-// Indexes for performance
+// Performance indexes
 chatSchema.index({ members: 1, type: 1 });
-chatSchema.index({ type: 1, updatedAt: -1 });
+chatSchema.index({ members: 1, updatedAt: -1 });
+chatSchema.index({ type: 1, members: 1 });
 
 const Chat = mongoose.models.Chat || mongoose.model('Chat', chatSchema);
-
 export default Chat;

@@ -208,7 +208,7 @@ export const addGroupMembers = async (req, res) => {
     }
 };
 
-// getChatMessages
+// getChatMessages — parallel access-check + fetch + count
 export const getChatMessages = async (req, res) => {
     const { chatId } = req.params;
     const { limit = 20, page = 1 } = req.query;
@@ -216,27 +216,34 @@ export const getChatMessages = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid chat ID' });
     }
     try {
-        const chat = await Chat.findOne({ _id: chatId, members: req.user._id }).lean();
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        // Run access check, message fetch, and count all in parallel
+        const [chat, messages, totalMessages] = await Promise.all([
+            Chat.findOne({ _id: chatId, members: req.user._id }).select('_id').lean(),
+            Message.find({ chatId })
+                .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
+                .populate('sender', 'firstName lastName otherName avatar')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+            Message.countDocuments({ chatId }),
+        ]);
+
         if (!chat) {
             return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
         }
-        const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-        const messages = await Message.find({ chatId })
-            .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
-            .populate('sender', 'firstName lastName otherName avatar')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(parseInt(limit, 10))
-            .lean();
-        const totalMessages = await Message.countDocuments({ chatId });
-        const totalPages = Math.ceil(totalMessages / parseInt(limit, 10));
+
         res.json({
             success: true,
             messages: messages.reverse(),
             pagination: {
-                page: parseInt(page, 10),
-                limit: parseInt(limit, 10),
-                totalPages,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(totalMessages / limitNum),
                 totalMessages,
             },
         });
@@ -267,50 +274,73 @@ export const sendMessage = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid replyTo ID' });
     }
     try {
-        const chat = await Chat.findOne({ _id: chatId, members: req.user._id });
+        // Fetch only what we need: membership check + current unreadCounts + members list
+        const chat = await Chat.findOne(
+            { _id: chatId, members: req.user._id },
+            { members: 1, unreadCounts: 1 }
+        ).lean();
         if (!chat) {
             return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
         }
-        const message = new Message({
-            chatId,
-            sender: req.user._id,
-            content: sanitizedContent,
-            fileUrl,
-            contentType,
-            fileName,
-            replyTo: replyTo || null,
-            readBy: [{ userId: req.user._id, timestamp: new Date() }],
-        });
-        await message.save();
 
-        const sender = await User.findById(req.user._id);
-        sender.lastActive = new Date();
-        await sender.save();
+        // Save message and fetch sender info in parallel
+        const [message, senderDoc] = await Promise.all([
+            Message.create({
+                chatId,
+                sender: req.user._id,
+                content: sanitizedContent,
+                fileUrl,
+                contentType,
+                fileName,
+                replyTo: replyTo || null,
+            }),
+            User.findById(req.user._id)
+                .select('firstName lastName otherName avatar')
+                .lean(),
+        ]);
 
-        const populatedMessage = await Message.findById(message._id)
-            .populate('sender', 'firstName lastName otherName avatar')
-            .lean();
+        // Fire-and-forget lastActive update — does not block response
+        User.updateOne({ _id: req.user._id }, { $set: { lastActive: new Date() } }).catch(() => {});
 
-        chat.updatedAt = Date.now();
+        // Build the populated message object from data we already have — no extra DB read
+        const populatedMessage = {
+            _id: message._id,
+            chatId: message.chatId,
+            sender: senderDoc,
+            content: message.content,
+            fileUrl: message.fileUrl,
+            fileName: message.fileName,
+            contentType: message.contentType,
+            isDeleted: false,
+            isEdited: false,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt,
+        };
 
-        // Increment unread counts for all members except the sender
-        // and emit per-user socket events with the new counts
+        // Build atomic $set for unread increments — one DB write instead of full document save
+        const unreadIncrements = {};
+        const now = Date.now();
+
         chat.members.forEach((memberId) => {
-            if (memberId.toString() !== req.user._id.toString()) {
-                const currentCount = chat.unreadCounts.get(memberId.toString()) || 0;
+            const mid = memberId.toString();
+            if (mid !== req.user._id.toString()) {
+                const currentCount = (chat.unreadCounts && chat.unreadCounts[mid]) || 0;
                 const newCount = currentCount + 1;
-                chat.unreadCounts.set(memberId.toString(), newCount);
-                // Emit to that specific user's personal room with chatId + new count
-                req.io.to(`user:${memberId.toString()}`).emit('unreadUpdate', {
+                unreadIncrements[`unreadCounts.${mid}`] = newCount;
+                req.io.to(`user:${mid}`).emit('unreadUpdate', {
                     chatId,
                     count: newCount,
                     message: populatedMessage,
                 });
             }
         });
-        await chat.save();
 
-        // Broadcast message to everyone in the chat room
+        // Single atomic update: bump updatedAt + all unread counters at once
+        Chat.findByIdAndUpdate(chatId, {
+            $set: { updatedAt: now, ...unreadIncrements },
+        }).catch((err) => console.error('Chat update error:', err.message));
+
+        // Broadcast to everyone in the chat room
         req.io.to(chatId.toString()).emit('message', populatedMessage);
 
         res.json({ success: true, message: populatedMessage });
@@ -327,12 +357,15 @@ export const markChatRead = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid chat ID' });
     }
     try {
-        const chat = await Chat.findOne({ _id: chatId, members: req.user._id });
-        if (!chat) {
+        // Atomic update — no need to load the whole document
+        const result = await Chat.findOneAndUpdate(
+            { _id: chatId, members: req.user._id },
+            { $set: { [`unreadCounts.${req.user._id.toString()}`]: 0 } },
+            { new: false, projection: { _id: 1 } }
+        );
+        if (!result) {
             return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
         }
-        chat.unreadCounts.set(req.user._id.toString(), 0);
-        await chat.save();
         res.json({ success: true, chatId, count: 0 });
     } catch (error) {
         console.error('Error marking chat as read:', error.message, error.stack);
@@ -429,25 +462,26 @@ export const uploadChatFile = async (req, res) => {
     }
 };
 
-// Fetch chat timestamps
+// Fetch chat timestamps — single aggregate, no sub-queries
 export const getChatTimestamps = async (req, res) => {
     try {
-        const lastMessages = await Message.aggregate([
-            { $match: { chatId: { $in: await Chat.find({ members: req.user._id }).distinct('_id') } } },
+        // Get all chats in one query, then aggregate messages in one pipeline
+        const userChats = await Chat.find({ members: req.user._id }).select('_id updatedAt').lean();
+        const chatIds = userChats.map((c) => c._id);
+
+        const lastMsgAgg = await Message.aggregate([
+            { $match: { chatId: { $in: chatIds } } },
             { $sort: { createdAt: -1 } },
             { $group: { _id: '$chatId', createdAt: { $first: '$createdAt' } } },
         ]);
-        const timestamps = lastMessages.reduce((acc, msg) => {
-            acc[msg._id.toString()] = msg.createdAt.toISOString();
-            return acc;
-        }, {});
-        const chatsWithoutMessages = await Chat.find({
-            members: req.user._id,
-            _id: { $nin: lastMessages.map((msg) => msg._id) },
-        }).select('_id updatedAt');
-        chatsWithoutMessages.forEach((chat) => {
-            timestamps[chat._id.toString()] = chat.updatedAt.toISOString();
-        });
+
+        const hasMsgSet = new Set(lastMsgAgg.map((m) => m._id.toString()));
+        const timestamps = {};
+
+        // Only record timestamps for chats that have actual messages.
+        // No updatedAt fallback — that causes empty chats to show fake recent times.
+        lastMsgAgg.forEach((m) => { timestamps[m._id.toString()] = m.createdAt.toISOString(); });
+
         res.json({ success: true, timestamps });
     } catch (error) {
         console.error('Error fetching chat timestamps:', error.message, error.stack);
@@ -568,6 +602,145 @@ export const removeReaction = async (req, res) => {
     }
 };
 
+
+// Get a map of {userId -> chatId} for all individual chats the caller is in.
+// Eliminates the N+1 POST /individual calls on the frontend.
+export const getUserChatMap = async (req, res) => {
+    try {
+        const chats = await Chat.find({
+            type: 'individual',
+            members: req.user._id,
+        }).select('_id members').lean();
+
+        const map = {};
+        chats.forEach((chat) => {
+            const otherId = chat.members.find(
+                (m) => m.toString() !== req.user._id.toString()
+            );
+            if (otherId) map[otherId.toString()] = chat._id.toString();
+        });
+
+        res.json({ success: true, map });
+    } catch (error) {
+        console.error('Error fetching user chat map:', error.message, error.stack);
+        res.status(500).json({ success: false, message: 'Failed to fetch user chat map' });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/chats/init  —  Single endpoint that replaces 5+ separate calls.
+// Returns: users, groups (with unread), individual chat map, last messages
+// per chat, timestamps, and unread counts — all in one round trip.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getInitialData = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        // ── 1. Parallel: all users + all chats the caller belongs to ──────────
+        const [allUsers, allChats] = await Promise.all([
+            User.find({ _id: { $ne: userId } })
+                .select('firstName lastName otherName avatar online lastActive')
+                .lean(),
+            Chat.find({ members: userId })
+                .select('_id type name avatar adminId members updatedAt unreadCounts')
+                .populate('members', 'firstName lastName otherName avatar online lastActive')
+                .populate('adminId', 'firstName lastName')
+                .lean(),
+        ]);
+
+        const chatIds = allChats.map((c) => c._id);
+
+        // ── 2. One aggregate: last message per chat (content + sender) ────────
+        const lastMessageDocs = await Message.aggregate([
+            { $match: { chatId: { $in: chatIds } } },
+            { $sort: { createdAt: -1 } },
+            {
+                $group: {
+                    _id: '$chatId',
+                    messageId: { $first: '$_id' },
+                    content: { $first: '$content' },
+                    contentType: { $first: '$contentType' },
+                    fileUrl: { $first: '$fileUrl' },
+                    isDeleted: { $first: '$isDeleted' },
+                    createdAt: { $first: '$createdAt' },
+                    senderId: { $first: '$sender' },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'senderId',
+                    foreignField: '_id',
+                    as: 'senderArr',
+                    pipeline: [{ $project: { firstName: 1, lastName: 1, otherName: 1, avatar: 1 } }],
+                },
+            },
+            { $addFields: { sender: { $arrayElemAt: ['$senderArr', 0] } } },
+            { $project: { senderArr: 0 } },
+        ]);
+
+        // ── 3. Build response maps ─────────────────────────────────────────────
+        const lastMsgMap = {};     // chatId -> last message object
+        const timestampMap = {};   // chatId -> ISO string
+
+        lastMessageDocs.forEach((doc) => {
+            const cid = doc._id.toString();
+            lastMsgMap[cid] = {
+                _id: doc.messageId,
+                chatId: doc._id,
+                content: doc.content,
+                contentType: doc.contentType,
+                fileUrl: doc.fileUrl,
+                isDeleted: doc.isDeleted,
+                createdAt: doc.createdAt,
+                sender: doc.sender,
+            };
+            timestampMap[cid] = doc.createdAt.toISOString();
+        });
+
+        // Do NOT fall back to chat.updatedAt for chats with no messages.
+        // Using updatedAt causes chats to appear at the top of the list with a fake recent
+        // timestamp even when no messages have been exchanged. The frontend sorts by
+        // lastMessage presence, and we mirror that here for consistency.
+        // (Groups/chats with no messages will sort alphabetically on the frontend.)
+
+        // ── 4. Split chats into groups vs individual, build chat map ──────────
+        const groups = [];
+        const userChatMap = {};   // otherId -> chatId (for individual chats)
+        const unreadCounts = {};  // chatId -> count
+
+        allChats.forEach((chat) => {
+            const cid = chat._id.toString();
+            const myUnread = chat.unreadCounts
+                ? (chat.unreadCounts[userId.toString()] ?? 0)
+                : 0;
+            if (myUnread > 0) unreadCounts[cid] = myUnread;
+
+            if (chat.type === 'group') {
+                groups.push({ ...chat, myUnreadCount: myUnread });
+            } else {
+                // individual — find the other member
+                const other = chat.members.find(
+                    (m) => m._id.toString() !== userId.toString()
+                );
+                if (other) userChatMap[other._id.toString()] = cid;
+            }
+        });
+
+        res.json({
+            success: true,
+            users: allUsers,
+            groups,
+            userChatMap,
+            lastMessages: lastMsgMap,
+            timestamps: timestampMap,
+            unreadCounts,
+        });
+    } catch (error) {
+        console.error('Error in getInitialData:', error.message, error.stack);
+        res.status(500).json({ success: false, message: 'Failed to load chat data' });
+    }
+};
 export default {
     getUsers,
     createIndividualChat,
@@ -585,5 +758,7 @@ export default {
     getUnreadTotal,
     markMessageRead,
     addReaction,
-    removeReaction
+    removeReaction,
+    getUserChatMap,
+    getInitialData
 };

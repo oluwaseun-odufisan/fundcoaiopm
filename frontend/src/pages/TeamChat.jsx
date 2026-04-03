@@ -1,64 +1,260 @@
 // src/pages/TeamChat.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { Send, Smile, Paperclip, Users, Plus, X, Search, ChevronDown, Edit2, Trash2, ArrowLeft, ArrowDown, Mic } from 'lucide-react';
+import {
+    Send, Smile, Paperclip, Users, Plus, X, Search, Edit2, Trash2,
+    ArrowLeft, ArrowDown, Mic, Check, CheckCheck, Reply, CornerUpLeft,
+    Phone, Video as VideoIcon, MoreVertical, ImageIcon, FileText as FileIcon,
+    Music, Clock,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import io from 'socket.io-client';
 import EmojiPicker from 'emoji-picker-react';
 import toast, { Toaster } from 'react-hot-toast';
-import { Tooltip } from 'react-tooltip';
 import moment from 'moment-timezone';
 import { debounce } from 'lodash';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const SOCKET_URL = API_BASE_URL;
+const TZ = 'Africa/Lagos';
 
-// Safe full name helper
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const getFullName = (user) => {
-    if (!user) return 'Unknown User';
+    if (!user) return 'Unknown';
     if (user.fullName) return user.fullName.trim();
-    if (user.firstName || user.lastName) {
+    if (user.firstName || user.lastName)
         return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
-    }
-    return user.name?.trim() || 'Unknown User';
+    return user.name?.trim() || 'Unknown';
 };
 
-// Safe avatar initial helper
 const getInitials = (user) => {
-    if (!user) return 'U';
-    const name = user.firstName || user.name || 'U';
+    if (!user) return '?';
+    const name = user.firstName || user.name || '?';
     const words = name.trim().split(' ');
     return words.length === 1
         ? words[0].slice(0, 2).toUpperCase()
         : (words[0][0] + (words[1]?.[0] || '')).toUpperCase();
 };
 
+const formatChatTime = (ts) => {
+    if (!ts) return '';
+    const m = moment(ts).tz(TZ);
+    if (!m.isValid()) return '';
+    const now = moment().tz(TZ);
+    const diffDays = now.clone().startOf('day').diff(m.clone().startOf('day'), 'days');
+    if (diffDays === 0) return m.format('h:mm A');
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return m.format('ddd');
+    return m.format('DD/MM/YY');
+};
+
+const formatMsgTime = (ts) => {
+    if (!ts) return '';
+    const m = moment(ts).tz(TZ);
+    return m.isValid() ? m.format('h:mm A') : '';
+};
+
+const formatDateSep = (ts) => {
+    if (!ts) return '';
+    const m = moment(ts).tz(TZ);
+    if (!m.isValid()) return '';
+    const diffDays = moment().tz(TZ).startOf('day').diff(m.clone().startOf('day'), 'days');
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return m.format('dddd');
+    return m.format('MMMM D, YYYY');
+};
+
+const formatLastSeen = (ts) => {
+    if (!ts) return 'last seen a long time ago';
+    const m = moment(ts).tz(TZ);
+    if (!m.isValid()) return 'last seen a long time ago';
+    const diffMins = moment().diff(m, 'minutes');
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `last seen ${diffMins}m ago`;
+    const diffHours = moment().diff(m, 'hours');
+    if (diffHours < 24) return `last seen today at ${m.format('h:mm A')}`;
+    if (diffHours < 48) return `last seen yesterday at ${m.format('h:mm A')}`;
+    return `last seen ${m.format('DD/MM/YY')}`;
+};
+
+// ─── Avatar component ─────────────────────────────────────────────────────────
+const Avatar = ({ user, size = 10, showOnline = false }) => {
+    const sz = `w-${size} h-${size}`;
+    return (
+        <div className={`relative flex-shrink-0 ${sz} rounded-full bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-900 flex items-center justify-center text-white font-semibold shadow-sm`}
+            style={{ fontSize: size <= 8 ? '0.7rem' : '0.85rem' }}>
+            {user?.avatar
+                ? <img src={user.avatar} alt="" className={`${sz} rounded-full object-cover`} />
+                : getInitials(user)
+            }
+            {showOnline && user?.online && (
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
+            )}
+        </div>
+    );
+};
+
+// ─── Date separator ───────────────────────────────────────────────────────────
+const DateSeparator = ({ date }) => (
+    <div className="flex items-center gap-3 my-4">
+        <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+        <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 bg-[#F8F9FA] dark:bg-gray-900 px-2 flex-shrink-0">
+            {formatDateSep(date)}
+        </span>
+        <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+    </div>
+);
+
+// ─── Typing indicator ─────────────────────────────────────────────────────────
+const TypingBubble = ({ name }) => (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+        className="flex items-end gap-2 my-1">
+        <div className="px-4 py-2.5 bg-white dark:bg-gray-700 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+                <motion.span key={i} className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-400 rounded-full block"
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
+            ))}
+        </div>
+        <span className="text-[10px] text-gray-400 dark:text-gray-500 mb-1">{name}</span>
+    </motion.div>
+);
+
+// ─── Group Modal ──────────────────────────────────────────────────────────────
+const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, onAddMembers }) => {
+    const [groupName, setGroupName] = useState('');
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [modalSearch, setModalSearch] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const searchRef = useRef(null);
+    useEffect(() => { setTimeout(() => searchRef.current?.focus(), 80); }, []);
+    const existingMemberIds = useMemo(() => {
+        if (isAddMode && selectedChat?.members) return new Set(selectedChat.members.map((m) => m._id));
+        return new Set();
+    }, [isAddMode, selectedChat]);
+    const filteredUsers = useMemo(() => {
+        const q = modalSearch.trim().toLowerCase();
+        return users
+            .filter((u) => !existingMemberIds.has(u._id))
+            .filter((u) => !q || getFullName(u).toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
+            .sort((a, b) => getFullName(a).localeCompare(getFullName(b)));
+    }, [users, existingMemberIds, modalSearch]);
+    const toggleUser = (id) =>
+        setSelectedUsers((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    const handleSubmit = async () => {
+        if (!selectedUsers.length) { toast.error('Select at least one member.'); return; }
+        setIsSubmitting(true);
+        try {
+            if (isAddMode) await onAddMembers(selectedChat._id, selectedUsers);
+            else await onCreateGroup(groupName, selectedUsers);
+            onClose();
+        } catch (err) {
+            toast.error(err.response?.data?.message || err.message || 'Operation failed.');
+        } finally { setIsSubmitting(false); }
+    };
+    const selectedNames = useMemo(() => users.filter((u) => selectedUsers.includes(u._id)), [users, selectedUsers]);
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                        {isAddMode ? 'Add Members' : 'Create New Group'}
+                    </h3>
+                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                    {!isAddMode && (
+                        <input type="text" value={groupName} onChange={(e) => setGroupName(e.target.value)}
+                            placeholder="Group name (e.g. Project Alpha)" maxLength={50}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                    )}
+                    {selectedNames.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {selectedNames.map((u) => (
+                                <span key={u._id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium">
+                                    {getFullName(u)}
+                                    <button onClick={() => toggleUser(u._id)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2">
+                        <Search className="w-4 h-4 text-gray-400" />
+                        <input ref={searchRef} type="text" value={modalSearch} onChange={(e) => setModalSearch(e.target.value)}
+                            placeholder="Search members…" className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-200 focus:outline-none" />
+                        {modalSearch && <button onClick={() => setModalSearch('')}><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">{filteredUsers.length} available</p>
+                        {filteredUsers.length === 0
+                            ? <p className="text-sm text-center text-gray-400 py-6">{modalSearch ? 'No matches' : 'No users available'}</p>
+                            : (
+                                <div className="space-y-0.5 max-h-60 overflow-y-auto">
+                                    {filteredUsers.map((u) => {
+                                        const sel = selectedUsers.includes(u._id);
+                                        return (
+                                            <div key={u._id} onClick={() => toggleUser(u._id)}
+                                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${sel ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/60'}`}>
+                                                <Avatar user={u} size={9} showOnline />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{getFullName(u)}</p>
+                                                    {u.online && <p className="text-xs text-green-500">Online</p>}
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${sel ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-500'}`}>
+                                                    {sel && <Check className="w-3 h-3 text-white" />}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                    </div>
+                </div>
+                <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <p className="text-xs text-gray-400">{selectedUsers.length} selected</p>
+                    <div className="flex gap-2">
+                        <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">Cancel</button>
+                        <button onClick={handleSubmit} disabled={!selectedUsers.length || isSubmitting}
+                            className={`px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all ${selectedUsers.length && !isSubmitting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'}`}>
+                            {isSubmitting ? 'Please wait…' : isAddMode ? 'Add Members' : 'Create Group'}
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+};
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 const TeamChat = () => {
     const { user, onLogout } = useOutletContext();
     const navigate = useNavigate();
-
     const [chatMode, setChatMode] = useState(localStorage.getItem('chatMode') || 'individual');
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
-    const [editingMessageId, setEditingMessageId] = useState(null);
+    const [editingMessage, setEditingMessage] = useState(null);
+    const [replyTo, setReplyTo] = useState(null);
     const [users, setUsers] = useState([]);
     const [groups, setGroups] = useState([]);
     const [typingUsers, setTypingUsers] = useState({});
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [showGroupModal, setShowGroupModal] = useState(false);
+    const [groupModalMode, setGroupModalMode] = useState(null);
     const [showMembersModal, setShowMembersModal] = useState(false);
-    const [groupName, setGroupName] = useState('');
-    const [selectedUsers, setSelectedUsers] = useState([]);
     const [file, setFile] = useState(null);
-    // unreadCounts is the source of truth — loaded from DB on mount, updated via socket
     const [unreadCounts, setUnreadCounts] = useState({});
     const [chatTimestamps, setChatTimestamps] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
     const [messageSearch, setMessageSearch] = useState('');
-    const [mediaViewer, setMediaViewer] = useState({ isOpen: false, fileUrl: '', contentType: '', fileName: '' });
-    const [isLoading, setIsLoading] = useState(false);
+    const [mediaViewer, setMediaViewer] = useState(null);
+    const [isInitLoading, setIsInitLoading] = useState(true);
+    const [isMsgLoading, setIsMsgLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -67,181 +263,112 @@ const TeamChat = () => {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [selectionMode, setSelectionMode] = useState(null);
     const [selectedMessages, setSelectedMessages] = useState([]);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [lastSeen, setLastSeen] = useState('never');
-
+    const [onlineUsers, setOnlineUsers] = useState(new Set());
+    const [now, setNow] = useState(Date.now());
     const socket = useRef(null);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const fileInputRef = useRef(null);
     const emojiButtonRef = useRef(null);
-    const modalRef = useRef(null);
+    const inputRef = useRef(null);
     const reconnectAttempts = useRef(0);
     const maxReconnectAttempts = 5;
-    // Keep a ref to selectedChat so socket handlers always see latest value
     const selectedChatRef = useRef(null);
-    useEffect(() => {
-        selectedChatRef.current = selectedChat;
-    }, [selectedChat]);
+    const savedScrollRef = useRef(null);
+
+    // ─── CORE FIX: Live scroll position ref (updated on every scroll) ─────────────────────
+    const isAtBottomRef = useRef(true);
+
+    useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
+    useEffect(() => { localStorage.setItem('chatMode', chatMode); }, [chatMode]);
 
     useEffect(() => {
-        console.log('TeamChat mounted with user:', user?._id);
-    }, [user]);
-
-    useEffect(() => {
-        localStorage.setItem('chatMode', chatMode);
-    }, [chatMode]);
-
-    useEffect(() => {
-        if (selectedChat && window.innerWidth < 1024) {
-            setSidebarCollapsed(true);
-        } else {
-            setSidebarCollapsed(false);
-        }
-    }, [selectedChat]);
-
-    const scrollToBottom = useCallback(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            setShowScrollButton(false);
-        }
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
     }, []);
 
-    const handleScroll = useCallback(() => {
-        if (messagesContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-            const isAtBottom = scrollHeight - scrollTop - clientHeight < 10;
-            setShowScrollButton(!isAtBottom);
+    useEffect(() => {
+        if (users.length) {
+            setOnlineUsers(new Set(users.filter((u) => u.online).map((u) => u._id)));
         }
+    }, [users]);
+
+    // ─── scrollToBottom – now uses direct DOM scroll for maximum reliability ─────────────
+    const scrollToBottom = useCallback((behavior = 'smooth') => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+        if (behavior === 'instant') {
+            container.scrollTop = container.scrollHeight;
+        } else {
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }
+        setShowScrollButton(false);
+        isAtBottomRef.current = true;
+    }, []);
+
+    // ─── handleScroll – keeps ref perfectly in sync with user intent ─────────────────────
+    const handleScroll = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        isAtBottomRef.current = distanceFromBottom < 100; // tight threshold
+        setShowScrollButton(distanceFromBottom > 200);
     }, []);
 
     const getAuthHeaders = useCallback(() => {
         const token = localStorage.getItem('token');
-        if (!token) {
-            toast.error('Session expired. Please log in again.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            onLogout?.();
-            navigate('/login');
-            throw new Error('No auth token');
-        }
+        if (!token) { onLogout?.(); navigate('/login'); throw new Error('No auth token'); }
         return { Authorization: `Bearer ${token}` };
     }, [onLogout, navigate]);
 
-    // ─── Load persistent unread counts from DB ───────────────────────────────
     const fetchUnreadCounts = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/chats/unread-counts`, {
-                headers: getAuthHeaders(),
-            });
-            if (response.data.success) {
-                setUnreadCounts(response.data.counts || {});
-            }
-        } catch (error) {
-            console.error('Failed to fetch unread counts:', error.message);
-        }
+            const res = await axios.get(`${API_BASE_URL}/api/chats/unread-counts`, { headers: getAuthHeaders() });
+            if (res.data.success) setUnreadCounts(res.data.counts || {});
+        } catch { }
     }, [getAuthHeaders]);
 
-    // ─── Mark a chat as read in DB then clear locally ────────────────────────
     const markChatAsRead = useCallback(async (chatId) => {
         if (!chatId) return;
-        // Optimistically clear in UI immediately
-        setUnreadCounts((prev) => {
-            if (!prev[chatId]) return prev;
-            const next = { ...prev };
-            delete next[chatId];
-            return next;
-        });
+        setUnreadCounts((prev) => { const n = { ...prev }; delete n[chatId]; return n; });
         try {
-            await axios.post(
-                `${API_BASE_URL}/api/chats/${chatId}/read`,
-                {},
-                { headers: getAuthHeaders() }
-            );
-        } catch (error) {
-            console.error('Failed to mark chat as read:', error.message);
-            // Re-fetch to resync if the API call failed
-            fetchUnreadCounts();
-        }
+            await axios.post(`${API_BASE_URL}/api/chats/${chatId}/read`, {}, { headers: getAuthHeaders() });
+        } catch { fetchUnreadCounts(); }
     }, [getAuthHeaders, fetchUnreadCounts]);
 
     const fetchInitialChats = useCallback(async () => {
         try {
-            setIsLoading(true);
-            const [usersResponse, groupsResponse, timestampsResponse] = await Promise.all([
-                axios.get(`${API_BASE_URL}/api/chats/users`, { headers: getAuthHeaders() }),
-                axios.get(`${API_BASE_URL}/api/chats/groups`, { headers: getAuthHeaders() }),
-                axios.get(`${API_BASE_URL}/api/chats/timestamps`, { headers: getAuthHeaders() }),
-            ]);
-            const validUsers = usersResponse.data.users.filter((u) => {
-                if (!u._id || typeof u._id !== 'string' || !u.firstName) return false;
-                return u._id !== user?._id;
-            });
-            setUsers(validUsers);
-            const validGroups = (groupsResponse.data.groups || []).filter((g) => g._id && g.members?.length > 0);
-            setGroups(validGroups);
-            setChatTimestamps(timestampsResponse.data.timestamps || {});
-
-            // Create/fetch individual chats to build userChatMap
-            const chats = await Promise.all(
-                validUsers.map(async (u) => {
-                    const chatResponse = await axios.post(
-                        `${API_BASE_URL}/api/chats/individual`,
-                        { recipientId: u._id },
-                        { headers: getAuthHeaders() }
-                    );
-                    return {
-                        userId: u._id,
-                        chatId: chatResponse.data.chat._id,
-                        // myUnreadCount comes from the server for this chat
-                        unreadCount: chatResponse.data.chat.myUnreadCount || 0,
-                    };
-                })
-            );
-            const map = {};
-            const initialUnread = {};
-            chats.forEach(({ userId, chatId, unreadCount }) => {
-                map[userId] = chatId;
-                if (unreadCount > 0) initialUnread[chatId] = unreadCount;
-            });
+            setIsInitLoading(true);
+            const res = await axios.get(`${API_BASE_URL}/api/chats/init`, { headers: getAuthHeaders() });
+            const {
+                users: rawUsers = [], groups: rawGroups = [], userChatMap: map = {},
+                lastMessages: lastMsgs = {}, timestamps = {}, unreadCounts: serverUnread = {},
+            } = res.data;
+            setUsers(rawUsers.filter((u) => u._id && u.firstName && u._id !== user?._id));
+            setGroups(rawGroups.filter((g) => g._id && g.members?.length > 0));
             setUserChatMap(map);
-
-            // Also seed unread counts from groups
-            validGroups.forEach((g) => {
-                if (g.myUnreadCount > 0) initialUnread[g._id] = g.myUnreadCount;
+            const normTs = {};
+            Object.entries(timestamps).forEach(([k, v]) => {
+                normTs[k] = v instanceof Date ? v.toISOString() : String(v);
             });
-
-            // Merge with any already-fetched counts (socket may have arrived first)
-            setUnreadCounts((prev) => ({ ...initialUnread, ...prev }));
-
-            const allChatIds = [...Object.values(map), ...validGroups.map(g => g._id)];
-            const lastMessagesResponses = await Promise.all(
-                allChatIds.map(async (chatId) => {
-                    try {
-                        const res = await axios.get(`${API_BASE_URL}/api/chats/${chatId}/messages?limit=1&page=1`, { headers: getAuthHeaders() });
-                        return { chatId, lastMessage: res.data.messages[0] || null };
-                    } catch (err) {
-                        console.error(`Failed to fetch last message for chat ${chatId}:`, err);
-                        return { chatId, lastMessage: null };
-                    }
-                })
-            );
-            const lastMessagesMap = lastMessagesResponses.reduce((acc, { chatId, lastMessage }) => {
-                acc[chatId] = lastMessage;
-                return acc;
-            }, {});
-            setLastMessages(lastMessagesMap);
+            setChatTimestamps(normTs);
+            const normMsgs = {};
+            Object.entries(lastMsgs).forEach(([k, v]) => {
+                normMsgs[k] = v ? { ...v, createdAt: v.createdAt instanceof Date ? v.createdAt.toISOString() : String(v.createdAt) } : null;
+            });
+            setLastMessages(normMsgs);
+            setUnreadCounts((prev) => ({ ...serverUnread, ...prev }));
         } catch (error) {
-            console.error('Fetch initial chats error:', error.message);
-            toast.error('Failed to load chats.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            console.error('fetchInitialChats error:', error.message);
+            toast.error('Failed to load chats.');
             if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsInitLoading(false); }
     }, [user, getAuthHeaders, onLogout]);
 
-    // ─── Socket connection ────────────────────────────────────────────────────
+    // ─── Socket with ROBUST auto-scroll fix ─────────────────────────────────────────────
     useEffect(() => {
         if (!user) return;
-
         socket.current = io(SOCKET_URL, {
             auth: { token: localStorage.getItem('token') },
             transports: ['websocket', 'polling'],
@@ -252,144 +379,120 @@ const TeamChat = () => {
         });
 
         socket.current.on('connect', () => {
-            console.log('✅ Socket connected:', socket.current.id);
             reconnectAttempts.current = 0;
             socket.current.emit('joinChat', `user:${user._id}`);
-            if (selectedChatRef.current?._id) {
-                socket.current.emit('joinChat', selectedChatRef.current._id);
-            }
+            if (selectedChatRef.current?._id) socket.current.emit('joinChat', selectedChatRef.current._id);
         });
 
         socket.current.on('message', (message) => {
             if (!message?._id || !message?.chatId) return;
 
-            setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
-            setChatTimestamps((prev) => ({
-                ...prev,
-                [message.chatId]: message.createdAt || new Date().toISOString(),
-            }));
+            const msg = { ...message, createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt };
+            const ts = msg.createdAt || new Date().toISOString();
 
-            const currentSelectedChat = selectedChatRef.current;
+            setLastMessages((prev) => ({ ...prev, [msg.chatId]: msg }));
+            setChatTimestamps((prev) => ({ ...prev, [msg.chatId]: ts }));
 
-            if (message.chatId === currentSelectedChat?._id) {
-                // Chat is open — append message, no badge needed
+            if (msg.chatId === selectedChatRef.current?._id) {
+                // ── CRITICAL: Check LIVE scroll position SYNCHRONOUSLY before React re-renders ──
+                const container = messagesContainerRef.current;
+                let wasAtBottom = true;
+                if (container) {
+                    const { scrollTop, scrollHeight, clientHeight } = container;
+                    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+                    wasAtBottom = distanceFromBottom < 100; // very tight threshold
+                }
+
+                // Update messages
                 setMessages((prev) => {
-                    if (prev.some((msg) => msg._id === message._id)) return prev;
-                    return [...prev, message];
+                    if (prev.some((m) => m._id === msg._id)) return prev;
+                    return [...prev, msg];
                 });
-                setTimeout(scrollToBottom, 0);
+
+                // Only auto-scroll if user was already near the bottom
+                if (wasAtBottom) {
+                    // Give React one tick to render the new message, then scroll
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            scrollToBottom('smooth');
+                        }, 8);
+                    });
+                } else {
+                    setShowScrollButton(true);
+                }
+
+                markChatAsRead(msg.chatId);
             }
-            // Note: unread count increment is handled by the 'unreadUpdate' event
-            // which the backend sends to the user's personal room
         });
 
-        // ── This is the key event: backend sends this to `user:<id>` room ──
         socket.current.on('unreadUpdate', ({ chatId, count, message }) => {
-            const currentSelectedChat = selectedChatRef.current;
-
-            // If this chat is currently open, don't badge it — it's already visible
-            if (currentSelectedChat?._id === chatId) return;
-
-            // Update the badge count (this persists across refreshes via DB,
-            // but we also update state here so the badge appears instantly)
+            if (selectedChatRef.current?._id === chatId) return;
             setUnreadCounts((prev) => ({ ...prev, [chatId]: count }));
-
-            // Show an in-app notification so the user knows a message arrived
             if (message?.sender?._id !== user?._id) {
-                toast.custom(
-                    (t) => (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 20 }}
-                            className={`flex items-start gap-3 bg-white dark:bg-gray-800 border border-[#6B7280]/20 dark:border-gray-600 shadow-lg rounded-xl px-4 py-3 max-w-sm cursor-pointer`}
-                            onClick={() => toast.dismiss(t.id)}
-                        >
-                            <div className="w-9 h-9 rounded-full bg-[#1E40AF]/10 dark:bg-blue-900/50 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                                {getInitials(message.sender)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-[#1F2937] dark:text-gray-100 truncate">
-                                    {getFullName(message.sender)}
-                                </p>
-                                <p className="text-xs text-[#6B7280] dark:text-gray-400 truncate mt-0.5">
-                                    {message.content || (message.fileUrl ? '📎 Attachment' : 'New message')}
-                                </p>
-                            </div>
-                            <span className="text-xs text-[#6B7280] dark:text-gray-500 flex-shrink-0 mt-0.5">
-                                {moment(message.createdAt).fromNow()}
-                            </span>
-                        </motion.div>
-                    ),
-                    { duration: 5000, position: 'bottom-right' }
-                );
+                toast.custom((t) => (
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+                        className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-xl rounded-2xl px-4 py-3 max-w-xs cursor-pointer"
+                        onClick={() => toast.dismiss(t.id)}>
+                        <Avatar user={message.sender} size={9} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{getFullName(message.sender)}</p>
+                            <p className="text-xs text-gray-500 truncate mt-0.5">
+                                {message.content || (message.fileUrl ? '📎 Attachment' : 'New message')}
+                            </p>
+                        </div>
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">{formatMsgTime(message.createdAt)}</span>
+                    </motion.div>
+                ), { duration: 4500, position: 'top-right' });
             }
         });
 
         socket.current.on('messageUpdated', (message) => {
-            if (message.chatId === selectedChatRef.current?._id) {
-                setMessages((prev) =>
-                    prev.map((msg) => (msg._id === message._id ? message : msg))
+            const msg = { ...message, createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt };
+            if (msg.chatId === selectedChatRef.current?._id) {
+                setMessages((prev) => prev
+                    .filter((m) => m.chatId === msg.chatId)
+                    .map((m) => m._id === msg._id ? msg : m)
                 );
             }
-            if (lastMessages[message.chatId]?._id === message._id) {
-                setLastMessages((prev) => ({ ...prev, [message.chatId]: message }));
-            }
+            setLastMessages((prev) => prev[msg.chatId]?._id === msg._id ? { ...prev, [msg.chatId]: msg } : prev);
         });
 
         socket.current.on('messageDeleted', (message) => {
-            if (message.chatId === selectedChatRef.current?._id) {
-                setMessages((prev) =>
-                    prev.map((msg) => (msg._id === message._id ? message : msg))
-                );
-            }
-            if (lastMessages[message.chatId]?._id === message._id) {
-                setLastMessages((prev) => ({ ...prev, [message.chatId]: { ...prev[message.chatId], isDeleted: true } }));
-            }
+            if (message.chatId === selectedChatRef.current?._id)
+                setMessages((prev) => prev.map((m) => m._id === message._id ? { ...m, isDeleted: true, content: 'This message was deleted' } : m));
         });
 
         socket.current.on('typing', ({ chatId, userId, isTyping }) => {
-            if (chatId && userId && userId !== user?._id) {
-                setTypingUsers((prev) => ({
-                    ...prev,
-                    [chatId]: { id: userId, isTyping },
-                }));
+            if (chatId && userId && userId !== user?._id)
+                setTypingUsers((prev) => ({ ...prev, [chatId]: isTyping ? { id: userId, isTyping: true } : null }));
+        });
+
+        socket.current.on('userOnline', ({ userId }) => {
+            setOnlineUsers((prev) => new Set([...prev, userId]));
+        });
+        socket.current.on('userOffline', ({ userId, lastActive }) => {
+            setOnlineUsers((prev) => { const s = new Set(prev); s.delete(userId); return s; });
+            if (lastActive && selectedChatRef.current?.recipient?._id === userId) {
+                setSelectedChat((prev) => prev ? { ...prev, recipient: { ...prev.recipient, lastActive, online: false } } : prev);
             }
         });
 
-        socket.current.on('groupCreated', (response) => {
-            if (response.success && response.group?._id) {
-                setGroups((prev) => {
-                    if (prev.some((g) => g._id === response.group._id)) return prev;
-                    return [...prev, response.group];
-                });
-                toast.success('Group created!', { style: { background: '#16A34A', color: '#FFFFFF' } });
-                setSelectedChat({ ...response.group, type: 'group' });
-                setChatMode('group');
-                socket.current.emit('joinChat', response.group._id);
+        socket.current.on('groupCreated', ({ success, group }) => {
+            if (success && group?._id) {
+                setGroups((prev) => prev.some((g) => g._id === group._id) ? prev : [...prev, group]);
+                socket.current.emit('joinChat', group._id);
+            }
+        });
+        socket.current.on('groupUpdated', ({ success, group }) => {
+            if (success && group?._id) {
+                setGroups((prev) => prev.map((g) => g._id === group._id ? group : g));
+                if (selectedChatRef.current?._id === group._id)
+                    setSelectedChat((prev) => ({ ...prev, ...group, type: 'group' }));
             }
         });
 
-        socket.current.on('groupUpdated', (response) => {
-            if (response.success && response.group?._id) {
-                setGroups((prev) =>
-                    prev.map((g) => (g._id === response.group._id ? response.group : g))
-                );
-                if (selectedChatRef.current?._id === response.group._id) {
-                    setSelectedChat({ ...response.group, type: 'group' });
-                }
-                toast.success('Group updated!', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            }
-        });
-
-        socket.current.on('connect_error', (error) => {
-            console.error('Socket connection error:', error.message);
-            if (reconnectAttempts.current < maxReconnectAttempts) {
-                reconnectAttempts.current += 1;
-                toast.error(`Connection lost. Reconnecting (${reconnectAttempts.current}/${maxReconnectAttempts})...`, { style: { background: '#16A34A', color: '#FFFFFF' } });
-            } else {
-                toast.error('Failed to reconnect to chat server. Please refresh the page.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            }
+        socket.current.on('connect_error', () => {
+            reconnectAttempts.current = Math.min(reconnectAttempts.current + 1, maxReconnectAttempts);
         });
 
         return () => {
@@ -397,1159 +500,894 @@ const TeamChat = () => {
             socket.current?.emit('leaveChat', `user:${user._id}`);
             socket.current?.disconnect();
         };
-    }, [user, scrollToBottom]);
-    // NOTE: intentionally NOT including selectedChat or lastMessages in deps
-    // because we use selectedChatRef for the socket handlers to avoid stale closures
+    }, [user, scrollToBottom, markChatAsRead]);
 
     useEffect(() => {
-        if (!user) {
-            navigate('/login');
-            return;
-        }
+        if (!user) { navigate('/login'); return; }
         fetchInitialChats();
-        fetchUnreadCounts(); // Load persistent counts from DB on every mount/refresh
-    }, [user, fetchInitialChats, fetchUnreadCounts]);
+    }, [user, fetchInitialChats]);
 
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
+        const h = (e) => {
+            if (showEmojiPicker && emojiButtonRef.current && !emojiButtonRef.current.contains(e.target) && !e.target.closest('.EmojiPickerReact'))
                 setShowEmojiPicker(false);
-                setShowGroupModal(false);
-                setShowMembersModal(false);
-                setMediaViewer({ isOpen: false, fileUrl: '', contentType: '', fileName: '' });
-            }
         };
-        if (showEmojiPicker || showGroupModal || showMembersModal || mediaViewer.isOpen) {
-            modalRef.current?.focus();
-            window.addEventListener('keydown', handleKeyDown);
-        }
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showEmojiPicker, showGroupModal, showMembersModal, mediaViewer.isOpen]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (
-                showEmojiPicker &&
-                emojiButtonRef.current &&
-                !emojiButtonRef.current.contains(e.target) &&
-                !e.target.closest('.emoji-picker-react')
-            ) {
-                setShowEmojiPicker(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
     }, [showEmojiPicker]);
 
     const selectIndividualChat = useCallback(async (recipient) => {
-        if (!recipient?._id || typeof recipient._id !== 'string') {
-            toast.error('Invalid user selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            return;
+        if (!recipient?._id) return;
+        if (selectedChatRef.current?.recipient?._id === recipient._id) return;
+
+        setMessages([]);
+        setCurrentPage(1);
+        isAtBottomRef.current = true;
+
+        const knownChatId = userChatMap[recipient._id];
+        if (knownChatId) {
+            setSelectedChat({
+                _id: knownChatId,
+                type: 'individual',
+                recipient: { ...recipient, online: onlineUsers.has(recipient._id) },
+                members: [],
+                _pending: true,
+            });
         }
         try {
-            setIsLoading(true);
-            const response = await axios.post(
-                `${API_BASE_URL}/api/chats/individual`,
-                { recipientId: recipient._id },
-                { headers: getAuthHeaders() }
-            );
-            const chat = response.data.chat;
-            if (!chat?._id) throw new Error('Invalid chat data received');
-            setSelectedChat({ ...chat, type: 'individual', recipient: chat.members.find(m => m._id !== user._id) });
-
-            // Mark this chat as read in DB and clear badge
+            setIsMsgLoading(true);
+            const res = await axios.post(`${API_BASE_URL}/api/chats/individual`, { recipientId: recipient._id }, { headers: getAuthHeaders() });
+            const chat = res.data.chat;
+            if (!chat?._id) throw new Error('Invalid chat');
+            const recipientMember = chat.members.find((m) => m._id !== user._id);
+            const enrichedRecipient = { ...recipientMember, online: onlineUsers.has(recipientMember?._id) };
+            setSelectedChat({ ...chat, type: 'individual', recipient: enrichedRecipient });
+            setUserChatMap((prev) => ({ ...prev, [recipient._id]: chat._id }));
             await markChatAsRead(chat._id);
-
             socket.current?.emit('joinChat', chat._id);
-            setCurrentPage(1);
-            setSidebarCollapsed(window.innerWidth < 1024);
-            const initialLastSeen = chat.members.find(m => m._id !== user._id)?.lastActive ? moment(chat.members.find(m => m._id !== user._id).lastActive).fromNow() : 'never';
-            setLastSeen(initialLastSeen);
+            if (window.innerWidth < 1024) window.scrollTo(0, 0);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to start chat.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            setSelectedChat(null);
+            toast.error(error.response?.data?.message || 'Failed to open chat.');
             if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
-        }
-    }, [getAuthHeaders, onLogout, user, markChatAsRead]);
+        } finally { setIsMsgLoading(false); }
+    }, [getAuthHeaders, onLogout, user, markChatAsRead, onlineUsers, userChatMap]);
 
     const selectGroupChat = useCallback((group) => {
-        if (!group?._id) {
-            toast.error('Invalid group selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            return;
-        }
-        setSelectedChat({ ...group, type: 'group' });
-
-        // Mark this group chat as read in DB and clear badge
-        markChatAsRead(group._id);
-
-        socket.current?.emit('joinChat', group._id);
+        if (!group?._id || selectedChatRef.current?._id === group._id) return;
+        setMessages([]);
         setCurrentPage(1);
-        setSidebarCollapsed(window.innerWidth < 1024);
+        isAtBottomRef.current = true;
+        setSelectedChat({ ...group, type: 'group' });
+        markChatAsRead(group._id);
+        socket.current?.emit('joinChat', group._id);
+        if (window.innerWidth < 1024) window.scrollTo(0, 0);
     }, [markChatAsRead]);
 
     const fetchMessages = useCallback(async () => {
         if (!selectedChat?._id) return;
+        const fetchingChatId = selectedChat._id;
+        const fetchingPage = currentPage;
         try {
-            setIsLoading(true);
-            const response = await axios.get(
-                `${API_BASE_URL}/api/chats/${selectedChat._id}/messages?limit=50&page=${currentPage}`,
+            setIsMsgLoading(true);
+            const res = await axios.get(
+                `${API_BASE_URL}/api/chats/${fetchingChatId}/messages?limit=50&page=${fetchingPage}`,
                 { headers: getAuthHeaders() }
             );
-            const { messages: newMessages, pagination } = response.data;
-            if (!Array.isArray(newMessages)) throw new Error('Invalid messages data');
+            const { messages: newMsgs, pagination } = res.data;
+            if (!Array.isArray(newMsgs)) return;
+            if (selectedChatRef.current?._id !== fetchingChatId) return;
+
+            const normed = newMsgs.map((m) => ({
+                ...m,
+                createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
+            }));
+
             setMessages((prev) => {
-                const existingIds = new Set(prev.map((msg) => msg._id));
-                const filteredMessages = newMessages.filter((msg) => !existingIds.has(msg._id));
-                return currentPage === 1 ? filteredMessages : [...filteredMessages, ...prev];
+                if (fetchingPage === 1) {
+                    return normed;
+                }
+                const el = messagesContainerRef.current;
+                if (el) savedScrollRef.current = { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop };
+                const existingIds = new Set(prev.map((m) => m._id));
+                return [
+                    ...normed.filter((m) => !existingIds.has(m._id) && m.chatId === fetchingChatId),
+                    ...prev.filter((m) => m.chatId === fetchingChatId),
+                ];
             });
+
             setTotalPages(pagination.totalPages);
-            setTimeout(scrollToBottom, 10);
-            if (newMessages.length > 0) {
-                setChatTimestamps((prev) => ({
-                    ...prev,
-                    [selectedChat._id]: newMessages[newMessages.length - 1].createdAt,
-                }));
-                setLastMessages((prev) => ({
-                    ...prev,
-                    [selectedChat._id]: newMessages[newMessages.length - 1],
-                }));
+
+            if (currentPage === 1) {
+                setTimeout(() => scrollToBottom('instant'), 30);
+            } else if (savedScrollRef.current) {
+                requestAnimationFrame(() => {
+                    const el = messagesContainerRef.current;
+                    if (el && savedScrollRef.current) {
+                        el.scrollTop = el.scrollHeight - savedScrollRef.current.scrollHeight + savedScrollRef.current.scrollTop;
+                        savedScrollRef.current = null;
+                    }
+                });
             }
-            if (chatMode === 'individual' && selectedChat.type === 'individual') {
-                const recipientId = selectedChat.recipient?._id;
-                const lastMessageFromRecipient = [...newMessages].reverse().find(msg => msg.sender?._id === recipientId)?.createdAt;
-                const lastMessageTime = lastMessageFromRecipient ? new Date(lastMessageFromRecipient) : null;
-                const recipientActive = selectedChat.recipient?.lastActive ? new Date(selectedChat.recipient.lastActive) : null;
-                const maxTime = (lastMessageTime && recipientActive)
-                    ? (lastMessageTime > recipientActive ? lastMessageTime : recipientActive)
-                    : lastMessageTime || recipientActive;
-                setLastSeen(maxTime ? moment(maxTime).fromNow() : 'never');
+
+            if (normed.length > 0) {
+                const newest = normed[normed.length - 1];
+                setChatTimestamps((prev) => ({ ...prev, [selectedChat._id]: newest.createdAt }));
+                setLastMessages((prev) => ({ ...prev, [selectedChat._id]: newest }));
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to fetch messages.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            toast.error(error.response?.data?.message || 'Failed to load messages.');
             if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
-        }
-    }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout, chatMode]);
+        } finally { setIsMsgLoading(false); }
+    }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout]);
+
+    useEffect(() => { if (selectedChat?._id) fetchMessages(); }, [fetchMessages]);
+
+    const debouncedTyping = useMemo(() => debounce((chatId, userId) => {
+        socket.current?.emit('typing', { chatId, userId, isTyping: true });
+    }, 400), []);
 
     useEffect(() => {
-        fetchMessages();
-        return () => {
-            socket.current?.emit('leaveChat', selectedChat?._id);
-        };
-    }, [fetchMessages, selectedChat]);
-
-    const loadMoreMessages = () => {
-        if (currentPage < totalPages) {
-            setCurrentPage((prev) => prev + 1);
-        }
-    };
-
-    const debouncedHandleTyping = debounce(() => {
-        if (selectedChat?._id) {
-            socket.current?.emit('typing', {
-                chatId: selectedChat._id,
-                userId: user?._id,
-                isTyping: true,
-            });
-        }
-    }, 500);
-
-    const handleTyping = () => {
-        debouncedHandleTyping();
-    };
-
-    useEffect(() => {
-        if (!selectedChat) {
-            setTypingUsers({});
-            return;
-        }
-        const typingTimeout = setTimeout(() => {
-            socket.current?.emit('typing', {
-                chatId: selectedChat._id,
-                userId: user?._id,
-                isTyping: false,
-            });
-        }, 2000);
-        return () => clearTimeout(typingTimeout);
+        if (!selectedChat || !newMessage) return;
+        const t = setTimeout(() => {
+            socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false });
+        }, 3000);
+        return () => clearTimeout(t);
     }, [newMessage, selectedChat, user]);
 
-    const uploadFile = async (file) => {
-        try {
-            setIsUploading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-            const response = await axios.post(`${API_BASE_URL}/api/chats/upload`, formData, {
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            return response.data;
-        } catch (error) {
-            throw new Error(error.response?.data?.message || 'Failed to upload file.');
-        } finally {
-            setIsUploading(false);
+    useEffect(() => {
+        if (!newMessage && selectedChat) {
+            socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false });
         }
+    }, [newMessage, selectedChat, user]);
+
+    const uploadFile = async (f) => {
+        setIsUploading(true);
+        try {
+            const fd = new FormData();
+            fd.append('file', f);
+            const res = await axios.post(`${API_BASE_URL}/api/chats/upload`, fd, {
+                headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
+            });
+            return res.data;
+        } finally { setIsUploading(false); }
     };
 
     const handleSendMessage = useCallback(async () => {
-        if (!newMessage.trim() && !file && !editingMessageId) return;
-        let fileUrl = '';
-        let contentType = '';
-        let fileName = '';
+        const text = newMessage.trim();
+        if (!text && !file && !editingMessage) return;
+        let fileUrl = '', contentType = '', fileName = '';
         if (file) {
-            try {
-                const { fileUrl: uploadedUrl, contentType: fileContentType, fileName: uploadedFileName } = await uploadFile(file);
-                fileUrl = uploadedUrl;
-                contentType = fileContentType;
-                fileName = uploadedFileName;
-            } catch (error) {
-                toast.error(error.message, { style: { background: '#16A34A', color: '#FFFFFF' } });
-                setFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                return;
-            }
+            try { ({ fileUrl, contentType, fileName } = await uploadFile(file)); }
+            catch (err) { toast.error('Upload failed.'); setFile(null); return; }
         }
         try {
-            setIsLoading(true);
-            if (editingMessageId) {
-                const response = await axios.put(
-                    `${API_BASE_URL}/api/chats/messages/${editingMessageId}`,
-                    { content: newMessage.trim() },
-                    { headers: getAuthHeaders() }
-                );
-                socket.current?.emit('messageUpdated', {
-                    chatId: selectedChat._id,
-                    message: response.data.message,
-                });
-                toast.success('Message updated.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            if (editingMessage) {
+                if (!text) return;
+                await axios.put(`${API_BASE_URL}/api/chats/messages/${editingMessage.id}`, { content: text }, { headers: getAuthHeaders() });
             } else {
-                await axios.post(
-                    `${API_BASE_URL}/api/chats/${selectedChat._id}/messages`,
-                    {
-                        content: newMessage.trim(),
-                        fileUrl,
-                        contentType,
-                        fileName,
-                    },
-                    { headers: getAuthHeaders() }
-                );
-                // Backend broadcasts via Socket.IO — no need to update messages state here
+                await axios.post(`${API_BASE_URL}/api/chats/${selectedChat._id}/messages`, {
+                    content: text, fileUrl, contentType, fileName,
+                    replyTo: replyTo?._id || null,
+                }, { headers: getAuthHeaders() });
             }
             setNewMessage('');
             setFile(null);
-            setEditingMessageId(null);
+            setEditingMessage(null);
+            setReplyTo(null);
             setSelectionMode(null);
             setSelectedMessages([]);
             if (fileInputRef.current) fileInputRef.current.value = '';
-            setTimeout(scrollToBottom, 1);
-            setChatTimestamps((prev) => ({
-                ...prev,
-                [selectedChat._id]: new Date().toISOString(),
-            }));
+            setChatTimestamps((prev) => ({ ...prev, [selectedChat._id]: new Date().toISOString() }));
+            isAtBottomRef.current = true;
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to send or update message.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            toast.error(error.response?.data?.message || 'Failed to send.');
             if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
         }
-    }, [selectedChat, newMessage, file, editingMessageId, getAuthHeaders, scrollToBottom, onLogout]);
+    }, [selectedChat, newMessage, file, editingMessage, replyTo, getAuthHeaders, onLogout]);
 
     const handleDeleteMessages = async () => {
-        if (selectedMessages.length === 0) {
-            toast.error('Please select at least one message to delete.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            return;
-        }
+        if (!selectedMessages.length) return;
         try {
-            setIsLoading(true);
-            await Promise.all(
-                selectedMessages.map(async (messageId) => {
-                    await axios.delete(`${API_BASE_URL}/api/chats/messages/${messageId}`, {
-                        headers: getAuthHeaders(),
-                    });
-                    socket.current?.emit('messageDeleted', { chatId: selectedChat._id, messageId });
-                })
-            );
+            await Promise.all(selectedMessages.map((id) =>
+                axios.delete(`${API_BASE_URL}/api/chats/messages/${id}`, { headers: getAuthHeaders() })
+            ));
             setSelectionMode(null);
             setSelectedMessages([]);
-            toast.success(`Deleted ${selectedMessages.length} message(s).`, { style: { background: '#16A34A', color: '#FFFFFF' } });
+            toast.success(`Deleted ${selectedMessages.length} message(s).`);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to delete messages.', { style: { background: '#16A34A', color: '#FFFFFF' } });
+            toast.error('Delete failed.');
             if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
         }
     };
 
-    const handleCreateGroup = async () => {
-        if (selectedUsers.length < 1) {
-            toast.error('At least one member required.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            return;
+    const handleCreateGroup = useCallback(async (name, memberIds) => {
+        const validIds = memberIds.filter((id) => users.some((u) => u._id === id));
+        if (!validIds.length) throw new Error('No valid members');
+        const res = await axios.post(`${API_BASE_URL}/api/chats/groups`,
+            { name: name.trim() || 'Unnamed Group', members: validIds },
+            { headers: getAuthHeaders() }
+        );
+        if (res.data.success && res.data.group) {
+            setGroups((prev) => prev.some((g) => g._id === res.data.group._id) ? prev : [...prev, res.data.group]);
+            socket.current?.emit('joinChat', res.data.group._id);
+            toast.success('Group created!');
         }
-        try {
-            setIsLoading(true);
-            // Only send the selected non-creator members — backend always adds the creator
-            const validSelectedUsers = selectedUsers.filter((id) => users.some((u) => u._id === id));
-            if (validSelectedUsers.length === 0) {
-                toast.error('No valid members selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-                return;
-            }
-            const payload = {
-                name: groupName.trim() || 'Unnamed Group',
-                members: validSelectedUsers, // Do NOT include user._id — backend handles this
-            };
-            const response = await axios.post(`${API_BASE_URL}/api/chats/groups`, payload, {
-                headers: getAuthHeaders(),
-            });
-            // Immediately add the new group to local state so it appears without waiting for socket
-            if (response.data.success && response.data.group) {
-                setGroups((prev) => {
-                    if (prev.some((g) => g._id === response.data.group._id)) return prev;
-                    return [...prev, response.data.group];
-                });
-                socket.current?.emit('joinChat', response.data.group._id);
-            }
-            setShowGroupModal(false);
-            setGroupName('');
-            setSelectedUsers([]);
-            toast.success('Group created!', { style: { background: '#16A34A', color: '#FFFFFF' } });
-        } catch (error) {
-            console.error('Create group error:', error.response?.data || error.message);
-            toast.error(error.response?.data?.message || 'Failed to create group.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [users, getAuthHeaders]);
 
-    const handleAddMembers = async (groupId, newMembers) => {
-        try {
-            setIsLoading(true);
-            const validNewMembers = newMembers.filter((id) => users.some((u) => u._id === id));
-            if (validNewMembers.length === 0) {
-                toast.error('No valid members selected.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-                return;
-            }
-            const payload = { members: validNewMembers };
-            await axios.put(`${API_BASE_URL}/api/chats/groups/${groupId}/members`, payload, {
-                headers: getAuthHeaders(),
-            });
-            setShowGroupModal(false);
-            setSelectedUsers([]);
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to add members.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-            if (error.response?.status === 401) onLogout?.();
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleFileChange = (e) => {
-        const selectedFile = e.target.files[0];
-        if (selectedFile) {
-            if (selectedFile.size > 50 * 1024 * 1024) {
-                toast.error('File size exceeds 50MB.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-                return;
-            }
-            setFile(selectedFile);
-        }
-    };
+    const handleAddMembers = useCallback(async (groupId, memberIds) => {
+        const validIds = memberIds.filter((id) => users.some((u) => u._id === id));
+        if (!validIds.length) throw new Error('No valid members');
+        await axios.put(`${API_BASE_URL}/api/chats/groups/${groupId}/members`,
+            { members: validIds }, { headers: getAuthHeaders() }
+        );
+        toast.success('Members added!');
+    }, [users, getAuthHeaders]);
 
     const handleCloseChat = () => {
         socket.current?.emit('leaveChat', selectedChat?._id);
-        setSelectedChat(null);
-        setMessages([]);
-        setCurrentPage(1);
-        setSelectionMode(null);
-        setSelectedMessages([]);
-        setEditingMessageId(null);
-        setNewMessage('');
-        setSidebarCollapsed(false);
-        setLastSeen('never');
+        if (selectedChat) socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false });
+        setSelectedChat(null); setMessages([]); setCurrentPage(1);
+        setSelectionMode(null); setSelectedMessages([]);
+        setEditingMessage(null); setNewMessage(''); setReplyTo(null);
+        isAtBottomRef.current = true;
     };
 
     const handleChatModeChange = (mode) => {
         if (mode === chatMode) return;
         setChatMode(mode);
-        socket.current?.emit('leaveChat', selectedChat?._id);
-        setSelectedChat(null);
-        setMessages([]);
+        handleCloseChat();
         setSearchQuery('');
-        setCurrentPage(1);
+    };
+
+    const startEdit = (msg) => {
+        setEditingMessage({ id: msg._id, originalContent: msg.content });
+        setNewMessage(msg.content || '');
         setSelectionMode(null);
         setSelectedMessages([]);
-        setEditingMessageId(null);
-        setNewMessage('');
-        setLastSeen('never');
+        inputRef.current?.focus();
     };
 
-    const toggleSidebar = () => {
-        setSidebarCollapsed(!sidebarCollapsed);
+    const startReply = (msg) => {
+        setReplyTo(msg);
+        setEditingMessage(null);
+        inputRef.current?.focus();
     };
 
-    const openMediaViewer = (fileUrl, contentType, fileName) => {
-        setMediaViewer({ isOpen: true, fileUrl, contentType, fileName });
-    };
+    const cancelEdit = () => { setEditingMessage(null); setNewMessage(''); };
+    const cancelReply = () => setReplyTo(null);
 
-    const closeMediaViewer = () => {
-        setMediaViewer({ isOpen: false, fileUrl: '', contentType: '', fileName: '' });
-    };
-
-    const toggleMessageSelection = (messageId) => {
-        const message = messages.find((msg) => msg._id === messageId);
-        if (!message || message.isDeleted) return;
+    const toggleMessageSelection = (id) => {
+        const msg = messages.find((m) => m._id === id);
+        if (!msg || msg.isDeleted) return;
         if (selectionMode === 'edit') {
-            if (message.sender?._id !== user?._id) {
-                toast.error('You can only edit your own messages.', { style: { background: '#16A34A', color: '#FFFFFF' } });
-                return;
-            }
-            setSelectedMessages([messageId]);
-            setEditingMessageId(messageId);
-            setNewMessage(message.content || '');
+            if (msg.sender?._id !== user?._id) { toast.error('You can only edit your own messages.'); return; }
+            startEdit(msg);
         } else if (selectionMode === 'delete') {
-            setSelectedMessages((prev) =>
-                prev.includes(messageId)
-                    ? prev.filter((id) => id !== messageId)
-                    : [...prev, messageId]
-            );
+            setSelectedMessages((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
         }
     };
 
-    const isSenderMessage = (message) => {
-        return message.sender?._id === user?._id && !message.isDeleted;
+    const isSender = (msg) => msg.sender?._id === user?._id;
+
+    const MessageStatus = ({ msg }) => {
+        if (!isSender(msg) || msg.isDeleted) return null;
+        return (
+            <span className="inline-flex ml-1 opacity-70">
+                <CheckCheck className="w-3 h-3 text-blue-200" />
+            </span>
+        );
     };
 
-    const filteredUsers = users.filter(
-        (u) =>
-            getFullName(u).toLowerCase().includes(searchQuery.toLowerCase()) ||
-            u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const sortedUsers = useMemo(() => {
+        void now;
+        const q = searchQuery.trim().toLowerCase();
+        return [...users]
+            .filter((u) => !q || getFullName(u).toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
+            .sort((a, b) => {
+                const chatIdA = userChatMap[a._id];
+                const chatIdB = userChatMap[b._id];
+                const hasA = chatIdA && lastMessages[chatIdA];
+                const hasB = chatIdB && lastMessages[chatIdB];
+                const tA = hasA ? chatTimestamps[chatIdA] : null;
+                const tB = hasB ? chatTimestamps[chatIdB] : null;
+                if (tA && tB) return new Date(tB) - new Date(tA);
+                if (tA) return -1;
+                if (tB) return 1;
+                return getFullName(a).localeCompare(getFullName(b));
+            });
+    }, [users, searchQuery, userChatMap, chatTimestamps, lastMessages, now]);
 
-    const sortedUsers = [...filteredUsers].sort((a, b) => {
-        const chatIdA = userChatMap[a._id];
-        const chatIdB = userChatMap[b._id];
-        const timeA = chatTimestamps[chatIdA] || '1970-01-01T00:00:00Z';
-        const timeB = chatTimestamps[chatIdB] || '1970-01-01T00:00:00Z';
-        return new Date(timeB) - new Date(timeA);
-    });
+    const sortedGroups = useMemo(() => {
+        void now;
+        const q = searchQuery.trim().toLowerCase();
+        return [...groups]
+            .filter((g) => !q || (g.name || '').toLowerCase().includes(q))
+            .sort((a, b) => {
+                const hasA = lastMessages[a._id];
+                const hasB = lastMessages[b._id];
+                const tA = hasA ? (chatTimestamps[a._id] || null) : null;
+                const tB = hasB ? (chatTimestamps[b._id] || null) : null;
+                if (tA && tB) return new Date(tB) - new Date(tA);
+                if (tA) return -1;
+                if (tB) return 1;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+    }, [groups, searchQuery, chatTimestamps, lastMessages, now]);
 
-    const sortedGroups = [...groups].sort((a, b) => {
-        const timeA = chatTimestamps[a._id] || a.updatedAt || '1970-01-01T00:00:00Z';
-        const timeB = chatTimestamps[b._id] || b.updatedAt || '1970-01-01T00:00:00Z';
-        return new Date(timeB) - new Date(timeA);
-    });
+    const filteredMessages = useMemo(() => {
+        const chatId = selectedChat?._id;
+        return messages
+            .filter((m) => !chatId || !m.chatId || m.chatId === chatId)
+            .filter((m) => !messageSearch || m.content?.toLowerCase().includes(messageSearch.toLowerCase()));
+    }, [messages, messageSearch, selectedChat]);
 
-    const filteredMessages = messages.filter((msg) => msg.content?.toLowerCase().includes(messageSearch.toLowerCase()));
+    const messagesWithSeparators = useMemo(() => {
+        const items = [];
+        let lastDateKey = null;
+        filteredMessages.forEach((msg) => {
+            const dateKey = msg.createdAt ? moment(msg.createdAt).tz(TZ).format('YYYY-MM-DD') : null;
+            if (dateKey && dateKey !== lastDateKey) {
+                items.push({ type: 'separator', date: msg.createdAt, key: `sep-${dateKey}` });
+                lastDateKey = dateKey;
+            }
+            items.push({ type: 'message', msg, key: msg._id });
+        });
+        return items;
+    }, [filteredMessages]);
 
-    // Compute total unread badge for the tab title and sidebar sync
-    const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
-    useEffect(() => {
-        document.title = totalUnread > 0 ? `(${totalUnread}) TeamChat` : 'TeamChat';
-        return () => { document.title = 'TeamChat'; };
-    }, [totalUnread]);
+    const lastSeenText = useMemo(() => {
+        void now;
+        if (!selectedChat || selectedChat.type !== 'individual') return '';
+        const r = selectedChat.recipient;
+        if (!r) return '';
+        const isOnline = onlineUsers.has(r._id) || r.online;
+        if (isOnline) return 'Online';
+        const ts = r._computedLastSeen || r.lastActive;
+        return formatLastSeen(ts);
+    }, [selectedChat, onlineUsers, now]);
 
-    // Notify the Sidebar (and any other component) of the current total
-    // so it can update its badge without needing a separate API call
-    useEffect(() => {
-        window.dispatchEvent(new CustomEvent('chatUnreadUpdate', { detail: { total: totalUnread } }));
-    }, [totalUnread]);
+    const totalUnread = useMemo(() => Object.values(unreadCounts).reduce((s, n) => s + n, 0), [unreadCounts]);
 
-    if (!user) {
-        return (
-            <div className="h-screen flex items-center justify-center bg-[#F3F4F6] dark:bg-gray-900">
-                <p className="text-base text-[#6B7280] dark:text-gray-400">Please log in to access the chat.</p>
-            </div>
-        );
-    }
+    useEffect(() => { document.title = totalUnread > 0 ? `(${totalUnread}) TeamChat` : 'TeamChat'; return () => { document.title = 'TeamChat'; }; }, [totalUnread]);
+    useEffect(() => { window.dispatchEvent(new CustomEvent('chatUnreadUpdate', { detail: { total: totalUnread } })); }, [totalUnread]);
+
+    if (!user) return <div className="h-screen flex items-center justify-center"><p className="text-gray-400">Please log in.</p></div>;
 
     return (
-        <div className="h-screen bg-[#F3F4F6] dark:bg-gray-900 flex font-sans overflow-hidden">
-            <Toaster position="bottom-right" toastOptions={{ className: 'text-base max-w-md' }} />
-            <aside className={`w-full lg:w-80 bg-[#F3F4F6] dark:bg-gray-800 border-r border-[#6B7280]/20 dark:border-gray-700 p-4 flex flex-col ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
-                <header className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <Users className="w-6 h-6 text-[#1E40AF] dark:text-blue-400" />
-                        <h1 className="text-xl font-bold text-[#1F2937] dark:text-gray-100">
-                            TeamChat
-                            {totalUnread > 0 && (
-                                <span className="ml-2 bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full px-2 py-0.5">
-                                    {totalUnread}
-                                </span>
-                            )}
-                        </h1>
+        <div className="h-screen bg-gray-100 dark:bg-gray-900 flex font-sans overflow-hidden">
+            <Toaster toastOptions={{ className: 'text-sm' }} />
+
+            {/* SIDEBAR */}
+            <aside className={`w-full lg:w-[340px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 ${selectedChat ? 'hidden lg:flex' : 'flex'}`}>
+                <div className="px-4 pt-4 pb-2 flex items-center justify-between bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center">
+                            <Users className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight flex items-center gap-2">
+                                TeamChat
+                                {totalUnread > 0 && (
+                                    <span className="bg-green-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">{totalUnread}</span>
+                                )}
+                            </h1>
+                        </div>
                     </div>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="p-2 text-[#1E40AF] dark:text-blue-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-700 rounded transition-all duration-200"
-                        aria-label="Back to Dashboard"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                </header>
-                <div className="flex mb-4">
-                    <button
-                        onClick={() => handleChatModeChange('individual')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-l-lg transition-all duration-200 ${chatMode === 'individual' ? 'bg-[#1E40AF] dark:bg-blue-700 text-white' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-600'}`}
-                    >
-                        Individual
-                    </button>
-                    <button
-                        onClick={() => handleChatModeChange('group')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-r-lg transition-all duration-200 ${chatMode === 'group' ? 'bg-[#1E40AF] dark:bg-blue-700 text-white' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 hover:bg-[#F3F4F6] dark:hover:bg-gray-600'}`}
-                    >
-                        Groups
+                    <button onClick={() => navigate('/')} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full" title="Dashboard">
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
                 </div>
+
+                <div className="flex px-4 pt-3 pb-2 gap-1">
+                    {['individual', 'group'].map((mode) => (
+                        <button key={mode} onClick={() => handleChatModeChange(mode)}
+                            className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${chatMode === mode ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                            {mode === 'individual' ? 'Chats' : 'Groups'}
+                        </button>
+                    ))}
+                </div>
+
                 {chatMode === 'group' && (
-                    <button
-                        onClick={() => {
-                            setShowGroupModal(true);
-                            setSelectedUsers([]);
-                        }}
-                        className="mb-4 flex items-center gap-2 py-2 px-4 bg-[#16A34A] dark:bg-green-700 text-white rounded-lg hover:bg-[#15803D] dark:hover:bg-green-600 transition-all duration-200 text-sm"
-                        aria-label="Create Group"
-                    >
-                        <Plus className="w-4 h-4" /> Create Group
-                    </button>
+                    <div className="px-4 pb-2">
+                        <button onClick={() => setGroupModalMode('create')}
+                            className="w-full flex items-center justify-center gap-2 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm transition-all">
+                            <Plus className="w-4 h-4" /> New Group
+                        </button>
+                    </div>
                 )}
-                <div className="mb-4 flex items-center gap-2 bg-white dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-lg px-3 py-2">
-                    <Search className="w-5 h-5 text-[#6B7280] dark:text-gray-400" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search..."
-                        className="w-full bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none"
-                    />
+
+                <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2">
+                        <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={chatMode === 'individual' ? 'Search chats…' : 'Search groups…'}
+                            className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-200 focus:outline-none placeholder-gray-400" />
+                        {searchQuery && <button onClick={() => setSearchQuery('')}><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-y-auto scrollbar-thin">
-                    {isLoading && <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">Loading chats...</p>}
-                    {chatMode === 'individual' && sortedUsers.length === 0 && !isLoading && (
-                        <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No users found</p>
-                    )}
-                    {chatMode === 'group' && sortedGroups.length === 0 && !isLoading && (
-                        <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No groups found</p>
-                    )}
-                    {chatMode === 'individual'
-                        ? sortedUsers.map((u) => {
-                            const chatId = userChatMap[u._id];
-                            const lastMsg = lastMessages[chatId];
-                            const snippet = lastMsg ? (lastMsg.content ? lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '') : '📎 Attachment') : 'No messages yet';
-                            const time = chatTimestamps[chatId] ? moment(chatTimestamps[chatId]).fromNow() : '';
-                            const unread = unreadCounts[chatId] || 0;
-                            return (
-                                <div
-                                    key={u._id}
-                                    onClick={() => selectIndividualChat(u)}
-                                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 transition-all duration-200 rounded-lg ${
-                                        selectedChat?.recipient?._id === u._id ? 'bg-blue-50 dark:bg-blue-900/50' : ''
-                                    } border-b border-[#F3F4F6]/50 dark:border-gray-700/50 last:border-0`}
-                                >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="relative w-10 h-10 flex-shrink-0">
-                                                <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium">
-                                                    {getInitials(u)}
-                                                </div>
-                                                {u.online && (
-                                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#16A34A] rounded-full border-2 border-white dark:border-gray-800" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-sm truncate ${unread > 0 ? 'font-semibold text-[#1F2937] dark:text-gray-100' : 'font-medium text-[#1F2937] dark:text-gray-200'}`}>
-                                                    {getFullName(u)}
-                                                </p>
-                                                <p className={`text-xs truncate ${unread > 0 ? 'text-[#1F2937] dark:text-gray-300 font-medium' : 'text-[#6B7280] dark:text-gray-400'}`}>
-                                                    {snippet}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                                            <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
-                                            {unread > 0 && (
-                                                <motion.span
-                                                    initial={{ scale: 0 }}
-                                                    animate={{ scale: 1 }}
-                                                    className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center"
-                                                >
-                                                    {unread > 99 ? '99+' : unread}
-                                                </motion.span>
-                                            )}
-                                        </div>
+
+                <div className="flex-1 overflow-y-auto">
+                    {isInitLoading ? (
+                        <div className="flex flex-col gap-2 px-4 pt-2">
+                            {[1,2,3,4].map((i) => (
+                                <div key={i} className="flex items-center gap-3 py-2 animate-pulse">
+                                    <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                                        <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
                                     </div>
                                 </div>
-                            );
-                        })
-                        : sortedGroups.map((g) => {
-                            const lastMsg = lastMessages[g._id];
-                            const snippet = lastMsg ? (lastMsg.content ? `${getFullName(lastMsg.sender)}: ${lastMsg.content.slice(0, 50) + (lastMsg.content.length > 50 ? '...' : '')}` : '📎 Attachment') : 'No messages yet';
-                            const time = chatTimestamps[g._id] ? moment(chatTimestamps[g._id]).fromNow() : '';
-                            const unread = unreadCounts[g._id] || 0;
-                            return (
-                                <div
-                                    key={g._id}
-                                    onClick={() => selectGroupChat(g)}
-                                    className={`py-3 px-4 cursor-pointer hover:bg-[#E5E7EB] dark:hover:bg-gray-700 transition-all duration-200 rounded-lg ${
-                                        selectedChat?._id === g._id ? 'bg-blue-50 dark:bg-blue-900/50' : ''
-                                    } border-b border-[#F3F4F6]/50 dark:border-gray-700/50 last:border-0`}
-                                >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
-                                                {getInitials(g)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-sm truncate ${unread > 0 ? 'font-semibold text-[#1F2937] dark:text-gray-100' : 'font-medium text-[#1F2937] dark:text-gray-200'}`}>
-                                                    {g.name}
-                                                </p>
-                                                <p className={`text-xs truncate ${unread > 0 ? 'text-[#1F2937] dark:text-gray-300 font-medium' : 'text-[#6B7280] dark:text-gray-400'}`}>
-                                                    {snippet}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                                            <p className="text-xs text-[#6B7280] dark:text-gray-400">{time}</p>
-                                            {unread > 0 && (
-                                                <motion.span
-                                                    initial={{ scale: 0 }}
-                                                    animate={{ scale: 1 }}
-                                                    className="bg-[#16A34A] dark:bg-green-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center"
-                                                >
-                                                    {unread > 99 ? '99+' : unread}
-                                                </motion.span>
-                                            )}
-                                        </div>
+                            ))}
+                        </div>
+                    ) : (chatMode === 'individual' ? sortedUsers : sortedGroups).length === 0 ? (
+                        <div className="flex flex-col items-center justify-center pt-16 px-8 text-center">
+                            <Users className="w-12 h-12 text-gray-200 dark:text-gray-600 mb-3" />
+                            <p className="text-sm text-gray-400 dark:text-gray-500">
+                                {searchQuery ? 'No results found' : chatMode === 'group' ? 'No groups yet — create one!' : 'No chats yet'}
+                            </p>
+                        </div>
+                    ) : (chatMode === 'individual' ? sortedUsers : sortedGroups).map((item) => {
+                        const isGroup = chatMode === 'group';
+                        const chatId = isGroup ? item._id : userChatMap[item._id];
+                        const lastMsg = lastMessages[chatId];
+                        const ts = chatTimestamps[chatId];
+                        const unread = unreadCounts[chatId] || 0;
+                        const isActive = isGroup ? selectedChat?._id === item._id : selectedChat?.recipient?._id === item._id;
+                        const isItemOnline = !isGroup && (onlineUsers.has(item._id) || item.online);
+                        let snippet = 'No messages yet';
+                        if (lastMsg) {
+                            if (lastMsg.isDeleted) snippet = '🚫 This message was deleted';
+                            else if (lastMsg.content) {
+                                const isMyMsg = lastMsg.sender?._id === user?._id;
+                                const prefix = isGroup ? `${isMyMsg ? 'You' : (lastMsg.sender?.firstName || 'Someone')}: ` : (isMyMsg ? 'You: ' : '');
+                                snippet = prefix + lastMsg.content.slice(0, 38) + (lastMsg.content.length > 38 ? '…' : '');
+                            } else if (lastMsg.fileUrl) {
+                                const icons = { image: '📷 Photo', video: '🎥 Video', audio: '🎵 Audio', application: '📄 Document' };
+                                snippet = icons[lastMsg.contentType] || '📎 Attachment';
+                            }
+                        }
+                        return (
+                            <div key={item._id} onClick={() => isGroup ? selectGroupChat(item) : selectIndividualChat(item)}
+                                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-gray-700/50 last:border-0 ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                                <div className="relative flex-shrink-0">
+                                    <Avatar user={item} size={12} />
+                                    {isItemOnline && (
+                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-baseline justify-between gap-1 mb-0.5">
+                                        <p className={`text-[0.9rem] truncate ${unread > 0 ? 'font-bold text-gray-900 dark:text-white' : 'font-medium text-gray-800 dark:text-gray-200'}`}>
+                                            {isGroup ? item.name : getFullName(item)}
+                                        </p>
+                                        <span className={`text-[11px] flex-shrink-0 ${unread > 0 ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>
+                                            {lastMsg && ts ? formatChatTime(ts) : ''}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1">
+                                        <p className={`text-xs truncate ${unread > 0 ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                                            {snippet}
+                                        </p>
+                                        {unread > 0 && (
+                                            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                                className="flex-shrink-0 bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+                                                {unread > 99 ? '99+' : unread}
+                                            </motion.span>
+                                        )}
                                     </div>
                                 </div>
-                            );
-                        })}
+                            </div>
+                        );
+                    })}
                 </div>
             </aside>
 
-            <section className={`flex-1 bg-white dark:bg-gray-800 flex flex-col ${selectedChat ? 'flex' : 'hidden lg:flex'}`}>
+            {/* CHAT AREA */}
+            <section className={`flex-1 flex flex-col min-w-0 bg-[#EFEAE4] dark:bg-gray-900 relative ${selectedChat ? 'flex' : 'hidden lg:flex'}`}>
                 {selectedChat ? (
                     <>
-                        <header className="bg-[#F3F4F6] dark:bg-gray-700 border-b border-[#6B7280]/20 dark:border-gray-600 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <button
-                                    onClick={handleCloseChat}
-                                    className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full lg:hidden"
-                                    aria-label="Back to Chat List"
-                                >
-                                    <ArrowLeft className="w-5 h-5" />
-                                </button>
-                                <div className="w-10 h-10 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-sm font-medium flex-shrink-0">
-                                    {getInitials(
-                                        chatMode === 'individual'
-                                            ? selectedChat.recipient
-                                            : selectedChat
-                                    )}
-                                </div>
-                                <div className="min-w-0">
-                                    <h2 className="text-lg font-medium text-[#1F2937] dark:text-gray-200 truncate">
-                                        {chatMode === 'individual'
-                                            ? getFullName(selectedChat.recipient)
-                                            : selectedChat.name || 'Unnamed Group'}
-                                    </h2>
-                                    {chatMode === 'group' ? (
-                                        <p className="text-xs text-[#6B7280] dark:text-gray-400">{selectedChat.members?.length || 0} members</p>
-                                    ) : (
-                                        <p className="text-xs text-[#6B7280] dark:text-gray-400">Last seen {lastSeen}</p>
-                                    )}
-                                </div>
+                        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+                            <button onClick={handleCloseChat} className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full lg:hidden flex-shrink-0">
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                            <div className="relative flex-shrink-0">
+                                <Avatar user={selectedChat.type === 'individual' ? selectedChat.recipient : selectedChat} size={10} />
+                                {selectedChat.type === 'individual' && (onlineUsers.has(selectedChat.recipient?._id) || selectedChat.recipient?.online) && (
+                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800" />
+                                )}
                             </div>
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-white dark:bg-gray-700 border border-[#6B7280]/20 dark:border-gray-600 rounded-full px-3 py-1">
-                                    <Search className="w-4 h-4 text-[#6B7280] dark:text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={messageSearch}
-                                        onChange={(e) => setMessageSearch(e.target.value)}
-                                        placeholder="Search messages..."
-                                        className="w-32 bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none"
-                                    />
+                            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowMembersModal(true)}>
+                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                    {selectedChat.type === 'individual' ? getFullName(selectedChat.recipient) : selectedChat.name || 'Unnamed Group'}
+                                </h2>
+                                <p className={`text-xs truncate ${lastSeenText === 'Online' ? 'text-green-500 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                                    {selectedChat.type === 'group'
+                                        ? `${selectedChat.members?.length || 0} members`
+                                        : lastSeenText}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <div className="hidden sm:flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700 rounded-full px-2.5 py-1 mr-1">
+                                    <Search className="w-3.5 h-3.5 text-gray-400" />
+                                    <input type="text" value={messageSearch} onChange={(e) => setMessageSearch(e.target.value)}
+                                        placeholder="Search…" className="w-20 md:w-24 bg-transparent text-xs text-gray-700 dark:text-gray-300 focus:outline-none" />
+                                    {messageSearch && <button onClick={() => setMessageSearch('')}><X className="w-3 h-3 text-gray-400" /></button>}
                                 </div>
                                 {selectionMode ? (
                                     <>
-                                        <p className="text-sm font-medium text-[#1F2937] dark:text-gray-200">
-                                            {selectedMessages.length} selected
-                                        </p>
-                                        {selectionMode === 'delete' && (
-                                            <button
-                                                onClick={handleDeleteMessages}
-                                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-full transition-all duration-200"
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
+                                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300 px-2">{selectedMessages.length} sel.</span>
+                                        {selectionMode === 'delete' && selectedMessages.length > 0 && (
+                                            <button onClick={handleDeleteMessages} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full"><Trash2 className="w-4 h-4" /></button>
                                         )}
-                                        <button
-                                            onClick={() => {
-                                                setSelectionMode(null);
-                                                setSelectedMessages([]);
-                                                setEditingMessageId(null);
-                                                setNewMessage('');
-                                            }}
-                                            className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded-full transition-all duration-200"
-                                        >
-                                            <X className="w-5 h-5" />
+                                        <button onClick={() => { setSelectionMode(null); setSelectedMessages([]); setEditingMessage(null); setNewMessage(''); }} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
+                                            <X className="w-4 h-4" />
                                         </button>
                                     </>
                                 ) : (
                                     <>
-                                        <button
-                                            onClick={() => setSelectionMode('edit')}
-                                            className="p-2 text-[#1E40AF] dark:text-blue-400 hover:bg-[#1E40AF]/10 dark:hover:bg-blue-900/50 rounded-full transition-all duration-200"
-                                            data-tooltip-id="edit-messages"
-                                            data-tooltip-content="Select to Edit"
-                                        >
-                                            <Edit2 className="w-5 h-5" />
-                                            <Tooltip id="edit-messages" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectionMode('delete')}
-                                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-full transition-all duration-200"
-                                            data-tooltip-id="delete-messages"
-                                            data-tooltip-content="Select to Delete"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                            <Tooltip id="delete-messages" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
-                                        </button>
-                                        {chatMode === 'group' && (
-                                            <button
-                                                onClick={() => {
-                                                    setShowGroupModal(true);
-                                                    setSelectedUsers([]);
-                                                }}
-                                                className="p-2 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full transition-all duration-200"
-                                                data-tooltip-id="add-members"
-                                                data-tooltip-content="Add Members"
-                                            >
-                                                <Users className="w-5 h-5" />
-                                                <Tooltip id="add-members" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
-                                            </button>
+                                        <button onClick={() => setSelectionMode('edit')} title="Edit a message" className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full"><Edit2 className="w-4 h-4" /></button>
+                                        <button onClick={() => setSelectionMode('delete')} title="Delete messages" className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full"><Trash2 className="w-4 h-4" /></button>
+                                        {selectedChat.type === 'group' && (
+                                            <button onClick={() => setGroupModalMode('add')} title="Add members" className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-full"><Plus className="w-4 h-4" /></button>
                                         )}
-                                        <button
-                                            onClick={() => setShowMembersModal(true)}
-                                            className="p-2 text-[#16A34A] dark:text-green-400 hover:bg-[#16A34A]/10 dark:hover:bg-green-900/50 rounded-full transition-all duration-200"
-                                            data-tooltip-id="view-members"
-                                            data-tooltip-content="View Members"
-                                        >
-                                            <Users className="w-5 h-5" />
-                                            <Tooltip id="view-members" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
-                                        </button>
-                                        <button
-                                            onClick={handleCloseChat}
-                                            className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded-full transition-all duration-200 lg:flex"
-                                            data-tooltip-id="close-chat"
-                                            data-tooltip-content="Close Chat"
-                                        >
-                                            <X className="w-5 h-5" />
-                                            <Tooltip id="close-chat" className="bg-[#1E40AF] dark:bg-blue-700 text-white" />
-                                        </button>
+                                        <button onClick={() => setShowMembersModal(true)} title="View info" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><Users className="w-4 h-4" /></button>
+                                        <button onClick={handleCloseChat} title="Close" className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full hidden lg:flex"><X className="w-4 h-4" /></button>
                                     </>
                                 )}
                             </div>
                         </header>
-                        <div
-                            className="flex-1 overflow-y-auto scrollbar-thin px-4 py-2 bg-[#F3F4F6] dark:bg-gray-900 max-h-[65vh] lg:max-h-[75vh]"
-                            ref={messagesContainerRef}
-                            onScroll={handleScroll}
-                        >
-                            {isLoading && <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">Loading messages...</p>}
+
+                        {/* Messages container */}
+                        <div ref={messagesContainerRef} onScroll={handleScroll}
+                            className="flex-1 overflow-y-auto px-4 py-2 scrollbar-thin"
+                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23d0c9c0\' fill-opacity=\'0.15\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
+
                             {currentPage < totalPages && (
-                                <button
-                                    onClick={loadMoreMessages}
-                                    className="mx-auto mb-4 px-4 py-2 bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300 text-sm rounded-full hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all duration-200 shadow-sm"
-                                >
-                                    Load More
-                                </button>
+                                <div className="flex justify-center my-3">
+                                    <button onClick={() => setCurrentPage((p) => p + 1)}
+                                        className="px-4 py-1.5 bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 text-xs rounded-full shadow-sm hover:bg-gray-50 border border-gray-200 dark:border-gray-600">
+                                        Load older messages
+                                    </button>
+                                </div>
                             )}
-                            {!isLoading && filteredMessages.length === 0 && (
-                                <p className="text-center text-sm text-[#6B7280] dark:text-gray-400 py-4">No messages match your search</p>
+
+                            {isMsgLoading && messages.length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
+                                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                    <p className="text-sm text-gray-400">Loading messages…</p>
+                                </div>
                             )}
-                            <AnimatePresence>
-                                {filteredMessages.map((msg, index) => (
-                                    <motion.div
-                                        key={msg._id || `msg-${index}`}
-                                        initial={{ opacity: 0, scale: 0.98 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.98 }}
-                                        transition={{ duration: 0.15 }}
-                                        className={`my-3 flex ${isSenderMessage(msg) ? 'justify-end' : 'justify-start'} ${selectionMode ? 'cursor-pointer' : ''}`}
-                                        onClick={() => {
-                                            if (selectionMode) {
-                                                toggleMessageSelection(msg._id);
-                                            }
-                                        }}
-                                    >
-                                        <div
-                                            className={`max-w-[70%] p-3 rounded-2xl relative shadow-sm ${
-                                                isSenderMessage(msg) ? 'bg-[#1E40AF] dark:bg-blue-700 text-white rounded-br-none sender-bubble' : 'bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-200 rounded-bl-none receiver-bubble'
-                                            } ${selectedMessages.includes(msg._id) ? 'ring-2 ring-[#1E40AF] dark:ring-blue-400' : ''}`}
-                                        >
-                                            {selectionMode && !msg.isDeleted && (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedMessages.includes(msg._id)}
-                                                    className={`absolute top-2 ${isSenderMessage(msg) ? 'right-2' : 'left-2'} h-4 w-4 text-[#1E40AF] dark:text-blue-400 rounded`}
-                                                    readOnly
-                                                />
+
+                            {!isMsgLoading && messages.length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-700 shadow-md flex items-center justify-center">
+                                        <Send className="w-7 h-7 text-blue-400" />
+                                    </div>
+                                    <p className="text-base font-medium text-gray-500 dark:text-gray-400">No messages yet</p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500">Be the first to say hello! 👋</p>
+                                </div>
+                            )}
+
+                            {!isMsgLoading && filteredMessages.length === 0 && messageSearch && (
+                                <p className="text-center text-sm text-gray-400 py-8">No messages match "{messageSearch}"</p>
+                            )}
+
+                            {messagesWithSeparators.map((item) => {
+                                if (item.type === 'separator') return <DateSeparator key={item.key} date={item.date} />;
+                                const msg = item.msg;
+                                const sender = isSender(msg);
+                                const isSelected = selectedMessages.includes(msg._id);
+                                return (
+                                    <motion.div key={item.key}
+                                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.1 }}
+                                        className={`flex mb-1 ${sender ? 'justify-end' : 'justify-start'} ${selectionMode ? 'cursor-pointer' : 'group'}`}
+                                        onClick={() => selectionMode && toggleMessageSelection(msg._id)}>
+                                        {!sender && selectedChat.type === 'group' && (
+                                            <div className="self-end mb-1 mr-1.5 flex-shrink-0">
+                                                <Avatar user={msg.sender} size={6} />
+                                            </div>
+                                        )}
+                                        <div className={`max-w-[72%] relative ${isSelected ? 'opacity-80' : ''}`}>
+                                            {msg.replyTo && (
+                                                <div className={`px-3 py-2 rounded-t-2xl text-xs border-l-4 border-blue-400 ${sender ? 'bg-blue-600/80 text-blue-100' : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'} mb-0.5`}>
+                                                    <p className="font-semibold truncate">{getFullName(msg.replyTo?.sender)}</p>
+                                                    <p className="truncate opacity-80">{msg.replyTo?.content || '📎 Attachment'}</p>
+                                                </div>
                                             )}
-                                            <p className="text-xs font-medium mb-1">
-                                                {msg.sender?._id === user?._id ? 'You' : getFullName(msg.sender)}
-                                            </p>
-                                            {msg.isDeleted ? (
-                                                <p className="text-xs italic text-[#6B7280] dark:text-gray-400">This message was deleted</p>
-                                            ) : (
-                                                <>
-                                                    {msg.content && <p className="text-sm break-words">{msg.content}</p>}
-                                                    {msg.isEdited && (
-                                                        <p className={`text-xs italic mt-1 ${isSenderMessage(msg) ? 'text-white/70' : 'text-[#6B7280] dark:text-gray-400'}`}>
-                                                            Edited
-                                                        </p>
-                                                    )}
-                                                    {msg.fileUrl && (
-                                                        <div className="mt-2">
-                                                            {msg.contentType === 'image' && (
-                                                                <img
-                                                                    src={msg.fileUrl}
-                                                                    alt={msg.fileName || 'Image'}
-                                                                    className="max-w-full rounded-lg cursor-pointer"
-                                                                    onClick={() => openMediaViewer(msg.fileUrl, 'image', msg.fileName || 'Image')}
-                                                                />
-                                                            )}
-                                                            {msg.contentType === 'video' && (
-                                                                <video
-                                                                    src={msg.fileUrl}
-                                                                    controls
-                                                                    className="max-w-full rounded-lg"
-                                                                />
-                                                            )}
-                                                            {msg.contentType === 'audio' && (
-                                                                <audio src={msg.fileUrl} controls className="w-full" />
-                                                            )}
-                                                            {msg.contentType === 'application' && (
-                                                                <div className="flex flex-col gap-1 text-sm">
-                                                                    <button
-                                                                        onClick={() => openMediaViewer(msg.fileUrl, msg.fileUrl.includes('.pdf') ? 'pdf' : 'application', msg.fileName || 'Document')}
-                                                                        className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200'}`}
-                                                                    >
-                                                                        View {msg.fileName || 'Document'}
-                                                                    </button>
-                                                                    <a
-                                                                        href={msg.fileUrl}
-                                                                        download={msg.fileName || 'Document'}
-                                                                        className={`${isSenderMessage(msg) ? 'text-white/80 hover:text-white' : 'text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200'}`}
-                                                                    >
-                                                                        Download {msg.fileName || 'Document'}
-                                                                    </a>
-                                                                </div>
-                                                            )}
+                                            <div className={`px-3 pt-1.5 pb-2 shadow-sm relative ${
+                                                sender
+                                                    ? 'bg-[#D9FDD3] dark:bg-[#005C4B] text-gray-900 dark:text-gray-100 rounded-2xl rounded-tr-sm'
+                                                    : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm'
+                                            } ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+                                                {selectionMode && !msg.isDeleted && (
+                                                    <div className={`absolute top-2 ${sender ? 'right-2' : 'left-2'}`}>
+                                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700'}`}>
+                                                            {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                                                         </div>
-                                                    )}
-                                                </>
+                                                    </div>
+                                                )}
+                                                {!sender && selectedChat.type === 'group' && (
+                                                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-0.5 truncate">
+                                                        {getFullName(msg.sender)}
+                                                    </p>
+                                                )}
+                                                {msg.isDeleted ? (
+                                                    <p className="text-xs italic text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                                        <span>🚫</span> This message was deleted
+                                                    </p>
+                                                ) : (
+                                                    <>
+                                                        {msg.content && (
+                                                            <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                                                        )}
+                                                        {msg.isEdited && (
+                                                            <span className="text-[10px] opacity-50 ml-1 italic">edited</span>
+                                                        )}
+                                                        {msg.fileUrl && (
+                                                            <div className="mt-1.5">
+                                                                {msg.contentType === 'image' && (
+                                                                    <img src={msg.fileUrl} alt={msg.fileName || 'img'}
+                                                                        className="max-w-full rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                                                                        onClick={(e) => { e.stopPropagation(); setMediaViewer({ fileUrl: msg.fileUrl, contentType: 'image', fileName: msg.fileName || 'Image' }); }} />
+                                                                )}
+                                                                {msg.contentType === 'video' && (
+                                                                    <video src={msg.fileUrl} controls className="max-w-full rounded-xl" />
+                                                                )}
+                                                                {msg.contentType === 'audio' && (
+                                                                    <audio src={msg.fileUrl} controls className="w-full mt-1" />
+                                                                )}
+                                                                {msg.contentType === 'application' && (
+                                                                    <div className="flex items-center gap-2 p-2 bg-black/5 dark:bg-white/5 rounded-xl mt-1 cursor-pointer"
+                                                                        onClick={(e) => { e.stopPropagation(); setMediaViewer({ fileUrl: msg.fileUrl, contentType: 'pdf', fileName: msg.fileName || 'Document' }); }}>
+                                                                        <FileIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                                                                        <p className="text-xs font-medium truncate">{msg.fileName || 'Document'}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                                <div className={`flex items-center justify-end gap-1 mt-0.5 ${msg.content ? '-mb-0.5' : ''}`}>
+                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatMsgTime(msg.createdAt)}</span>
+                                                    <MessageStatus msg={msg} />
+                                                </div>
+                                            </div>
+                                            {!selectionMode && !msg.isDeleted && (
+                                                <button
+                                                    className={`absolute top-1/2 -translate-y-1/2 ${sender ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white dark:bg-gray-700 rounded-full shadow-sm`}
+                                                    onClick={(e) => { e.stopPropagation(); startReply(msg); }}
+                                                    title="Reply">
+                                                    <CornerUpLeft className="w-3.5 h-3.5 text-gray-500" />
+                                                </button>
                                             )}
-                                            <p className={`text-xs mt-1 text-right ${isSenderMessage(msg) ? 'text-white/60' : 'text-[#6B7280] dark:text-gray-400'}`}>
-                                                {msg.createdAt ? moment.utc(msg.createdAt).tz('Africa/Lagos').format('h:mm A') : 'Unknown'}
-                                            </p>
                                         </div>
                                     </motion.div>
-                                ))}
+                                );
+                            })}
+
+                            <AnimatePresence>
+                                {typingUsers[selectedChat._id]?.isTyping && (
+                                    <TypingBubble name={getFullName(users.find((u) => u._id === typingUsers[selectedChat._id]?.id)) || 'Someone'} />
+                                )}
                             </AnimatePresence>
-                            <div ref={messagesEndRef} className="pb-4" />
-                            {typingUsers[selectedChat._id]?.isTyping && typingUsers[selectedChat._id]?.id !== user?._id && (
-                                <p className="text-sm text-[#6B7280] dark:text-gray-400 italic py-2">
-                                    {getFullName(users.find((u) => u._id === typingUsers[selectedChat._id]?.id)) || 'Someone'} is typing...
-                                </p>
-                            )}
+                            <div ref={messagesEndRef} className="h-2" />
                         </div>
-                        <div className="bg-[#F3F4F6] dark:bg-gray-700 px-4 py-3 flex items-center gap-3 border-t border-[#6B7280]/20 dark:border-gray-600 sticky bottom-0 z-10">
-                            {editingMessageId && (
-                                <div className="absolute -top-10 left-4 bg-white dark:bg-gray-800 p-2 rounded shadow flex items-center gap-2 text-sm text-[#6B7280] dark:text-gray-400">
-                                    Editing message...
-                                    <button
-                                        onClick={() => {
-                                            setEditingMessageId(null);
-                                            setNewMessage('');
-                                            setSelectionMode(null);
-                                            setSelectedMessages([]);
-                                        }}
-                                        className="p-1 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
+
+                        {/* Scroll button */}
+                        <AnimatePresence>
+                            {showScrollButton && (
+                                <div className="absolute bottom-[4.5rem] left-0 right-0 flex justify-center pointer-events-none z-20">
+                                    <motion.button
+                                        initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                                        transition={{ duration: 0.15 }}
+                                        onClick={() => scrollToBottom('smooth')}
+                                        className="pointer-events-auto flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full shadow-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-xs font-medium">
+                                        <ArrowDown className="w-3.5 h-3.5" />
+                                        {unreadCounts[selectedChat._id] > 0
+                                            ? `${unreadCounts[selectedChat._id]} new message${unreadCounts[selectedChat._id] > 1 ? 's' : ''}`
+                                            : 'Jump to latest'}
+                                    </motion.button>
                                 </div>
                             )}
-                            <div className="relative flex-1">
-                                {showEmojiPicker && (
-                                    <div className="absolute bottom-full left-0 z-20 mb-1 shadow-lg">
-                                        <EmojiPicker
-                                            onEmojiClick={(emoji) => setNewMessage((prev) => prev + emoji.emoji)}
-                                            theme="light"
-                                            emojiStyle="native"
-                                            skinTonesDisabled
-                                            height={320}
-                                        />
-                                    </div>
+                        </AnimatePresence>
+
+                        {/* Input area */}
+                        <div className="bg-white dark:bg-gray-800 px-3 py-2 border-t border-gray-200 dark:border-gray-700">
+                            <AnimatePresence>
+                                {replyTo && (
+                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                        className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded-xl px-3 py-2 mb-2 border-l-4 border-blue-500 overflow-hidden">
+                                        <CornerUpLeft className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{getFullName(replyTo.sender)}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{replyTo.content || '📎 Attachment'}</p>
+                                        </div>
+                                        <button onClick={cancelReply} className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+                                    </motion.div>
                                 )}
-                                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-[#6B7280]/20 dark:border-gray-600 rounded-full p-2">
-                                    <button
-                                        ref={emojiButtonRef}
-                                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                        className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
-                                    >
-                                        <Smile className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
-                                    >
+                            </AnimatePresence>
+
+                            <AnimatePresence>
+                                {editingMessage && (
+                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                        className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2 mb-2 border-l-4 border-blue-500 overflow-hidden">
+                                        <Edit2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-blue-600">Editing message</p>
+                                            <p className="text-xs text-gray-500 truncate">{editingMessage.originalContent}</p>
+                                        </div>
+                                        <button onClick={cancelEdit} className="p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <div className="flex items-end gap-2">
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    <div className="relative">
+                                        <button ref={emojiButtonRef} onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+                                            <Smile className="w-5 h-5" />
+                                        </button>
+                                        <AnimatePresence>
+                                            {showEmojiPicker && (
+                                                <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                                                    className="absolute bottom-full left-0 z-30 mb-2 shadow-2xl rounded-2xl overflow-hidden">
+                                                    <EmojiPicker onEmojiClick={(e) => { setNewMessage((p) => p + e.emoji); inputRef.current?.focus(); }}
+                                                        theme="auto" emojiStyle="native" skinTonesDisabled height={340} width={320} />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                    <button onClick={() => fileInputRef.current?.click()}
+                                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
                                         <Paperclip className="w-5 h-5" />
                                     </button>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" onChange={handleFileChange} />
-                                    <input
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                                        onChange={(e) => {
+                                            const f = e.target.files[0];
+                                            if (f && f.size > 50 * 1024 * 1024) { toast.error('File exceeds 50MB'); return; }
+                                            if (f) setFile(f);
+                                        }} />
+                                </div>
+
+                                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-2xl px-4 py-2.5 flex items-center gap-2 min-h-[44px]">
+                                    <input ref={inputRef}
                                         type="text"
                                         value={newMessage}
-                                        onChange={(e) => {
-                                            setNewMessage(e.target.value);
-                                            handleTyping();
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSendMessage();
-                                            }
-                                        }}
-                                        placeholder={editingMessageId ? 'Edit message...' : 'Message'}
-                                        className="flex-1 bg-transparent text-sm text-[#1F2937] dark:text-gray-300 focus:outline-none min-w-0"
-                                        disabled={selectionMode && !editingMessageId}
-                                    />
+                                        onChange={(e) => { setNewMessage(e.target.value); if (selectedChat?._id) debouncedTyping(selectedChat._id, user?._id); }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                                        placeholder={editingMessage ? 'Edit your message…' : replyTo ? 'Reply…' : 'Type a message'}
+                                        className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-200 focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 min-w-0"
+                                        disabled={selectionMode && !editingMessage} />
                                     {file && (
-                                        <div className="flex items-center gap-1 text-sm text-[#6B7280] dark:text-gray-400 truncate max-w-[100px]">
-                                            {file.name}
-                                            <button onClick={() => setFile(null)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
-                                                <X className="w-4 h-4" />
-                                            </button>
+                                        <div className="flex items-center gap-1 text-xs text-gray-500 truncate max-w-[80px] flex-shrink-0">
+                                            <span className="truncate">{file.name}</span>
+                                            <button onClick={() => setFile(null)}><X className="w-3 h-3 text-red-400" /></button>
                                         </div>
                                     )}
-                                    {isUploading && <p className="text-sm text-[#6B7280] dark:text-gray-400">Uploading...</p>}
-                                    <button
-                                        className="p-1 text-[#16A34A] dark:text-green-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded transition-all duration-200"
-                                        title="Voice note"
-                                    >
-                                        <Mic className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                        onClick={handleSendMessage}
-                                        disabled={(!newMessage.trim() && !file) || isUploading || (selectionMode && !editingMessageId)}
-                                        className={`p-2 rounded-full transition-all duration-200 ${
-                                            (newMessage.trim() || file) && !isUploading && (!selectionMode || editingMessageId)
-                                                ? 'bg-[#1E40AF] dark:bg-blue-700 text-white hover:bg-[#1E3A8A] dark:hover:bg-blue-600'
-                                                : 'text-[#6B7280] dark:text-gray-400'
-                                        }`}
-                                    >
-                                        <Send className="w-5 h-5" />
-                                    </button>
+                                    {isUploading && <Clock className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />}
                                 </div>
+
+                                <motion.button
+                                    onClick={handleSendMessage}
+                                    disabled={(!newMessage.trim() && !file) || (selectionMode && !editingMessage)}
+                                    whileTap={{ scale: 0.92 }}
+                                    className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${
+                                        (newMessage.trim() || file) && (!selectionMode || editingMessage)
+                                            ? 'bg-green-500 hover:bg-green-600 text-white'
+                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                                    }`}>
+                                    <Send className="w-4 h-4" />
+                                </motion.button>
                             </div>
                         </div>
-                        {showScrollButton && (
-                            <button
-                                onClick={scrollToBottom}
-                                className="absolute bottom-20 right-4 p-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded-full shadow-lg hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200"
-                            >
-                                <ArrowDown className="w-5 h-5" />
-                            </button>
-                        )}
                     </>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-[#6B7280] dark:text-gray-400 text-lg">
-                        Select a chat to begin
+                    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8 select-none">
+                        <div className="w-20 h-20 rounded-full bg-white dark:bg-gray-700 shadow-lg flex items-center justify-center">
+                            <Users className="w-9 h-9 text-gray-300 dark:text-gray-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-300 mb-1">TeamChat</h3>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 max-w-xs">
+                                Select a conversation from the list to start chatting with your team.
+                            </p>
+                        </div>
                     </div>
                 )}
             </section>
 
-            {showGroupModal && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50"
-                >
-                    <motion.div
-                        initial={{ scale: 0.95 }}
-                        animate={{ scale: 1 }}
-                        className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4"
-                    >
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200">
-                                {selectedChat?.type === 'group' ? 'Add Members' : 'New Group'}
-                            </h3>
-                            <button onClick={() => setShowGroupModal(false)} className="text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        {selectedChat?.type !== 'group' && (
-                            <input
-                                type="text"
-                                value={groupName}
-                                onChange={(e) => setGroupName(e.target.value)}
-                                placeholder="Group name (optional)"
-                                className="w-full p-2 border border-[#6B7280]/20 dark:border-gray-600 rounded mb-4 text-sm bg-white dark:bg-gray-700 text-[#1F2937] dark:text-gray-300"
-                            />
-                        )}
-                        <p className="text-sm font-medium mb-2 text-[#1F2937] dark:text-gray-200">Select members</p>
-                        <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
-                            {users
-                                .filter((u) => {
-                                    // When adding members to an existing group, hide current members
-                                    if (selectedChat?.type === 'group') {
-                                        return !selectedChat.members?.some((m) => m._id === u._id);
-                                    }
-                                    // When creating a new group, show ALL users (don't filter by selectedChat)
-                                    return true;
-                                })
-                                .map((u) => (
-                                    <label key={u._id} className="flex items-center gap-2 cursor-pointer text-[#1F2937] dark:text-gray-200">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedUsers.includes(u._id)}
-                                            onChange={() => setSelectedUsers((prev) => prev.includes(u._id) ? prev.filter(id => id !== u._id) : [...prev, u._id])}
-                                            className="w-4 h-4 text-[#1E40AF] dark:text-blue-400 rounded"
-                                        />
-                                        {getFullName(u)}
-                                    </label>
-                                ))}
-                        </div>
-                        <button
-                            onClick={() => selectedChat?.type === 'group' ? handleAddMembers(selectedChat._id, selectedUsers) : handleCreateGroup()}
-                            className="w-full py-2 bg-[#1E40AF] dark:bg-blue-700 text-white rounded hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200 text-sm"
-                        >
-                            {selectedChat?.type === 'group' ? 'Add' : 'Create'}
-                        </button>
-                    </motion.div>
-                </motion.div>
-            )}
+            <AnimatePresence>
+                {groupModalMode && (
+                    <GroupModal isAddMode={groupModalMode === 'add'} selectedChat={selectedChat}
+                        users={users} onClose={() => setGroupModalMode(null)}
+                        onCreateGroup={handleCreateGroup} onAddMembers={handleAddMembers} />
+                )}
+            </AnimatePresence>
 
-            {showMembersModal && selectedChat?.type === 'group' && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50"
-                >
-                    <motion.div
-                        initial={{ scale: 0.95 }}
-                        animate={{ scale: 1 }}
-                        className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4"
-                    >
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200">{selectedChat.name} Members</h3>
-                            <button onClick={() => setShowMembersModal(false)} className="text-[#6B7280] dark:text-gray-400 hover:text-[#1F2937] dark:hover:text-gray-200">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto space-y-2">
-                            {(selectedChat.members || []).map((member) => (
-                                <div key={member._id} className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-[#F3F4F6] dark:bg-gray-700 text-[#1E40AF] dark:text-blue-400 flex items-center justify-center text-xs font-medium">
-                                        {getInitials(member)}
-                                    </div>
-                                    <p className="text-sm text-[#1F2937] dark:text-gray-200">{getFullName(member)}</p>
-                                    <p className="text-xs text-[#6B7280] dark:text-gray-400 ml-auto">
-                                        Last seen {member.lastActive ? moment(member.lastActive).fromNow() : 'never'}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            onClick={() => setShowMembersModal(false)}
-                            className="w-full mt-4 py-2 bg-[#F3F4F6] dark:bg-gray-700 text-[#1F2937] dark:text-gray-200 rounded hover:bg-[#E5E7EB] dark:hover:bg-gray-600 transition-all duration-200 text-sm"
-                        >
-                            Close
-                        </button>
-                    </motion.div>
-                </motion.div>
-            )}
-
-            {mediaViewer.isOpen && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center z-50 p-4"
-                >
-                    <motion.div
-                        initial={{ scale: 0.95 }}
-                        animate={{ scale: 1 }}
-                        className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-auto"
-                    >
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-medium text-[#1F2937] dark:text-gray-200 truncate">{mediaViewer.fileName}</h3>
-                            <div className="flex gap-2">
-                                <a href={mediaViewer.fileUrl} download className="py-2 px-4 bg-[#1E40AF] dark:bg-blue-700 text-white text-sm rounded hover:bg-[#1E3A8A] dark:hover:bg-blue-600 transition-all duration-200">
-                                    Download
-                                </a>
-                                <button onClick={closeMediaViewer} className="p-2 text-[#6B7280] dark:text-gray-400 hover:bg-[#F3F4F6] dark:hover:bg-gray-600 rounded">
-                                    <X className="w-5 h-5" />
-                                </button>
+            <AnimatePresence>
+                {showMembersModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                        onClick={() => setShowMembersModal(false)}>
+                        <motion.div initial={{ scale: 0.95, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+                            className="bg-white dark:bg-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                    {selectedChat?.type === 'group' ? `${selectedChat.name}` : `${getFullName(selectedChat?.recipient)}`}
+                                </h3>
+                                <button onClick={() => setShowMembersModal(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"><X className="w-4 h-4 text-gray-400" /></button>
                             </div>
-                        </div>
-                        {mediaViewer.contentType === 'image' && <img src={mediaViewer.fileUrl} alt="" className="max-w-full max-h-[70vh] mx-auto" />}
-                        {mediaViewer.contentType === 'video' && <video src={mediaViewer.fileUrl} controls className="max-w-full max-h-[70vh] mx-auto" />}
-                        {mediaViewer.contentType === 'audio' && <audio src={mediaViewer.fileUrl} controls className="w-full" />}
-                        {mediaViewer.contentType === 'pdf' && <iframe src={mediaViewer.fileUrl} className="w-full h-96" />}
-                        {mediaViewer.contentType === 'application' && <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(mediaViewer.fileUrl)}&embedded=true`} className="w-full h-96" />}
+                            <div className="space-y-2 max-h-72 overflow-y-auto">
+                                {(selectedChat?.members || (selectedChat?.recipient ? [selectedChat.recipient] : [])).map((m) => {
+                                    const isOnline = onlineUsers.has(m._id) || m.online;
+                                    return (
+                                        <div key={m._id} className="flex items-center gap-3 py-1.5">
+                                            <div className="relative flex-shrink-0">
+                                                <Avatar user={m} size={8} />
+                                                {isOnline && <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-800" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">{getFullName(m)}</p>
+                                                <p className={`text-xs ${isOnline ? 'text-green-500' : 'text-gray-400'}`}>
+                                                    {isOnline ? 'Online' : formatLastSeen(m.lastActive)}
+                                                </p>
+                                            </div>
+                                            {selectedChat?.adminId === m._id && (
+                                                <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium">Admin</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <button onClick={() => setShowMembersModal(false)}
+                                className="w-full mt-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-gray-600">
+                                Close
+                            </button>
+                        </motion.div>
                     </motion.div>
-                </motion.div>
-            )}
+                )}
+            </AnimatePresence>
 
-            <style jsx>{`
-                .sender-bubble {
-                    position: relative;
-                }
-                .sender-bubble::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 0;
-                    right: -8px;
-                    width: 0;
-                    height: 0;
-                    border: 8px solid transparent;
-                    border-bottom-color: #1E40AF;
-                    transform: rotate(45deg);
-                }
-                .receiver-bubble {
-                    position: relative;
-                }
-                .receiver-bubble::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 0;
-                    left: -8px;
-                    width: 0;
-                    height: 0;
-                    border: 8px solid transparent;
-                    border-right-color: #F3F4F6;
-                    border-bottom-color: #F3F4F6;
-                    transform: rotate(-45deg);
-                }
-                .scrollbar-thin::-webkit-scrollbar {
-                    width: 4px;
-                    height: 4px;
-                }
-                .scrollbar-thin::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .scrollbar-thin::-webkit-scrollbar-thumb {
-                    background: #6B7280;
-                    border-radius: 2px;
-                }
-                .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-                    background: #1E40AF;
-                }
+            <AnimatePresence>
+                {mediaViewer && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+                        onClick={() => setMediaViewer(null)}>
+                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+                            className="relative w-full max-w-3xl max-h-[92vh] flex flex-col"
+                            onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                                <p className="text-sm font-medium text-white truncate">{mediaViewer.fileName}</p>
+                                <div className="flex gap-2">
+                                    <a href={mediaViewer.fileUrl} download className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs rounded-lg">Download</a>
+                                    <button onClick={() => setMediaViewer(null)} className="p-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg"><X className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-auto flex items-center justify-center rounded-xl bg-black/50">
+                                {mediaViewer.contentType === 'image' && <img src={mediaViewer.fileUrl} alt="" className="max-w-full max-h-[80vh] rounded-xl object-contain" />}
+                                {mediaViewer.contentType === 'video' && <video src={mediaViewer.fileUrl} controls autoPlay className="max-w-full max-h-[80vh] rounded-xl" />}
+                                {mediaViewer.contentType === 'audio' && <audio src={mediaViewer.fileUrl} controls autoPlay className="w-full" />}
+                                {(mediaViewer.contentType === 'pdf' || mediaViewer.contentType === 'application') && (
+                                    <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(mediaViewer.fileUrl)}&embedded=true`} className="w-full h-[75vh] rounded-xl" title="Document" />
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <style>{`
+                .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+                .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+                .scrollbar-thin::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
+                .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+                * { scrollbar-width: thin; scrollbar-color: #D1D5DB transparent; }
             `}</style>
         </div>
     );
