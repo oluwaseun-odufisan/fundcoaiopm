@@ -34,12 +34,13 @@ const chatSchema = new mongoose.Schema(
             of: Number,
             default: new Map(),
         },
+        // Pinned message IDs — any member can pin, max 3 (like WhatsApp)
+        pinnedMessages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Message' }],
         updatedAt: { type: Date, default: Date.now },
     },
     { timestamps: true }
 );
 
-// Performance indexes
 chatSchema.index({ members: 1, type: 1 });
 chatSchema.index({ members: 1, updatedAt: -1 });
 chatSchema.index({ type: 1, members: 1 });

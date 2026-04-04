@@ -221,16 +221,18 @@ export const getChatMessages = async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
 
         // Run access check, message fetch, and count all in parallel
+        // Exclude messages the caller has deleted for themselves (deletedFor filter)
+        const msgQuery = { chatId, deletedFor: { $nin: [req.user._id] } };
         const [chat, messages, totalMessages] = await Promise.all([
             Chat.findOne({ _id: chatId, members: req.user._id }).select('_id').lean(),
-            Message.find({ chatId })
+            Message.find(msgQuery)
                 .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
                 .populate('sender', 'firstName lastName otherName avatar')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum)
                 .lean(),
-            Message.countDocuments({ chatId }),
+            Message.countDocuments(msgQuery),
         ]);
 
         if (!chat) {
@@ -292,7 +294,22 @@ export const sendMessage = async (req, res) => {
                 fileUrl,
                 contentType,
                 fileName,
-                replyTo: replyTo || null,
+                // Store replyTo as a snapshot so preview always works even if original is deleted
+            replyTo: replyTo ? await (async () => {
+                if (!mongoose.isValidObjectId(replyTo)) return null;
+                const orig = await Message.findById(replyTo)
+                    .populate('sender', 'firstName lastName otherName')
+                    .lean();
+                if (!orig) return null;
+                return {
+                    messageId: orig._id,
+                    content: orig.isDeleted ? 'This message was deleted' : orig.content,
+                    senderName: orig.sender ? `${orig.sender.firstName || ''} ${orig.sender.lastName || ''}`.trim() : 'Unknown',
+                    sender: orig.sender?._id,
+                    contentType: orig.contentType,
+                    fileUrl: orig.fileUrl,
+                };
+            })() : null,
             }),
             User.findById(req.user._id)
                 .select('firstName lastName otherName avatar')
@@ -409,30 +426,58 @@ export const editMessage = async (req, res) => {
     }
 };
 
-// Delete message
+// Delete message — WhatsApp-style dual mode
+// deleteScope: 'everyone' (default, sender only) | 'me' (any participant, hides for caller only)
 export const deleteMessage = async (req, res) => {
     const { messageId } = req.params;
+    const { deleteScope = 'everyone' } = req.body; // 'everyone' | 'me'
+
     if (!mongoose.isValidObjectId(messageId)) {
         return res.status(400).json({ success: false, message: 'Invalid message ID' });
     }
     try {
         const message = await Message.findById(messageId);
         if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
-        if (message.sender.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: 'Unauthorized to delete this message' });
+
+        // Verify the caller is a member of this chat
+        const chat = await Chat.findOne({ _id: message.chatId, members: req.user._id }).select('_id').lean();
+        if (!chat) return res.status(403).json({ success: false, message: 'Access denied' });
+
+        if (deleteScope === 'me') {
+            // ── Delete for me: add caller to deletedFor array ──────────────────
+            // Any participant can do this, any time, for any message
+            if (!message.deletedFor.some((id) => id.toString() === req.user._id.toString())) {
+                message.deletedFor.push(req.user._id);
+                await message.save();
+            }
+            // This is a client-side only change — no broadcast needed
+            return res.json({ success: true, messageId, deleteScope: 'me' });
         }
+
+        // ── Delete for everyone ────────────────────────────────────────────────
+        // Only the sender can delete for everyone
+        if (message.sender.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Only the sender can delete for everyone' });
+        }
+        if (message.isDeleted) {
+            return res.json({ success: true, messageId, deleteScope: 'everyone' }); // already deleted
+        }
+
         message.isDeleted = true;
         message.content = 'This message was deleted';
         message.fileUrl = null;
         message.fileName = null;
-        message.contentType = 'text';
+        message.contentType = '';
         message.reactions = [];
         await message.save();
+
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
             .lean();
-        req.io.to(message.chatId.toString()).emit('messageDeleted', populatedMessage);
-        res.json({ success: true, message: populatedMessage });
+
+        // Broadcast to everyone in the chat room
+        req.io.to(message.chatId.toString()).emit('messageDeleted', { ...populatedMessage, deleteScope: 'everyone' });
+        res.json({ success: true, message: populatedMessage, deleteScope: 'everyone' });
     } catch (error) {
         console.error('Error deleting message:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to delete message' });
@@ -741,6 +786,170 @@ export const getInitialData = async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to load chat data' });
     }
 };
+
+// ── Pin message ───────────────────────────────────────────────────────────────
+// Any member can pin. Max 3 pinned messages per chat (oldest replaced).
+export const pinMessage = async (req, res) => {
+    const { messageId } = req.params;
+    if (!mongoose.isValidObjectId(messageId)) {
+        return res.status(400).json({ success: false, message: 'Invalid message ID' });
+    }
+    try {
+        const message = await Message.findById(messageId).lean();
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+        const chat = await Chat.findOne({ _id: message.chatId, members: req.user._id });
+        if (!chat) return res.status(403).json({ success: false, message: 'Access denied' });
+
+        const already = chat.pinnedMessages.some((id) => id.toString() === messageId);
+        if (already) return res.json({ success: true, pinnedMessages: chat.pinnedMessages });
+
+        // Keep max 3 — remove oldest if full
+        if (chat.pinnedMessages.length >= 3) chat.pinnedMessages.shift();
+        chat.pinnedMessages.push(messageId);
+        await chat.save();
+
+        req.io.to(chat._id.toString()).emit('messagePinned', { chatId: chat._id, messageId, pinnedMessages: chat.pinnedMessages });
+        res.json({ success: true, pinnedMessages: chat.pinnedMessages });
+    } catch (error) {
+        console.error('Error pinning message:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to pin message' });
+    }
+};
+
+// ── Unpin message ─────────────────────────────────────────────────────────────
+export const unpinMessage = async (req, res) => {
+    const { messageId } = req.params;
+    if (!mongoose.isValidObjectId(messageId)) {
+        return res.status(400).json({ success: false, message: 'Invalid message ID' });
+    }
+    try {
+        const message = await Message.findById(messageId).lean();
+        if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+        const chat = await Chat.findOne({ _id: message.chatId, members: req.user._id });
+        if (!chat) return res.status(403).json({ success: false, message: 'Access denied' });
+
+        chat.pinnedMessages = chat.pinnedMessages.filter((id) => id.toString() !== messageId);
+        await chat.save();
+
+        req.io.to(chat._id.toString()).emit('messageUnpinned', { chatId: chat._id, messageId, pinnedMessages: chat.pinnedMessages });
+        res.json({ success: true, pinnedMessages: chat.pinnedMessages });
+    } catch (error) {
+        console.error('Error unpinning message:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to unpin message' });
+    }
+};
+
+// ── Get pinned messages (full objects) ────────────────────────────────────────
+export const getPinnedMessages = async (req, res) => {
+    const { chatId } = req.params;
+    if (!mongoose.isValidObjectId(chatId)) {
+        return res.status(400).json({ success: false, message: 'Invalid chat ID' });
+    }
+    try {
+        const chat = await Chat.findOne({ _id: chatId, members: req.user._id })
+            .select('pinnedMessages').lean();
+        if (!chat) return res.status(403).json({ success: false, message: 'Access denied' });
+
+        const messages = await Message.find({ _id: { $in: chat.pinnedMessages } })
+            .populate('sender', 'firstName lastName otherName avatar')
+            .lean();
+
+        res.json({ success: true, pinnedMessages: messages });
+    } catch (error) {
+        console.error('Error fetching pinned messages:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to fetch pinned messages' });
+    }
+};
+
+// ── Forward message ───────────────────────────────────────────────────────────
+// Copies message content into one or more target chats, tagging it as forwarded.
+export const forwardMessage = async (req, res) => {
+    const { messageId } = req.params;
+    const { targetChatIds } = req.body; // array of chatId strings
+
+    if (!mongoose.isValidObjectId(messageId)) {
+        return res.status(400).json({ success: false, message: 'Invalid message ID' });
+    }
+    if (!Array.isArray(targetChatIds) || targetChatIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Target chat IDs required' });
+    }
+    if (targetChatIds.length > 5) {
+        return res.status(400).json({ success: false, message: 'Cannot forward to more than 5 chats at once' });
+    }
+
+    try {
+        const original = await Message.findById(messageId)
+            .populate('sender', 'firstName lastName otherName')
+            .lean();
+        if (!original || original.isDeleted) {
+            return res.status(404).json({ success: false, message: 'Message not found or deleted' });
+        }
+
+        // Verify caller has access to the original chat
+        const srcChat = await Chat.findOne({ _id: original.chatId, members: req.user._id }).lean();
+        if (!srcChat) return res.status(403).json({ success: false, message: 'Access denied' });
+
+        const senderName = original.sender
+            ? `${original.sender.firstName || ''} ${original.sender.lastName || ''}`.trim()
+            : 'Unknown';
+
+        const results = await Promise.allSettled(
+            targetChatIds.map(async (targetChatId) => {
+                if (!mongoose.isValidObjectId(targetChatId)) return;
+
+                const targetChat = await Chat.findOne({ _id: targetChatId, members: req.user._id });
+                if (!targetChat) return;
+
+                // Build forwarded message
+                const fwdMsg = new Message({
+                    chatId: targetChatId,
+                    sender: req.user._id,
+                    content: original.content,
+                    fileUrl: original.fileUrl,
+                    fileName: original.fileName,
+                    contentType: original.contentType,
+                    forwardedFrom: {
+                        messageId: original._id,
+                        senderName,
+                        chatName: srcChat.name || 'Chat',
+                    },
+                });
+                await fwdMsg.save();
+
+                // Populate sender for broadcast
+                const senderDoc = await User.findById(req.user._id)
+                    .select('firstName lastName otherName avatar').lean();
+                const populated = { ...fwdMsg.toObject(), sender: senderDoc };
+
+                // Update chat unread counts and broadcast
+                const userId = req.user._id.toString();
+                const unreadIncrements = {};
+                targetChat.members.forEach((memberId) => {
+                    const mid = memberId.toString();
+                    if (mid !== userId) {
+                        const cur = (targetChat.unreadCounts && targetChat.unreadCounts[mid]) || 0;
+                        unreadIncrements[`unreadCounts.${mid}`] = cur + 1;
+                        req.io.to(`user:${mid}`).emit('unreadUpdate', {
+                            chatId: targetChatId,
+                            count: cur + 1,
+                            message: populated,
+                        });
+                    }
+                });
+                Chat.findByIdAndUpdate(targetChatId, { $set: { updatedAt: Date.now(), ...unreadIncrements } }).catch(() => {});
+                req.io.to(targetChatId.toString()).emit('message', populated);
+            })
+        );
+
+        res.json({ success: true, forwarded: results.filter((r) => r.status === 'fulfilled').length });
+    } catch (error) {
+        console.error('Error forwarding message:', error.message);
+        res.status(500).json({ success: false, message: 'Failed to forward message' });
+    }
+};
+
 export default {
     getUsers,
     createIndividualChat,
@@ -760,5 +969,9 @@ export default {
     addReaction,
     removeReaction,
     getUserChatMap,
-    getInitialData
+    getInitialData,
+    pinMessage,
+    unpinMessage,
+    getPinnedMessages,
+    forwardMessage
 };
