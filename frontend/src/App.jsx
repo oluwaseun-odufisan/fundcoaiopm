@@ -27,6 +27,9 @@ import Training from './pages/Training';
 import Feedback from './pages/Feedback';
 import DocumentConverter from './pages/DocumentConverter';
 import ReportGeneration from './pages/ReportGeneration';
+import MeetingLobby from './pages/MeetingLobby';
+import VideoRoom from './pages/VideoRoom';
+
 
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -111,6 +114,9 @@ const App = () => {
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/document-converter" element={<DocumentConverter />} />
           <Route path="/reports" element={<ReportGeneration />} />
+          <Route path="/meeting" element={<MeetingLobby />} />
+          <Route path="/meetroom" element={<MeetingLobby />} />
+          <Route path="/room/:roomId" element={<VideoRoom />} />
         </Route>
 
         <Route path="/" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />

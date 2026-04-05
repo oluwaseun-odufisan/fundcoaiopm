@@ -29,12 +29,12 @@ import { NavLink } from 'react-router-dom';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
-
 const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
 
 const Sidebar = ({ user, isExpanded, onToggle }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [chatUnreadTotal, setChatUnreadTotal] = useState(0);
+  
   // Load social feed unread count from localStorage so it persists across refreshes
   const [socialUnreadTotal, setSocialUnreadTotal] = useState(() => {
     const stored = localStorage.getItem(UNREAD_POSTS_KEY);
@@ -90,12 +90,14 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
       setSocialUnreadTotal(e.detail?.total ?? 0);
     };
     window.addEventListener('socialFeedUnreadUpdate', handleSocialUnreadChange);
+    
     // Also re-read from localStorage on window focus (handles cross-tab scenarios)
     const handleFocusSocial = () => {
       const stored = localStorage.getItem(UNREAD_POSTS_KEY);
       setSocialUnreadTotal(stored ? parseInt(stored, 10) : 0);
     };
     window.addEventListener('focus', handleFocusSocial);
+    
     return () => {
       window.removeEventListener('socialFeedUnreadUpdate', handleSocialUnreadChange);
       window.removeEventListener('focus', handleFocusSocial);
@@ -124,7 +126,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'Reminders', path: '/reminders', icon: <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Goals', path: '/goals', icon: <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Performance', path: '/performance', icon: <CreditCard className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
-    { text: 'Meeting', path: '/meeting', icon: <Video className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
+    
+    // ★ UPDATED: Now points to the new MeetingLobby (instead of the old /meeting page)
+    { text: 'Meeting', path: '/meetroom', icon: <Video className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
+    
     { text: 'Training', path: '/training', icon: <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
     { text: 'Feedback', path: '/feedback', icon: <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" /> },
   ];
@@ -157,7 +162,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
                 </span>
               )}
             </span>
-
             {/* Label + badge (expanded or mobile) */}
             {(isExpanded || isMobile) && (
               <>
@@ -310,7 +314,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
               <X className="w-6 h-6" />
             </button>
           </div>
-
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-full bg-blue-600 dark:bg-blue-700 flex items-center justify-center text-white font-bold text-xl shadow-sm">
               {initial}
@@ -322,7 +325,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
               </p>
             </div>
           </div>
-
           <div className="h-[calc(100vh-8rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
             <div className="space-y-6 pb-32">
               {renderMenuItems(true)}

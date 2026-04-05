@@ -25,6 +25,7 @@ import feedbackRouter from './routes/feedbackRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import grokRouter from './routes/grokRoutes.js';
 import reportRouter from './routes/reportRoutes.js';
+import roomRouter from './routes/roomRoutes.js';
 
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
@@ -41,6 +42,9 @@ import './models/goalModel.js';
 import './models/meetingModel.js';
 import './models/learningMaterialModel.js';
 import './models/feedbackModel.js';
+import Room from './models/roomModel.js';
+
+import { setupRoomSignaling } from './socket/roomSignaling.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -75,6 +79,8 @@ const io = new Server(httpServer, {
     path: '/socket.io',
     connectTimeout: 45000,
 });
+
+setupRoomSignaling(io);
 
 // Make io globally accessible
 global.io = io;
@@ -122,6 +128,8 @@ app.use('/api/learning', learningRouter);
 app.use('/api/documents', documentRoutes);
 app.use('/api/reports', reportRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/rooms', roomRouter);
+
 
 // Environment variable validation (already strict)
 const requiredEnvVars = [
@@ -196,8 +204,11 @@ io.on('connection', async (socket) => {
     socket.on('newMeeting', (meeting) => io.emit('newMeeting', meeting));
     socket.on('meetingUpdated', (meeting) => io.emit('meetingUpdated', meeting));
     socket.on('meetingDeleted', (id) => io.emit('meetingDeleted', id));
-    socket.on('newMeetingInvitation', (data) => {
-        io.to(`user:${data.participantId}`).emit('newMeetingInvitation', data);
+    socket.on('newMeetingInvitation', (data) => io.to(`user:${data.participantId}`).emit('newMeetingInvitation', data));
+ 
+    // ★ NEW: Forward room invitations to specific users
+    socket.on('roomInvitation', (data) => {
+        if (data.userId) io.to(`user:${data.userId}`).emit('roomInvitation', data);
     });
     socket.on('error', (error) => console.error('Socket error:', error.message));
     socket.on('disconnect', (reason) => {
@@ -234,19 +245,15 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Meeting status cron
+// Meeting cron job
 cron.schedule('*/5 * * * *', async () => {
     try {
         const now = new Date();
-        await Meeting.updateMany(
-            { status: 'scheduled', startTime: { $lte: now } },
-            { status: 'ongoing' }
-        );
+        await Meeting.updateMany({ status: 'scheduled', startTime: { $lte: now } }, { status: 'ongoing' });
         await Meeting.updateMany(
             { status: 'ongoing', $expr: { $gt: [{ $subtract: [now, '$startTime'] }, { $multiply: ['$duration', 60000] }] } },
             { status: 'ended', endedAt: now }
         );
-        console.log('Meeting statuses updated via cron');
     } catch (err) {
         console.error('Cron meeting status error:', err);
     }
