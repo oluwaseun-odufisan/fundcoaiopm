@@ -81,7 +81,7 @@ const formatLastSeen = (ts) => {
     const m = moment(ts).tz(TZ);
     if (!m.isValid()) return 'last seen a long time ago';
     const diffMins = moment().diff(m, 'minutes');
-    if (diffMins < 1) return 'just now';
+    if (diffMins < 1) return 'online';
     if (diffMins < 60) return `last seen ${diffMins}m ago`;
     const diffHours = moment().diff(m, 'hours');
     if (diffHours < 24) return `last seen today at ${m.format('h:mm A')}`;
