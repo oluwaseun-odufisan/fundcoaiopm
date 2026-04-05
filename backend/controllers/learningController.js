@@ -55,15 +55,30 @@ export const getCourses = async (req, res) => {
       ];
     }
 
-    // Return lightweight list — exclude heavy module content & exam bodies
-    const courses = await LearningCourse.find(query, {
+    // Return lightweight list — include counts but exclude heavy content/quiz bodies
+    const rawCourses = await LearningCourse.find(query, {
       title: 1, description: 1, level: 1, assetco: 1,
       required: 1, tags: 1, passingScore: 1, createdAt: 1,
       'modules._id': 1, 'modules.title': 1, 'modules.order': 1,
       'modules.estimatedMinutes': 1, 'modules.objectives': 1,
-    }).sort({ level: 1, title: 1 }).lean();
+      'modules.videoUrl': 1,
+      'modules.quiz._id': 1,  // just IDs so we can count
+      'exam._id': 1,           // just IDs so we can count
+    }).sort({ required: -1, level: 1, title: 1 }).lean();
 
-    res.json({ success: true, courses });
+    // Add computed fields so frontend can show exam/quiz indicators on cards
+    const courses = rawCourses.map(c => ({
+      ...c,
+      examCount: (c.exam || []).length,
+      exam:      (c.exam || []).length > 0 ? [{ _placeholder: true }] : [],
+      modules: (c.modules || []).map(m => ({
+        ...m,
+        hasQuiz: Array.isArray(m.quiz) && m.quiz.length > 0,
+        quiz:    [],
+      })),
+    }));
+
+    res.json({ success: true, courses, total: courses.length });
   } catch (err) {
     console.error('getCourses error:', err);
     res.status(500).json({ success: false, message: err.message });

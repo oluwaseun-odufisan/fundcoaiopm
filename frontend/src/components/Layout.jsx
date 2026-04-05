@@ -419,7 +419,7 @@ const Layout = ({ onLogout, user: initialUser }) => {
         {!isChatOpen && (
           <button
             onClick={toggleChat}
-            className="fixed bottom-8 right-8 p-4 rounded-full bg-blue-600 dark:bg-blue-700 text-white shadow-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition z-[1001]"
+            className="fixed bottom-28 right-6 p-4 rounded-full bg-blue-600 dark:bg-blue-700 text-white shadow-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition z-[1001]"
             aria-label="Open FundCo TM Bot"
           >
             <MessageCircle className="w-6 h-6" />

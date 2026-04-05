@@ -985,24 +985,23 @@ const seedData = async () => {
   try {
     await connectDB();
 
-    const courses = [
-      course1,
-      course2,
-      course3,
-    ];
+    const courses = [course1, course2, course3];
 
-    await LearningCourse.deleteMany({}).maxTimeMS(60000);
-    console.log('Cleared existing courses...');
-
+    // Use upsert — safe to run multiple times and with other seed parts
     for (const course of courses) {
+      const existing = await LearningCourse.findOne({ title: course.title });
+      if (existing) {
+        await LearningCourse.findByIdAndDelete(existing._id);
+        console.log(`🔄  Replaced: ${course.title}`);
+      }
       const created = await LearningCourse.create(course);
       const moduleCount = course.modules.length;
       const examCount   = course.exam ? course.exam.length : 0;
       console.log(`✅  ${created.title} — ${moduleCount} modules, ${examCount} exam questions`);
     }
 
-    console.log('\n🎉  Seed batch 1 complete (3 courses).');
-    console.log(`📚  Total courses seeded: ${courses.length}`);
+    const total = await LearningCourse.countDocuments();
+    console.log(`\n🎉  Seed Part 1 complete. Total courses in DB: ${total}`);
   } catch (err) {
     console.error('Seeding error:', err);
   } finally {
