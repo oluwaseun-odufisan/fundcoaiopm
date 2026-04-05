@@ -1,41 +1,53 @@
 // socket/roomSignaling.js
-// WebRTC Signaling via Socket.IO - No external APIs needed
-// Uses STUN servers (free, from Google/Cloudflare) for NAT traversal
+// WebRTC Signaling via Socket.IO namespace /room
+// FIX: chat now broadcasts to all including sender (roomNs.to not socket.to)
+// FIX: media state stored correctly for each peer
 import Room from '../models/roomModel.js';
 import User from '../models/userModel.js';
+import jwt from 'jsonwebtoken';
 
 export const setupRoomSignaling = (io) => {
-    // Namespace for room signaling
     const roomNs = io.of('/room');
 
-    // Auth middleware for namespace
+    // ── Auth middleware ────────────────────────────────────────────────────────
     roomNs.use(async (socket, next) => {
         try {
-            const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+            const token =
+                socket.handshake.auth?.token ||
+                socket.handshake.headers?.authorization?.split(' ')[1];
             if (!token) return next(new Error('Auth token required'));
-            const jwt = await import('jsonwebtoken');
-            const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
             socket.userId = decoded.id;
+
             const user = await User.findById(decoded.id).select('firstName lastName fullName avatar');
             if (!user) return next(new Error('User not found'));
-            socket.user = { id: decoded.id, name: user.fullName || `${user.firstName} ${user.lastName}`, avatar: user.avatar };
+
+            socket.user = {
+                id: decoded.id,
+                _id: decoded.id,
+                name: user.fullName?.trim() || `${user.firstName} ${user.lastName}`.trim(),
+                avatar: user.avatar || '',
+            };
             next();
         } catch (err) {
+            console.error('Room socket auth error:', err.message);
             next(new Error('Authentication failed'));
         }
     });
 
-    // Track who is in which room: Map<roomId, Map<socketId, {userId, socketId, peerId}>>
+    // roomPeers: Map<roomId, Map<socketId, peerInfo>>
     const roomPeers = new Map();
-    // Track per-user socket: Map<userId, socketId>
-    const userSockets = new Map();
 
     roomNs.on('connection', (socket) => {
-        console.log(`🎥 Room socket connected: ${socket.id} | User: ${socket.userId}`);
-        userSockets.set(socket.userId, socket.id);
+        console.log(`🎥 Room socket connected: ${socket.id} | User: ${socket.user?.name}`);
 
-        // ── Join a room ───────────────────────────────────────────────────
+        // ── Join room ──────────────────────────────────────────────────────
         socket.on('joinRoom', async ({ roomId, mediaState }) => {
+            if (!roomId) {
+                socket.emit('joinError', { message: 'Room ID is required' });
+                return;
+            }
             try {
                 const room = await Room.findOne({ roomId });
                 if (!room) {
@@ -43,46 +55,56 @@ export const setupRoomSignaling = (io) => {
                     return;
                 }
                 if (room.status === 'ended') {
-                    socket.emit('joinError', { message: 'This room has ended' });
+                    socket.emit('joinError', { message: 'This meeting has ended' });
                     return;
                 }
                 if (room.isLocked) {
-                    socket.emit('joinError', { message: 'Room is locked by the host' });
+                    socket.emit('joinError', { message: 'This room is locked by the host' });
                     return;
                 }
 
-                // Max participants check
-                const activePeers = roomPeers.get(roomId);
-                const activeCount = activePeers ? activePeers.size : 0;
-                if (activeCount >= room.maxParticipants) {
-                    socket.emit('joinError', { message: `Room is full (max ${room.maxParticipants} participants)` });
+                // Max participants
+                const roomMap = roomPeers.get(roomId);
+                if (roomMap && roomMap.size >= room.maxParticipants) {
+                    socket.emit('joinError', { message: `Room is full (max ${room.maxParticipants})` });
                     return;
                 }
 
+                // Join socket room
                 socket.join(roomId);
                 socket.currentRoom = roomId;
 
-                // Initialize room peer map
+                // Track peer in memory
                 if (!roomPeers.has(roomId)) roomPeers.set(roomId, new Map());
                 const peers = roomPeers.get(roomId);
 
-                // Add this peer
                 const peerInfo = {
                     userId: socket.userId,
                     socketId: socket.id,
                     user: socket.user,
-                    mediaState: mediaState || { audio: true, video: true, screen: false },
+                    // Normalise to consistent shape
+                    mediaState: {
+                        audioOff: mediaState?.audioOff ?? false,
+                        videoOff: mediaState?.videoOff ?? false,
+                        screen: mediaState?.screen ?? false,
+                    },
                     joinedAt: Date.now(),
                 };
                 peers.set(socket.id, peerInfo);
 
-                // Send the list of existing peers to the newcomer
+                // Build existing peers list for the newcomer
                 const existingPeers = [];
                 peers.forEach((peer, sid) => {
                     if (sid !== socket.id) {
-                        existingPeers.push({ socketId: sid, user: peer.user, mediaState: peer.mediaState });
+                        existingPeers.push({
+                            socketId: sid,
+                            user: peer.user,
+                            mediaState: peer.mediaState,
+                        });
                     }
                 });
+
+                // Tell the new joiner who's already here
                 socket.emit('roomJoined', {
                     roomId,
                     existingPeers,
@@ -90,19 +112,20 @@ export const setupRoomSignaling = (io) => {
                         name: room.name,
                         settings: room.settings,
                         hostId: room.host.toString(),
+                        isLocked: room.isLocked,
                     },
                 });
 
-                // Notify others that a new peer joined
+                // Tell everyone else a new peer arrived
                 socket.to(roomId).emit('peerJoined', {
                     socketId: socket.id,
                     user: socket.user,
                     mediaState: peerInfo.mediaState,
                 });
 
-                // Update DB participant record
+                // Update DB participant
                 const existingParticipant = room.participants.find(
-                    (p) => p.userId.toString() === socket.userId && !p.isActive
+                    p => p.userId.toString() === socket.userId
                 );
                 if (existingParticipant) {
                     existingParticipant.isActive = true;
@@ -110,38 +133,37 @@ export const setupRoomSignaling = (io) => {
                     existingParticipant.joinedAt = new Date();
                     existingParticipant.leftAt = undefined;
                 } else {
-                    const isHost = room.host.toString() === socket.userId;
                     room.participants.push({
                         userId: socket.userId,
                         socketId: socket.id,
                         isActive: true,
-                        role: isHost ? 'host' : 'participant',
+                        role: room.host.toString() === socket.userId ? 'host' : 'participant',
                     });
                 }
-
                 if (room.status === 'waiting') {
                     room.status = 'active';
                     room.startedAt = new Date();
                 }
                 await room.save();
 
-                // Emit system chat message
-                const joinMsg = {
+                // Broadcast system join message to ALL in room (including new joiner)
+                roomNs.to(roomId).emit('roomChatMessage', {
                     type: 'system',
-                    message: `${socket.user.name} joined the room`,
-                    timestamp: new Date(),
-                };
-                roomNs.to(roomId).emit('roomChatMessage', joinMsg);
+                    message: `${socket.user.name} joined`,
+                    timestamp: new Date().toISOString(),
+                });
 
-                console.log(`✅ ${socket.user.name} joined room ${roomId}. Peers: ${peers.size}`);
+                console.log(`✅ ${socket.user.name} joined room ${roomId}. Peers in room: ${peers.size}`);
             } catch (err) {
-                console.error('Join room error:', err.message);
-                socket.emit('joinError', { message: 'Failed to join room' });
+                console.error('joinRoom error:', err.message);
+                socket.emit('joinError', { message: 'Failed to join room. Please try again.' });
             }
         });
 
-        // ── WebRTC Offer (caller → callee) ────────────────────────────────
+        // ── WebRTC: Offer ──────────────────────────────────────────────────
+        // Relay offer from caller → callee
         socket.on('offer', ({ targetSocketId, offer, roomId }) => {
+            if (!targetSocketId || !offer) return;
             socket.to(targetSocketId).emit('offer', {
                 offer,
                 fromSocketId: socket.id,
@@ -150,8 +172,10 @@ export const setupRoomSignaling = (io) => {
             });
         });
 
-        // ── WebRTC Answer (callee → caller) ──────────────────────────────
+        // ── WebRTC: Answer ─────────────────────────────────────────────────
+        // Relay answer from callee → caller
         socket.on('answer', ({ targetSocketId, answer, roomId }) => {
+            if (!targetSocketId || !answer) return;
             socket.to(targetSocketId).emit('answer', {
                 answer,
                 fromSocketId: socket.id,
@@ -159,8 +183,9 @@ export const setupRoomSignaling = (io) => {
             });
         });
 
-        // ── ICE Candidates ────────────────────────────────────────────────
+        // ── WebRTC: ICE Candidates ─────────────────────────────────────────
         socket.on('iceCandidate', ({ targetSocketId, candidate, roomId }) => {
+            if (!targetSocketId || !candidate) return;
             socket.to(targetSocketId).emit('iceCandidate', {
                 candidate,
                 fromSocketId: socket.id,
@@ -168,51 +193,66 @@ export const setupRoomSignaling = (io) => {
             });
         });
 
-        // ── Media state change (mute/unmute/camera/screen) ────────────────
+        // ── Media state change ─────────────────────────────────────────────
         socket.on('mediaStateChange', ({ roomId, mediaState }) => {
+            // Update in-memory peer info
             const peers = roomPeers.get(roomId);
             if (peers?.has(socket.id)) {
-                peers.get(socket.id).mediaState = mediaState;
+                peers.get(socket.id).mediaState = {
+                    audioOff: mediaState?.audioOff ?? false,
+                    videoOff: mediaState?.videoOff ?? false,
+                    screen: mediaState?.screen ?? false,
+                };
             }
+            // Broadcast change to everyone else in the room
             socket.to(roomId).emit('peerMediaStateChange', {
                 socketId: socket.id,
                 mediaState,
             });
         });
 
-        // ── In-room chat ──────────────────────────────────────────────────
+        // ── In-room chat ───────────────────────────────────────────────────
+        // CRITICAL FIX: use roomNs.to(roomId) not socket.to(roomId)
+        // socket.to() excludes the sender — roomNs.to() sends to everyone including sender.
+        // This ensures the sender's chat panel also receives the message instantly.
         socket.on('roomChat', async ({ roomId, message }) => {
-            if (!message?.trim()) return;
+            if (!message?.trim() || !roomId) return;
+
             const chatMsg = {
                 sender: socket.userId,
                 senderName: socket.user.name,
-                senderAvatar: socket.user.avatar,
                 message: message.trim(),
-                timestamp: new Date(),
+                timestamp: new Date().toISOString(),
                 type: 'text',
             };
+
+            // Broadcast to ALL participants including sender — instant delivery
             roomNs.to(roomId).emit('roomChatMessage', chatMsg);
 
-            // Persist to DB (non-blocking)
-            Room.findOne({ roomId }).then((room) => {
-                if (room) {
-                    room.chatMessages.push(chatMsg);
-                    if (room.chatMessages.length > 500) room.chatMessages = room.chatMessages.slice(-500);
-                    room.save().catch(console.error);
-                }
-            }).catch(console.error);
+            // Persist to DB in background (non-blocking)
+            Room.findOne({ roomId })
+                .then(room => {
+                    if (room) {
+                        room.chatMessages.push({ ...chatMsg, timestamp: new Date() });
+                        if (room.chatMessages.length > 500) room.chatMessages = room.chatMessages.slice(-500);
+                        return room.save();
+                    }
+                })
+                .catch(err => console.error('Chat persist error:', err.message));
         });
 
-        // ── Raise / lower hand ────────────────────────────────────────────
+        // ── Raise / lower hand ─────────────────────────────────────────────
         socket.on('raiseHand', ({ roomId, raised }) => {
+            // Notify all OTHER participants
             socket.to(roomId).emit('peerHandRaise', {
                 socketId: socket.id,
                 user: socket.user,
-                raised,
+                raised: !!raised,
             });
         });
 
-        // ── Reaction ──────────────────────────────────────────────────────
+        // ── Emoji reaction ─────────────────────────────────────────────────
+        // Broadcast to ALL in room (including sender) so everyone sees it
         socket.on('reaction', ({ roomId, emoji }) => {
             roomNs.to(roomId).emit('peerReaction', {
                 socketId: socket.id,
@@ -221,43 +261,50 @@ export const setupRoomSignaling = (io) => {
             });
         });
 
-        // ── Screen share started/stopped ──────────────────────────────────
+        // ── Screen share notification ──────────────────────────────────────
         socket.on('screenShareChange', ({ roomId, isSharing }) => {
             socket.to(roomId).emit('peerScreenShare', {
                 socketId: socket.id,
                 user: socket.user,
-                isSharing,
+                isSharing: !!isSharing,
             });
         });
 
-        // ── Host controls ─────────────────────────────────────────────────
+        // ── Host: mute a participant ───────────────────────────────────────
         socket.on('muteParticipant', async ({ roomId, targetSocketId }) => {
-            // Verify host
-            const room = await Room.findOne({ roomId });
-            if (!room || room.host.toString() !== socket.userId) return;
-            roomNs.to(targetSocketId).emit('forceMute', { by: socket.user });
-        });
-
-        socket.on('lockRoom', async ({ roomId, locked }) => {
-            const room = await Room.findOne({ roomId });
-            if (!room || room.host.toString() !== socket.userId) return;
-            room.isLocked = locked;
-            await room.save();
-            roomNs.to(roomId).emit('roomLockChange', { locked, by: socket.user });
-        });
-
-        // ── Leave room ────────────────────────────────────────────────────
-        socket.on('leaveRoom', ({ roomId }) => {
-            handlePeerLeave(socket, roomId, roomPeers, roomNs);
-        });
-
-        // ── Disconnect ────────────────────────────────────────────────────
-        socket.on('disconnect', () => {
-            userSockets.delete(socket.userId);
-            if (socket.currentRoom) {
-                handlePeerLeave(socket, socket.currentRoom, roomPeers, roomNs);
+            try {
+                const room = await Room.findOne({ roomId });
+                if (!room || room.host.toString() !== socket.userId) return;
+                roomNs.to(targetSocketId).emit('forceMute', { by: socket.user });
+            } catch (err) {
+                console.error('muteParticipant error:', err.message);
             }
-            console.log(`❌ Room socket disconnected: ${socket.id}`);
+        });
+
+        // ── Host: lock / unlock room ───────────────────────────────────────
+        socket.on('lockRoom', async ({ roomId, locked }) => {
+            try {
+                const room = await Room.findOne({ roomId });
+                if (!room || room.host.toString() !== socket.userId) return;
+                room.isLocked = !!locked;
+                await room.save();
+                roomNs.to(roomId).emit('roomLockChange', { locked: room.isLocked, by: socket.user });
+            } catch (err) {
+                console.error('lockRoom error:', err.message);
+            }
+        });
+
+        // ── Leave room ─────────────────────────────────────────────────────
+        socket.on('leaveRoom', ({ roomId }) => {
+            handleLeave(socket, roomId, roomPeers, roomNs);
+        });
+
+        // ── Disconnect ─────────────────────────────────────────────────────
+        socket.on('disconnect', (reason) => {
+            console.log(`❌ Room socket disconnected: ${socket.id} (${reason})`);
+            if (socket.currentRoom) {
+                handleLeave(socket, socket.currentRoom, roomPeers, roomNs);
+            }
         });
     });
 
@@ -265,7 +312,8 @@ export const setupRoomSignaling = (io) => {
 };
 
 // ── Helper: handle peer leaving ───────────────────────────────────────────────
-async function handlePeerLeave(socket, roomId, roomPeers, roomNs) {
+async function handleLeave(socket, roomId, roomPeers, roomNs) {
+    // Remove from in-memory map
     const peers = roomPeers.get(roomId);
     if (peers) {
         peers.delete(socket.id);
@@ -274,41 +322,39 @@ async function handlePeerLeave(socket, roomId, roomPeers, roomNs) {
 
     socket.leave(roomId);
 
-    // Notify other peers
+    // Notify remaining peers
     socket.to(roomId).emit('peerLeft', {
         socketId: socket.id,
         user: socket.user,
     });
 
-    // System message
-    roomNs.to(roomId).emit('roomChatMessage', {
+    // Broadcast system message to remaining peers
+    socket.to(roomId).emit('roomChatMessage', {
         type: 'system',
-        message: `${socket.user?.name || 'A participant'} left the room`,
-        timestamp: new Date(),
+        message: `${socket.user?.name || 'A participant'} left`,
+        timestamp: new Date().toISOString(),
     });
 
     // Update DB
     try {
         const room = await Room.findOne({ roomId });
-        if (room) {
-            const participant = room.participants.find(
-                (p) => p.socketId === socket.id && p.isActive
-            );
-            if (participant) {
-                participant.isActive = false;
-                participant.leftAt = new Date();
-            }
+        if (!room) return;
 
-            // If host left and room still has peers, optionally end it
-            const activePeers = roomPeers.get(roomId);
-            if (!activePeers || activePeers.size === 0) {
-                room.status = 'ended';
-                room.endedAt = new Date();
-            }
-
-            await room.save();
+        const participant = room.participants.find(p => p.socketId === socket.id && p.isActive);
+        if (participant) {
+            participant.isActive = false;
+            participant.leftAt = new Date();
         }
+
+        // End room if everyone left
+        const remaining = roomPeers.get(roomId);
+        if (!remaining || remaining.size === 0) {
+            room.status = 'ended';
+            room.endedAt = new Date();
+        }
+
+        await room.save();
     } catch (err) {
-        console.error('Leave room DB update error:', err.message);
+        console.error('handleLeave DB error:', err.message);
     }
 }
