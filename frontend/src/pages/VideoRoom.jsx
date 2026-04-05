@@ -939,7 +939,7 @@ const LocalVideoTile = ({ videoRef, user, audioEnabled, videoEnabled, isScreenSh
                 </div>
             )}
             {/* Hover overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-start items-end p-3">
+            <div className="absolute inset-0  hover:opacity-100 transition-opacity flex flex-col justify-start items-end p-3">
                 <button onClick={onPin} className="p-1.5 bg-black/50 rounded-lg text-white hover:bg-black/70">
                     {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
                 </button>

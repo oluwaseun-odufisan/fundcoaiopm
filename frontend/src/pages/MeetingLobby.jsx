@@ -193,7 +193,7 @@ const CreateRoomModal = ({ onClose, onCreated, users, token }) => {
                                 return (
                                     <div key={u._id} onClick={() => toggleUser(u._id)}
                                         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${sel ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                                             {getFullName(u).charAt(0).toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -421,7 +421,7 @@ const MeetingLobby = () => {
                         <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 transition-colors">
                             <ArrowLeft className="w-4 h-4" />
                         </button>
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md">
                             <Video className="w-5 h-5 text-white" />
                         </div>
                         <div>
@@ -434,7 +434,7 @@ const MeetingLobby = () => {
                             <Settings2 className="w-4 h-4" />
                         </button>
                         <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
                                 {getFullName(user).charAt(0)}
                             </div>
                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:block">{user?.firstName}</span>
