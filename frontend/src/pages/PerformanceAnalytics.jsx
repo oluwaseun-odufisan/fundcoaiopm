@@ -1,807 +1,787 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+// src/pages/PerformanceDashboard.jsx
+// FundCo Performance Analytics — Professional rebuild
+// Design: Data-dense command-centre aesthetic. Dark metric cards, sharp contrast,
+//         animated progress rings, sparklines, heatmap, velocity bars.
+//         CSS variables throughout. No hardcoded dark: Tailwind classes.
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend } from 'chart.js';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import { TrendingUp, PieChart, BarChart, LineChart, Filter, Clock, Download, Trophy, Calendar, ChevronUp } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend);
-const PerformanceAnalytics = () => {
-    const { user, tasks } = useOutletContext();
-    const [dateRange, setDateRange] = useState('30');
-    const [customStartDate, setCustomStartDate] = useState(null);
-    const [customEndDate, setCustomEndDate] = useState(null);
-    const [priorityFilter, setPriorityFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [categoryFilter, setCategoryFilter] = useState('all');
-    const [exporting, setExporting] = useState(false);
-    const [showBackToTop, setShowBackToTop] = useState(false);
-    const scrollContainerRef = useRef(null);
-    // Scroll handler for Back to Top
-    useEffect(() => {
-        const handleScroll = () => {
-            if (scrollContainerRef.current) {
-                setShowBackToTop(scrollContainerRef.current.scrollTop > 200);
-            }
-        };
-        const container = scrollContainerRef.current;
-        if (container) {
-            container.addEventListener('scroll', handleScroll);
-            return () => container.removeEventListener('scroll', handleScroll);
-        }
-    }, []);
-    // Stats
-    const stats = useMemo(() => {
-        const completedTasks = tasks.filter(
-            (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
-        ).length;
-        const totalCount = tasks.length;
-        const pendingCount = totalCount - completedTasks;
-        const completionPercentage = totalCount ? Math.round((completedTasks / totalCount) * 100) : 0;
-        const highPriorityCompleted = tasks.filter(
-            (task) =>
-                (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) &&
-                task.priority?.toLowerCase() === 'high'
-        ).length;
-        const productivityScore = Math.min(100, completionPercentage + highPriorityCompleted * 5);
-        const overdueCount = tasks.filter((task) => task.dueDate && !task.completed && new Date(task.dueDate) < new Date()).length;
-        return {
-            totalCount,
-            completedTasks,
-            pendingCount,
-            completionPercentage,
-            productivityScore,
-            overdueCount,
-        };
-    }, [tasks]);
-    // Filtered tasks
-    const filteredTasks = useMemo(() => {
-        const now = new Date();
-        let startDate = new Date();
-        if (dateRange !== 'custom') {
-            startDate.setDate(now.getDate() - parseInt(dateRange));
-        } else if (customStartDate && customEndDate) {
-            startDate = customStartDate;
-        } else {
-            startDate.setDate(now.getDate() - 30);
-        }
-        const endDate = customEndDate || now;
-        return tasks.filter((task) => {
-            const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
-            const matchesDate = taskDate >= startDate && taskDate <= endDate;
-            const matchesPriority = priorityFilter === 'all' || task.priority?.toLowerCase() === priorityFilter;
-            const matchesStatus =
-                statusFilter === 'all' ||
-                (statusFilter === 'completed' &&
-                    (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes'))) ||
-                (statusFilter === 'pending' &&
-                    !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')));
-            const matchesCategory = categoryFilter === 'all' || (task.category || 'Uncategorized') === categoryFilter;
-            return matchesDate && matchesPriority && matchesStatus && matchesCategory;
-        });
-    }, [tasks, dateRange, customStartDate, customEndDate, priorityFilter, statusFilter, categoryFilter]);
-    // Categories
-    const categories = useMemo(() => {
-        return ['all', ...new Set(tasks.map((task) => task.category || 'Uncategorized'))];
-    }, [tasks]);
-    // Completion trend
-    const completionTrendData = useMemo(() => {
-        const labels = [];
-        const completedData = [];
-        const pendingData = [];
-        const days = dateRange === 'custom' && customStartDate && customEndDate ? Math.ceil((customEndDate - customStartDate) / (1000 * 60 * 60 * 24)) : parseInt(dateRange);
-        const now = new Date();
-        for (let i = days - 1; i >= 0; i--) {
-            const date = new Date(now);
-            date.setDate(now.getDate() - i);
-            const dateString = date.toLocaleDateString();
-            labels.push(dateString);
-            const tasksOnDate = filteredTasks.filter((task) => {
-                const taskDate = task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '';
-                return taskDate === dateString;
-            });
-            const completed = tasksOnDate.filter(
-                (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
-            ).length;
-            completedData.push(completed);
-            pendingData.push(tasksOnDate.length - completed);
-        }
-        return {
-            labels,
-            datasets: [
-                { label: 'Completed', data: completedData, borderColor: '#14B8A6', backgroundColor: 'rgba(20, 184, 166, 0.2)', fill: true },
-                { label: 'Pending', data: pendingData, borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true },
-            ],
-        };
-    }, [filteredTasks, dateRange, customStartDate, customEndDate]);
-    // Priority breakdown
-    const priorityBreakdownData = useMemo(() => {
-        const priorities = ['high', 'medium', 'low'];
-        const counts = priorities.map((priority) => filteredTasks.filter((task) => task.priority?.toLowerCase() === priority).length);
-        return {
-            labels: ['High', 'Medium', 'Low'],
-            datasets: [
-                {
-                    data: counts,
-                    backgroundColor: ['#EF4444', '#FBBF24', '#14B8A6'],
-                    borderColor: ['#DC2626', '#D97706', '#0D9488'],
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks]);
-    // Status breakdown
-    const statusBreakdownData = useMemo(() => {
-        const completed = filteredTasks.filter(
-            (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
-        ).length;
-        const pending = filteredTasks.length - completed;
-        return {
-            labels: ['Completed', 'Pending'],
-            datasets: [
-                {
-                    data: [completed, pending],
-                    backgroundColor: ['#14B8A6', '#3B82F6'],
-                    borderColor: ['#0D9488', '#2563EB'],
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks]);
-    // Category breakdown
-    const categoryBreakdownData = useMemo(() => {
-        const counts = categories.slice(1).map((category) => filteredTasks.filter((task) => (task.category || 'Uncategorized') === category).length);
-        return {
-            labels: categories.slice(1),
-            datasets: [
-                {
-                    data: counts,
-                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'],
-                    borderColor: ['#059669', '#D97706', '#DC2626', '#2563EB', '#7C3AED'],
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks, categories]);
-    // Activity heatmap
-    const dailyActivityData = useMemo(() => {
-        const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const data = days.map(() => Array(24).fill(0));
-        filteredTasks.forEach((task) => {
-            const date = task.createdAt ? new Date(task.createdAt) : new Date();
-            const day = date.getDay();
-            const hour = date.getHours();
-            data[day][hour]++;
-        });
-        return { days, hours, data };
-    }, [filteredTasks]);
-    // Task velocity
-    const taskVelocityData = useMemo(() => {
-        const labels = [];
-        const createdData = [];
-        const completedData = [];
-        const days = dateRange === 'custom' && customStartDate && customEndDate ? Math.ceil((customEndDate - customStartDate) / (1000 * 60 * 60 * 24)) : parseInt(dateRange);
-        const now = new Date();
-        for (let i = days - 1; i >= 0; i--) {
-            const date = new Date(now);
-            date.setDate(now.getDate() - i);
-            const dateString = date.toLocaleDateString();
-            labels.push(dateString);
-            const tasksOnDate = filteredTasks.filter((task) => {
-                const taskDate = task.createdAt ? new Date(task.createdAt).toLocaleDateString() : '';
-                return taskDate === dateString;
-            });
-            const completed = tasksOnDate.filter(
-                (task) => task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')
-            ).length;
-            createdData.push(tasksOnDate.length);
-            completedData.push(completed);
-        }
-        return {
-            labels,
-            datasets: [
-                { label: 'Created', data: createdData, borderColor: '#3B82F6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true },
-                { label: 'Completed', data: completedData, borderColor: '#14B8A6', backgroundColor: 'rgba(20, 184, 166, 0.2)', fill: true },
-            ],
-        };
-    }, [filteredTasks, dateRange, customStartDate, customEndDate]);
-    // Category effort
-    const categoryEffortData = useMemo(() => {
-        const effortMap = { high: 4, medium: 2, low: 1 };
-        const counts = categories.slice(1).map((category) =>
-            filteredTasks
-                .filter((task) => (task.category || 'Uncategorized') === category)
-                .reduce((acc, task) => acc + (effortMap[task.priority?.toLowerCase()] || 1), 0)
-        );
-        return {
-            labels: categories.slice(1),
-            datasets: [
-                {
-                    data: counts,
-                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6'],
-                    borderColor: ['#059669', '#D97706', '#DC2626', '#2563EB', '#7C3AED'],
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks, categories]);
-    // Completion time by priority
-    const priorityCompletionTimeData = useMemo(() => {
-        const priorities = ['high', 'medium', 'low'];
-        const times = priorities.map((priority) => {
-            const tasksByPriority = filteredTasks.filter((task) => task.priority?.toLowerCase() === priority && task.completed && task.createdAt && task.dueDate);
-            const totalTime = tasksByPriority.reduce((acc, task) => {
-                const created = new Date(task.createdAt);
-                const completed = new Date(task.dueDate);
-                return acc + (completed - created) / (1000 * 60 * 60 * 24);
-            }, 0);
-            return tasksByPriority.length ? totalTime / tasksByPriority.length : 0;
-        });
-        return {
-            labels: ['High', 'Medium', 'Low'],
-            datasets: [
-                {
-                    data: times,
-                    backgroundColor: ['#EF4444', '#FBBF24', '#14B8A6'],
-                    borderColor: ['#DC2626', '#D97706', '#0D9488'],
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks]);
-    // Weekly productivity
-    const weeklyProductivityData = useMemo(() => {
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const counts = days.map((_, i) =>
-            filteredTasks.filter(
-                (task) =>
-                    task.createdAt &&
-                    new Date(task.createdAt).getDay() === i &&
-                    (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes'))
-            ).length
-        );
-        return {
-            labels: days,
-            datasets: [
-                {
-                    label: 'Completed Tasks',
-                    data: counts,
-                    backgroundColor: '#3B82F6',
-                    borderColor: '#2563EB',
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [filteredTasks]);
-    // Insights and badges
-    const { insights, badges } = useMemo(() => {
-        const highPriorityCount = filteredTasks.filter((task) => task.priority?.toLowerCase() === 'high').length;
-        const pendingCount = filteredTasks.filter(
-            (task) => !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes'))
-        ).length;
-        const overdueCount = filteredTasks.filter((task) => task.dueDate && !task.completed && new Date(task.dueDate) < new Date()).length;
-        const peakHours = dailyActivityData.hours.reduce(
-            (acc, _, i) => {
-                const total = dailyActivityData.data.reduce((sum, row) => sum + row[i], 0);
-                return total > acc.count ? { hour: i, count: total } : acc;
-            },
-            { hour: 0, count: 0 }
-        );
-        const insights = [];
-        const badges = [];
-        if (highPriorityCount > 5) insights.push('Many high-priority tasks. Focus on these first.');
-        if (pendingCount > 10) insights.push('Pending tasks piling up. Try time-blocking.');
-        if (overdueCount > 3) insights.push('Overdue tasks detected. Address them soon.');
-        if (stats.completionPercentage > 80) {
-            insights.push('Great completion rate! Keep it up.');
-            badges.push({ name: 'Productivity Pro', icon: Trophy, color: 'text-amber-500 dark:text-amber-400' });
-        }
-        if (stats.productivityScore > 90) badges.push({ name: 'Task Master', icon: Trophy, color: 'text-purple-500 dark:text-purple-400' });
-        if (peakHours.count > 5) insights.push(`Most active at ${peakHours.hour}:00. Schedule key tasks then.`);
-        if (!insights.length) insights.push('Solid progress! Stay organized.');
-        return { insights, badges };
-    }, [filteredTasks, stats, dailyActivityData]);
-    // Reset filters
-    const resetFilters = () => {
-        setDateRange('30');
-        setCustomStartDate(null);
-        setCustomEndDate(null);
-        setPriorityFilter('all');
-        setStatusFilter('all');
-        setCategoryFilter('all');
-    };
-    // Export to CSV
-    const exportToCSV = async () => {
-        try {
-            setExporting(true);
-            const headers = ['ID', 'Title', 'Priority', 'Status', 'Category', 'Created At', 'Due Date', 'Completed'];
-            const rows = filteredTasks.map((task) => [
-                task._id || '',
-                task.title || 'Untitled',
-                task.priority || 'None',
-                (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) ? 'Completed' : 'Pending',
-                task.category || 'Uncategorized',
-                task.createdAt && !isNaN(new Date(task.createdAt)) ? new Date(task.createdAt).toLocaleString() : 'N/A',
-                task.dueDate && !isNaN(new Date(task.dueDate)) ? new Date(task.dueDate).toLocaleString() : 'N/A',
-                (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) ? 'Yes' : 'No',
-            ]);
-            const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `analytics_${new Date().toISOString()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url); // Clean up
-        } catch (error) {
-            console.error('Failed to export CSV:', error);
-            alert('Failed to export CSV. Please try again or check the console for details.');
-        } finally {
-            setExporting(false);
-        }
-    };
-    // Export to PDF
-    const exportToPDF = async () => {
-        try {
-            setExporting(true);
-            const dashboard = document.getElementById('dashboard');
-            if (!dashboard) {
-                throw new Error('Dashboard element not found');
-            }
-            const canvas = await html2canvas(dashboard, {
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                backgroundColor: '#fff',
-                scrollX: 0,
-                scrollY: -window.scrollY, // Adjust for scroll position
-            });
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 190;
-            const pageHeight = 295;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 10;
-            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
-            heightLeft -= pageHeight;
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight + 10;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
-                heightLeft -= pageHeight;
-            }
-            pdf.save(`analytics_${new Date().toISOString()}.pdf`);
-        } catch (error) {
-            console.error('Failed to export PDF:', error);
-            alert('Failed to export PDF. Please try again or check the console for details.');
-        } finally {
-            setExporting(false);
-        }
-    };
-    // Scroll to top
-    const scrollToTop = () => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    };
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-teal-100 to-blue-100 dark:from-gray-900 dark:to-blue-900 flex flex-col font-sans">
-            {/* Title Section */}
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="sticky top-0 z-20 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-md flex items-center justify-between px-6 py-4 h-16"
-            >
-                <div className="flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6 text-teal-600 dark:text-teal-400" />
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Analytics Dashboard</h1>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={exportToCSV}
-                        disabled={exporting}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-teal-600 dark:bg-teal-700 text-white rounded-md hover:bg-teal-700 dark:hover:bg-teal-600 disabled:opacity-50 focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400"
-                        aria-label="Export to CSV"
-                    >
-                        <Download className="w-4 h-4" /> CSV
-                    </button>
-                    <button
-                        onClick={exportToPDF}
-                        disabled={exporting}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                        aria-label="Export to PDF"
-                    >
-                        <Download className="w-4 h-4" /> PDF
-                    </button>
-                </div>
-            </motion.div>
-            {/* Scrollable Content */}
-            <div ref={scrollContainerRef} className="flex-1 scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800 scrollbar-rounded px-6 py-6" id="dashboard">
-                {/* Filter Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.1 }}
-                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 mb-6 sticky top-16 z-10 shadow-md"
-                >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <select
-                            value={dateRange}
-                            onChange={(e) => setDateRange(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                            aria-label="Date range"
-                        >
-                            <option value="7">Last 7 Days</option>
-                            <option value="30">Last 30 Days</option>
-                            <option value="90">Last 90 Days</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                        <AnimatePresence>
-                            {dateRange === 'custom' && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="col-span-1 sm:col-span-2 flex gap-4"
-                                >
-                                    <DatePicker
-                                        selected={customStartDate}
-                                        onChange={(date) => setCustomStartDate(date)}
-                                        selectsStart
-                                        startDate={customStartDate}
-                                        endDate={customEndDate}
-                                        placeholderText="Start Date"
-                                        className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                                        aria-label="Start date"
-                                    />
-                                    <DatePicker
-                                        selected={customEndDate}
-                                        onChange={(date) => setCustomEndDate(date)}
-                                        selectsEnd
-                                        startDate={customStartDate}
-                                        endDate={customEndDate}
-                                        minDate={customStartDate}
-                                        placeholderText="End Date"
-                                        className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                                        aria-label="End date"
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                        <select
-                            value={priorityFilter}
-                            onChange={(e) => setPriorityFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                            aria-label="Priority"
-                        >
-                            <option value="all">All Priorities</option>
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                        </select>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                            aria-label="Status"
-                        >
-                            <option value="all">All Statuses</option>
-                            <option value="completed">Completed</option>
-                            <option value="pending">Pending</option>
-                        </select>
-                        <select
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                            className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 min-w-[120px] text-gray-900 dark:text-gray-100"
-                            aria-label="Category"
-                        >
-                            {categories.map((category) => (
-                                <option key={category} value={category}>
-                                    {category}
-                                </option>
-                            ))}
-                        </select>
-                        <button
-                            onClick={resetFilters}
-                            className="px-4 py-2 text-sm bg-amber-600 dark:bg-amber-700 text-white rounded-md hover:bg-amber-700 dark:hover:bg-amber-600 focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
-                            aria-label="Reset filters"
-                        >
-                            Reset Filters
-                        </button>
-                    </div>
-                </motion.div>
-                {/* Stats Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.2 }}
-                    className="grid grid-cols-3 lg:grid-cols-6 gap-4 mb-6"
-                >
-                    {[
-                        { label: 'Total Tasks', value: stats.totalCount, icon: PieChart, color: 'teal-600 dark:teal-400' },
-                        { label: 'Completed', value: stats.completedTasks, icon: PieChart, color: 'blue-600 dark:blue-400' },
-                        { label: 'Pending', value: stats.pendingCount, icon: PieChart, color: 'amber-600 dark:amber-400' },
-                        { label: 'Overdue', value: stats.overdueCount, icon: Clock, color: 'red-600 dark:red-400' },
-                        { label: 'Completion', value: `${stats.completionPercentage}%`, icon: Trophy, color: 'purple-600 dark:purple-400' },
-                        { label: 'Productivity', value: `${stats.productivityScore}%`, icon: TrendingUp, color: 'green-600 dark:green-400' },
-                    ].map(({ label, value, icon: Icon, color }) => (
-                        <div
-                            key={label}
-                            className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md hover:scale-105 transition-transform duration-300"
-                        >
-                            <div className="flex items-center gap-2">
-                                <Icon className={`w-5 h-5 text-${color}`} />
-                                <div>
-                                    <p className={`text-sm font-semibold text-${color}`}>{value}</p>
-                                    <p className="text-xs text-gray-600 dark:text-gray-400">{label}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </motion.div>
-                {/* Visual Insights Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                    className="mb-6"
-                >
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 sticky top-16 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md py-2 z-10 mb-4">
-                        <BarChart className="w-6 h-6 text-teal-600 dark:text-teal-400" /> Visual Insights
-                    </h2>
-                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-6 shadow-md overflow-y-auto scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800 max-h-[70vh]">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                                {
-                                    title: 'Completion Trend',
-                                    Component: Line,
-                                    data: completionTrendData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'top', labels: { font: { size: 12 } } }, title: { display: false } },
-                                        scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
-                                    },
-                                    icon: LineChart,
-                                    color: 'teal-600 dark:teal-400',
-                                },
-                                {
-                                    title: 'Priority Breakdown',
-                                    Component: Doughnut,
-                                    data: priorityBreakdownData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
-                                    },
-                                    icon: PieChart,
-                                    color: 'blue-600 dark:blue-400',
-                                },
-                                {
-                                    title: 'Status Breakdown',
-                                    Component: Bar,
-                                    data: statusBreakdownData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { display: false }, title: { display: false } },
-                                        scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
-                                    },
-                                    icon: BarChart,
-                                    color: 'amber-600 dark:amber-400',
-                                },
-                                {
-                                    title: 'Category Breakdown',
-                                    Component: Pie,
-                                    data: categoryBreakdownData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
-                                    },
-                                    icon: PieChart,
-                                    color: 'purple-600 dark:purple-400',
-                                },
-                                {
-                                    title: 'Task Velocity',
-                                    Component: Line,
-                                    data: taskVelocityData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'top', labels: { font: { size: 12 } } }, title: { display: false } },
-                                        scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
-                                    },
-                                    icon: LineChart,
-                                    color: 'cyan-600 dark:cyan-400',
-                                },
-                                {
-                                    title: 'Category Effort',
-                                    Component: Pie,
-                                    data: categoryEffortData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'right', labels: { font: { size: 12 } } }, title: { display: false } },
-                                    },
-                                    icon: PieChart,
-                                    color: 'green-600 dark:green-400',
-                                },
-                                {
-                                    title: 'Priority Time',
-                                    Component: Bar,
-                                    data: priorityCompletionTimeData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { display: false }, title: { display: false } },
-                                        scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
-                                    },
-                                    icon: BarChart,
-                                    color: 'red-600 dark:red-400',
-                                },
-                                {
-                                    title: 'Weekly Productivity',
-                                    Component: Bar,
-                                    data: weeklyProductivityData,
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: { legend: { display: false }, title: { display: false } },
-                                        scales: { x: { ticks: { font: { size: 12 } } }, y: { beginAtZero: true, ticks: { font: { size: 12 } } } },
-                                    },
-                                    icon: BarChart,
-                                    color: 'orange-600 dark:orange-400',
-                                },
-                                {
-                                    title: 'Activity Heatmap',
-                                    Component: () => (
-                                        <div className="grid grid-cols-[auto_repeat(24,1fr)] gap-1 bg-gray-50 dark:bg-gray-700 rounded-lg overflow-x-auto">
-                                            <div className="h-6" />
-                                            {dailyActivityData.hours.map((hour) => (
-                                                <div key={`hour-${hour}`} className="text-xs text-gray-600 dark:text-gray-400 text-center h-6">
-                                                    {hour}
-                                                </div>
-                                            ))}
-                                            {dailyActivityData.days.map((day, dayIdx) => (
-                                                <React.Fragment key={`day-${dayIdx}`}>
-                                                    <div className="text-xs text-gray-600 dark:text-gray-400 h-6 flex items-center pl-2">{day}</div>
-                                                    {dailyActivityData.data[dayIdx].map((count, hourIdx) => (
-                                                        <div
-                                                            key={`cell-${dayIdx}-${hourIdx}`}
-                                                            className={`h-6 w-full bg-teal-50 dark:bg-teal-900/30 ${count > 0 ? `bg-opacity-${Math.min(count * 20, 100)} dark:bg-opacity-${Math.min(count * 20, 100)}` : ''} relative group`}
-                                                            aria-label={`${count} tasks on ${day} at ${dailyActivityData.hours[hourIdx]}`}
-                                                        >
-                                                            {count > 0 && (
-                                                                <div className="absolute hidden group-hover:block bg-gray-800 dark:bg-gray-900 text-white dark:text-gray-200 text-xs p-1 rounded z-10 top-full left-1/2 -translate-x-1/2 mt-2">
-                                                                    {count} tasks
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-                                    ),
-                                    options: {},
-                                    icon: Calendar,
-                                    color: 'teal-600 dark:teal-400',
-                                },
-                            ].map(({ title, Component, data, options, icon: Icon, color }, idx) => (
-                                <div key={`chart-${idx}`} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md h-[300px] hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-300">
-                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
-                                        <Icon className={`w-5 h-5 text-${color}`} />
-                                        {title}
-                                    </h3>
-                                    <div className="h-[260px]">
-                                        {typeof Component === 'function' && !data ? <Component /> : <Component data={data} options={options} />}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </motion.div>
-                {/* Insights & Badges Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
-                    className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6"
-                >
-                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
-                            <Clock className="w-6 h-6 text-teal-600 dark:text-teal-400" /> Insights
-                        </h3>
-                        <ul className="space-y-2">
-                            {insights.map((insight, idx) => (
-                                <li key={`insight-${idx}`} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                    <span className="w-2 h-2 bg-teal-600 dark:bg-teal-400 rounded-full mt-2" />
-                                    {insight}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2">
-                            <Trophy className="w-6 h-6 text-amber-600 dark:text-amber-400" /> Achievements
-                        </h3>
-                        {badges.length ? (
-                            <div className="grid grid-cols-2 gap-2">
-                                {badges.map(({ name, icon: Icon, color }, idx) => (
-                                    <div key={`badge-${idx}`} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-md text-sm">
-                                        <Icon className={`w-5 h-5 ${color}`} />
-                                        <span className="text-gray-800 dark:text-gray-200">{name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-700 dark:text-gray-300">No badges yet!</p>
-                        )}
-                    </div>
-                </motion.div>
-                {/* Timeline Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-lg p-4 shadow-md mb-6"
-                >
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 mb-2 sticky top-16 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md z-10">
-                        <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Task History
-                    </h3>
-                    <div className="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-teal-600 dark:scrollbar-teal-400 scrollbar-track-teal-100 dark:scrollbar-track-gray-800">
-                        {filteredTasks.length ? (
-                            <div className="relative pl-4">
-                                <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-600" />
-                                {filteredTasks.slice(0, 5).map((task, idx) => (
-                                    <motion.div
-                                        key={task._id || `task-${idx}`}
-                                        initial={{ opacity: 0, x: 10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.1 }}
-                                        className="relative mb-3"
-                                    >
-                                        <div className="absolute left-[-6px] top-2 w-3 h-3 bg-teal-600 dark:bg-teal-400 rounded-full border-2 border-white dark:border-gray-800" />
-                                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{task.title || 'Untitled'}</p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">
-                                                {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'N/A'} • {task.priority || 'None'} • {task.completed ? 'Done' : 'Pending'}
-                                            </p>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-700 dark:text-gray-300 text-center">No tasks found.</p>
-                        )}
-                    </div>
-                </motion.div>
-                {/* Back to Top */}
-                <AnimatePresence>
-                    {showBackToTop && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0 }}
-                            onClick={scrollToTop}
-                            className="fixed bottom-6 right-6 p-3 bg-teal-600 dark:bg-teal-700 text-white rounded-full shadow-md hover:bg-teal-700 dark:hover:bg-teal-600 focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400"
-                            aria-label="Back to top"
-                        >
-                            <ChevronUp className="w-6 h-6" />
-                        </motion.button>
-                    )}
-                </AnimatePresence>
-            </div>
-        </div>
-    );
+import {
+  TrendingUp, TrendingDown, CheckCircle2, Clock, AlertTriangle,
+  Zap, Target, BarChart2, Activity, Download, RefreshCw, Filter,
+  ChevronDown, Award, Calendar, Minus, ArrowUpRight, ArrowDownRight,
+} from 'lucide-react';
+import {
+  Chart as ChartJS,
+  CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend, Filler,
+} from 'chart.js';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend, Filler
+);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const isCompleted = (t) =>
+  t.completed === true || t.completed === 1 ||
+  (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes');
+
+const isOverdue = (t) =>
+  t.dueDate && !isCompleted(t) && new Date(t.dueDate) < new Date();
+
+const fmtPct  = (n) => `${Math.round(n)}%`;
+const fmtNum  = (n) => n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n);
+const DAYS_ABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const PRIORITY_COLORS = {
+  high:   { solid:'#ef4444', soft:'rgba(239,68,68,.15)'  },
+  medium: { solid:'#f59e0b', soft:'rgba(245,158,11,.15)' },
+  low:    { solid:'#22c55e', soft:'rgba(34,197,94,.15)'  },
 };
+
+// ── Chart default options ─────────────────────────────────────────────────────
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'var(--bg-surface)',
+      titleColor: 'var(--text-primary)',
+      bodyColor: 'var(--text-secondary)',
+      borderColor: 'var(--border-color)',
+      borderWidth: 1,
+      padding: 10,
+      cornerRadius: 8,
+    },
+  },
+  scales: {
+    x: {
+      grid: { color: 'rgba(128,128,128,.08)' },
+      ticks: { color: 'var(--text-muted)', font: { size: 11 } },
+    },
+    y: {
+      grid: { color: 'rgba(128,128,128,.08)' },
+      ticks: { color: 'var(--text-muted)', font: { size: 11 } },
+      beginAtZero: true,
+    },
+  },
+};
+
+// ── SVG progress ring ─────────────────────────────────────────────────────────
+const Ring = ({ pct, size = 80, stroke = 7, color = 'var(--brand-primary)', label }) => {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width={size} height={size}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke="rgba(128,128,128,.15)" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={{ transition: 'stroke-dashoffset 1s ease' }} />
+        <text x={size/2} y={size/2 + 5} textAnchor="middle"
+          fontSize={size < 72 ? 13 : 16} fontWeight="800" fill={color}>
+          {Math.round(pct)}%
+        </text>
+      </svg>
+      {label && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>{label}</span>}
+    </div>
+  );
+};
+
+// ── Sparkline (inline mini chart) ─────────────────────────────────────────────
+const Sparkline = ({ data = [], color = '#36a9e1', height = 36, width = 100 }) => {
+  if (data.length < 2) return <div style={{ width, height }} />;
+  const max = Math.max(...data) || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - (v / max) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+// ── KPI card ──────────────────────────────────────────────────────────────────
+const KPICard = ({ label, value, sub, trend, trendLabel, icon: Icon, color, spark = [], delay = 0 }) => {
+  const trendUp = trend > 0;
+  const trendNeutral = trend === 0;
+  return (
+    <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }}
+      transition={{ delay, duration:.4 }}
+      className="rounded-2xl border p-4 flex flex-col gap-3"
+      style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ backgroundColor: `${color}18` }}>
+            <Icon className="w-4 h-4" style={{ color }} />
+          </div>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>{label}</p>
+        </div>
+        {spark.length > 1 && <Sparkline data={spark} color={color} />}
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-3xl font-black leading-none" style={{ color:'var(--text-primary)' }}>{value}</p>
+          {sub && <p className="text-xs mt-1" style={{ color:'var(--text-muted)' }}>{sub}</p>}
+        </div>
+        {trend !== undefined && (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold"
+            style={{
+              backgroundColor: trendNeutral ? 'rgba(128,128,128,.1)' : trendUp ? 'rgba(34,197,94,.12)' : 'rgba(239,68,68,.12)',
+              color: trendNeutral ? 'var(--text-muted)' : trendUp ? '#22c55e' : '#ef4444',
+            }}>
+            {trendNeutral ? <Minus className="w-3 h-3" /> : trendUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {Math.abs(trend)}{trendLabel || '%'}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+// ── Section heading ───────────────────────────────────────────────────────────
+const Section = ({ title, icon: Icon, children, delay = 0 }) => (
+  <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay, duration:.35 }}
+    className="space-y-4">
+    <div className="flex items-center gap-2">
+      <Icon className="w-4 h-4" style={{ color:'var(--brand-primary)' }} />
+      <h2 className="text-xs font-black uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>{title}</h2>
+      <div className="flex-1 h-px" style={{ backgroundColor:'var(--border-color)' }} />
+    </div>
+    {children}
+  </motion.div>
+);
+
+// ── Filter pill ───────────────────────────────────────────────────────────────
+const Pill = ({ label, active, onClick }) => (
+  <button onClick={onClick}
+    className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+    style={active
+      ? { backgroundColor:'var(--brand-primary)', color:'#fff' }
+      : { backgroundColor:'var(--bg-subtle)', color:'var(--text-secondary)' }}
+    onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor='var(--bg-hover)'; }}
+    onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor='var(--bg-subtle)'; }}>
+    {label}
+  </button>
+);
+
+// ── Activity heatmap ──────────────────────────────────────────────────────────
+const Heatmap = ({ data }) => {
+  // data: { days, hours, grid } where grid[day][hour] = count
+  const { days, hours, grid } = data;
+  const maxVal = Math.max(1, ...grid.flat());
+  const getColor = (count) => {
+    if (!count) return 'var(--bg-hover)';
+    const alpha = 0.15 + (count / maxVal) * 0.85;
+    return `rgba(49,39,131,${alpha})`;
+  };
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-max">
+        {/* Hour labels */}
+        <div className="flex gap-px pl-10 mb-1">
+          {hours.filter((_, i) => i % 3 === 0).map(h => (
+            <div key={h} className="w-8 text-center" style={{ width: 3 * 28 }}>
+              <span className="text-[10px]" style={{ color:'var(--text-muted)' }}>{h}</span>
+            </div>
+          ))}
+        </div>
+        {days.map((day, di) => (
+          <div key={day} className="flex items-center gap-px mb-px">
+            <span className="text-[10px] font-bold w-9 flex-shrink-0" style={{ color:'var(--text-muted)' }}>{day}</span>
+            {(grid[di] || []).map((count, hi) => (
+              <div key={hi} title={`${count} task${count !== 1 ? 's' : ''} at ${hours[hi]}`}
+                className="rounded-sm transition-transform hover:scale-125 cursor-default"
+                style={{ width:26, height:20, backgroundColor:getColor(count), flexShrink:0 }} />
+            ))}
+          </div>
+        ))}
+        {/* Legend */}
+        <div className="flex items-center gap-2 mt-3 pl-10">
+          <span className="text-[10px]" style={{ color:'var(--text-muted)' }}>Less</span>
+          {[0,.2,.4,.65,.9].map((a, i) => (
+            <div key={i} className="w-4 h-4 rounded-sm" style={{ backgroundColor: a === 0 ? 'var(--bg-hover)' : `rgba(49,39,131,${a})` }} />
+          ))}
+          <span className="text-[10px]" style={{ color:'var(--text-muted)' }}>More</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Priority bar ──────────────────────────────────────────────────────────────
+const PriorityBar = ({ label, count, total, color }) => {
+  const pct = total ? (count / total) * 100 : 0;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-bold capitalize" style={{ color:'var(--text-primary)' }}>{label}</span>
+        <div className="flex items-center gap-2">
+          <span style={{ color:'var(--text-muted)' }}>{count} tasks</span>
+          <span className="font-bold" style={{ color }}>{fmtPct(pct)}</span>
+        </div>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor:'var(--bg-hover)' }}>
+        <motion.div className="h-full rounded-full" style={{ backgroundColor: color }}
+          initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration:.8, ease:'easeOut' }} />
+      </div>
+    </div>
+  );
+};
+
+// ── Task row (timeline) ───────────────────────────────────────────────────────
+const TaskRow = ({ task, index }) => {
+  const done = isCompleted(task);
+  const over = isOverdue(task);
+  const p    = (task.priority || 'low').toLowerCase();
+  const pc   = PRIORITY_COLORS[p] || PRIORITY_COLORS.low;
+  return (
+    <motion.div initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }}
+      transition={{ delay: index * 0.04 }}
+      className="flex items-center gap-3 py-2.5 border-b"
+      style={{ borderColor:'var(--border-color)' }}>
+      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: pc.solid }} />
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-semibold truncate ${done ? 'line-through' : ''}`}
+          style={{ color: done ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+          {task.title || 'Untitled'}
+        </p>
+        <p className="text-xs" style={{ color:'var(--text-muted)' }}>
+          {task.createdAt ? new Date(task.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—'}
+        </p>
+      </div>
+      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0"
+        style={{ backgroundColor: pc.soft, color: pc.solid }}>
+        {task.priority || 'Low'}
+      </span>
+      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0"
+        style={{
+          backgroundColor: done ? 'rgba(34,197,94,.12)' : over ? 'rgba(239,68,68,.12)' : 'rgba(245,158,11,.12)',
+          color: done ? '#22c55e' : over ? '#ef4444' : '#f59e0b',
+        }}>
+        {done ? 'Done' : over ? 'Overdue' : 'Pending'}
+      </span>
+    </motion.div>
+  );
+};
+
+// ── Badge card ────────────────────────────────────────────────────────────────
+const Badge = ({ name, desc, icon: Icon, color, earned }) => (
+  <div className="flex items-center gap-3 p-3 rounded-xl border transition-all"
+    style={{
+      backgroundColor: earned ? `${color}10` : 'var(--bg-subtle)',
+      borderColor: earned ? color : 'var(--border-color)',
+      opacity: earned ? 1 : 0.45,
+    }}>
+    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: earned ? `${color}20` : 'var(--bg-hover)' }}>
+      <Icon className="w-5 h-5" style={{ color: earned ? color : 'var(--text-muted)' }} />
+    </div>
+    <div className="min-w-0">
+      <p className="text-sm font-bold truncate" style={{ color: earned ? 'var(--text-primary)' : 'var(--text-muted)' }}>{name}</p>
+      <p className="text-[11px]" style={{ color:'var(--text-muted)' }}>{desc}</p>
+    </div>
+    {earned && <div className="w-2 h-2 rounded-full flex-shrink-0 ml-auto" style={{ backgroundColor: color }} />}
+  </div>
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+const PerformanceAnalytics = () => {
+  const { user, tasks = [] } = useOutletContext();
+  const [period,   setPeriod]   = useState('30');   // '7' | '30' | '90' | 'all'
+  const [priority, setPriority] = useState('all');
+  const [status,   setStatus]   = useState('all');
+  const [exporting,setExporting]= useState(false);
+
+  // ── Date range ───────────────────────────────────────────────────────────
+  const periodDays = period === 'all' ? Infinity : parseInt(period);
+  const startDate  = useMemo(() => {
+    if (period === 'all') return new Date(0);
+    const d = new Date();
+    d.setDate(d.getDate() - periodDays);
+    return d;
+  }, [period, periodDays]);
+
+  // ── Filtered tasks ───────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return tasks.filter(t => {
+      const d = t.createdAt ? new Date(t.createdAt) : new Date();
+      if (d < startDate) return false;
+      if (priority !== 'all' && (t.priority || '').toLowerCase() !== priority) return false;
+      if (status === 'completed' && !isCompleted(t)) return false;
+      if (status === 'pending'   && isCompleted(t))  return false;
+      return true;
+    });
+  }, [tasks, startDate, priority, status]);
+
+  // ── Core KPIs ────────────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    const total     = filtered.length;
+    const done      = filtered.filter(isCompleted).length;
+    const overdue   = filtered.filter(isOverdue).length;
+    const highDone  = filtered.filter(t => isCompleted(t) && (t.priority||'').toLowerCase() === 'high').length;
+    const compRate  = total ? (done / total) * 100 : 0;
+    const score     = Math.min(100, compRate * 0.7 + highDone * 3);
+    // Previous period for trend comparison
+    const prev = tasks.filter(t => {
+      const d = t.createdAt ? new Date(t.createdAt) : new Date();
+      const prevEnd = new Date(startDate);
+      const prevStart = new Date(startDate);
+      if (period !== 'all') prevStart.setDate(prevStart.getDate() - periodDays);
+      return d >= prevStart && d < prevEnd;
+    });
+    const prevDone = prev.filter(isCompleted).length;
+    const prevRate = prev.length ? (prevDone / prev.length) * 100 : 0;
+    return { total, done, pending: total - done, overdue, compRate, score, prevRate };
+  }, [filtered, tasks, startDate, period, periodDays]);
+
+  // ── Sparkline data (last 14 days) ─────────────────────────────────────────
+  const sparklines = useMemo(() => {
+    const days = 14;
+    const now  = new Date();
+    const series = { created:[], done:[], overdue:[] };
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now); d.setDate(now.getDate() - i);
+      const ds = d.toDateString();
+      const day = tasks.filter(t => t.createdAt && new Date(t.createdAt).toDateString() === ds);
+      series.created.push(day.length);
+      series.done.push(day.filter(isCompleted).length);
+      series.overdue.push(day.filter(isOverdue).length);
+    }
+    return series;
+  }, [tasks]);
+
+  // ── Trend chart data (completion vs created by day) ───────────────────────
+  const trendData = useMemo(() => {
+    const days = Math.min(periodDays === Infinity ? 30 : periodDays, 60);
+    const now  = new Date();
+    const labels = [], created = [], done = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now); d.setDate(now.getDate() - i);
+      const ds = d.toDateString();
+      const bucket = filtered.filter(t => t.createdAt && new Date(t.createdAt).toDateString() === ds);
+      labels.push(days <= 14
+        ? d.toLocaleDateString('en-GB', { day:'numeric', month:'short' })
+        : d.toLocaleDateString('en-GB', { day:'numeric', month:'short' }));
+      created.push(bucket.length);
+      done.push(bucket.filter(isCompleted).length);
+    }
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Created',
+          data: created,
+          borderColor: '#36a9e1',
+          backgroundColor: 'rgba(54,169,225,.08)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+        },
+        {
+          label: 'Completed',
+          data: done,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,.08)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+        },
+      ],
+    };
+  }, [filtered, periodDays]);
+
+  // ── Weekly bar ────────────────────────────────────────────────────────────
+  const weeklyData = useMemo(() => ({
+    labels: DAYS_ABBR,
+    datasets: [{
+      label: 'Completed',
+      data: DAYS_ABBR.map((_, i) =>
+        filtered.filter(t => t.createdAt && new Date(t.createdAt).getDay() === i && isCompleted(t)).length
+      ),
+      backgroundColor: DAYS_ABBR.map((_, i) => i === new Date().getDay() ? '#312783' : 'rgba(49,39,131,.35)'),
+      borderRadius: 6,
+    }],
+  }), [filtered]);
+
+  // ── Priority breakdown doughnut ───────────────────────────────────────────
+  const priorityData = useMemo(() => {
+    const h = filtered.filter(t => (t.priority||'low').toLowerCase() === 'high').length;
+    const m = filtered.filter(t => (t.priority||'low').toLowerCase() === 'medium').length;
+    const l = filtered.filter(t => (t.priority||'low').toLowerCase() === 'low').length;
+    return {
+      labels: ['High','Medium','Low'],
+      datasets: [{
+        data: [h, m, l],
+        backgroundColor: ['#ef4444','#f59e0b','#22c55e'],
+        borderWidth: 0,
+        hoverOffset: 4,
+      }],
+    };
+  }, [filtered]);
+
+  // ── Monthly tasks created ─────────────────────────────────────────────────
+  const monthlyData = useMemo(() => {
+    const now = new Date();
+    const labels = [], counts = [], dones = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(MONTHS[d.getMonth()]);
+      const bucket = tasks.filter(t => {
+        if (!t.createdAt) return false;
+        const td = new Date(t.createdAt);
+        return td.getFullYear() === d.getFullYear() && td.getMonth() === d.getMonth();
+      });
+      counts.push(bucket.length);
+      dones.push(bucket.filter(isCompleted).length);
+    }
+    return {
+      labels,
+      datasets: [
+        { label:'Total',     data:counts, backgroundColor:'rgba(49,39,131,.25)', borderRadius:5 },
+        { label:'Completed', data:dones,  backgroundColor:'rgba(54,169,225,.6)',  borderRadius:5 },
+      ],
+    };
+  }, [tasks]);
+
+  // ── Heatmap data ──────────────────────────────────────────────────────────
+  const heatmapData = useMemo(() => {
+    const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    const grid  = DAYS_ABBR.map(() => Array(24).fill(0));
+    filtered.forEach(t => {
+      if (!t.createdAt) return;
+      const d = new Date(t.createdAt);
+      grid[d.getDay()][d.getHours()]++;
+    });
+    return { days: DAYS_ABBR, hours, grid };
+  }, [filtered]);
+
+  // ── Priority bars ─────────────────────────────────────────────────────────
+  const priorityStats = useMemo(() => {
+    const total = filtered.length || 1;
+    return ['high','medium','low'].map(p => ({
+      label: p,
+      count: filtered.filter(t => (t.priority||'low').toLowerCase() === p).length,
+      total,
+      color: PRIORITY_COLORS[p].solid,
+    }));
+  }, [filtered]);
+
+  // ── Insights ──────────────────────────────────────────────────────────────
+  const insights = useMemo(() => {
+    const msgs = [];
+    if (kpis.compRate > 80)   msgs.push({ text:'Completion rate is excellent — above 80%.', type:'success' });
+    if (kpis.overdue > 5)     msgs.push({ text:`${kpis.overdue} overdue tasks need immediate attention.`, type:'warn' });
+    if (kpis.compRate < 40)   msgs.push({ text:'Completion rate is below 40%. Review workload balance.', type:'warn' });
+    const peak = heatmapData.grid.reduce((best, row, di) =>
+      row.reduce((b, cnt, hi) => cnt > b.count ? { day: DAYS_ABBR[di], hour: hi, count: cnt } : b, best),
+      { day:'', hour:0, count:0 }
+    );
+    if (peak.count > 0) msgs.push({ text:`Most active on ${peak.day} around ${peak.hour}:00 — schedule key tasks then.`, type:'info' });
+    const highPend = filtered.filter(t => (t.priority||'').toLowerCase()==='high' && !isCompleted(t)).length;
+    if (highPend > 3) msgs.push({ text:`${highPend} high-priority tasks still pending — prioritise these.`, type:'warn' });
+    if (msgs.length === 0) msgs.push({ text:'All metrics look healthy. Keep the momentum going!', type:'success' });
+    return msgs;
+  }, [kpis, heatmapData, filtered]);
+
+  // ── Badges ────────────────────────────────────────────────────────────────
+  const badges = useMemo(() => [
+    { name:'Velocity Pro',   desc:'50+ tasks completed',  icon:Zap,         color:'#f59e0b', earned: kpis.done >= 50   },
+    { name:'Precision',      desc:'80%+ completion rate',  icon:Target,      color:'#22c55e', earned: kpis.compRate >= 80 },
+    { name:'Overdue Zero',   desc:'Zero overdue tasks',    icon:CheckCircle2,color:'#36a9e1', earned: kpis.overdue === 0 },
+    { name:'High Achiever',  desc:'10+ high-pri done',     icon:Award,       color:'#ef4444', earned: filtered.filter(t=>isCompleted(t)&&(t.priority||'').toLowerCase()==='high').length >= 10 },
+    { name:'Consistent',     desc:'Tasks every day (7d)',  icon:Activity,    color:'#a855f7', earned: (() => {
+      const now = new Date();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now); d.setDate(now.getDate() - i);
+        if (!tasks.some(t => t.createdAt && new Date(t.createdAt).toDateString() === d.toDateString())) return false;
+      }
+      return true;
+    })() },
+    { name:'Planner',        desc:'100+ tasks created',   icon:Calendar,    color:'#312783', earned: tasks.length >= 100 },
+  ], [kpis, filtered, tasks]);
+
+  // ── Export CSV ────────────────────────────────────────────────────────────
+  const exportCSV = useCallback(() => {
+    setExporting(true);
+    const hdrs = ['Title','Priority','Status','Created','Due'];
+    const rows = filtered.map(t => [
+      `"${(t.title||'').replace(/"/g,'""')}"`,
+      t.priority || 'None',
+      isCompleted(t) ? 'Completed' : isOverdue(t) ? 'Overdue' : 'Pending',
+      t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
+      t.dueDate   ? new Date(t.dueDate).toLocaleDateString()   : '',
+    ]);
+    const csv  = [hdrs, ...rows].map(r => r.join(',')).join('\n');
+    const link = document.createElement('a');
+    link.href  = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+    link.download = `fundco-analytics-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setTimeout(() => setExporting(false), 600);
+  }, [filtered]);
+
+  // ── Chart theme override ──────────────────────────────────────────────────
+  const cOpts = (overrides = {}) => ({
+    ...chartDefaults,
+    plugins: { ...chartDefaults.plugins, ...overrides.plugins },
+    scales:  overrides.noScales ? undefined : { ...chartDefaults.scales, ...overrides.scales },
+    ...overrides,
+  });
+
+  const trendRate = kpis.prevRate ? Math.round(kpis.compRate - kpis.prevRate) : 0;
+
+  return (
+    <div className="space-y-6 py-4">
+
+      {/* ── Header ── */}
+      <motion.div initial={{ opacity:0, y:-8 }} animate={{ opacity:1, y:0 }}
+        className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black flex items-center gap-3" style={{ color:'var(--text-primary)' }}>
+            <BarChart2 className="w-6 h-6" style={{ color:'var(--brand-primary)' }} />
+            Performance Analytics
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color:'var(--text-secondary)' }}>
+            {filtered.length} tasks in view · Last updated {new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={exportCSV} disabled={exporting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:opacity-80 disabled:opacity-40"
+            style={{ borderColor:'var(--border-color)', color:'var(--text-secondary)', backgroundColor:'var(--bg-surface)' }}>
+            {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Export CSV
+          </button>
+        </div>
+      </motion.div>
+
+      {/* ── Filters ── */}
+      <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:.1 }}
+        className="flex flex-wrap gap-4 items-center p-4 rounded-2xl border"
+        style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+        <div className="flex items-center gap-1.5">
+          <Filter className="w-3.5 h-3.5 flex-shrink-0" style={{ color:'var(--text-muted)' }} />
+          <span className="text-xs font-bold uppercase tracking-wide" style={{ color:'var(--text-muted)' }}>Period</span>
+        </div>
+        <div className="flex gap-1">
+          {[['7','7d'],['30','30d'],['90','90d'],['all','All time']].map(([v,l]) => (
+            <Pill key={v} label={l} active={period===v} onClick={() => setPeriod(v)} />
+          ))}
+        </div>
+        <div className="w-px h-4 flex-shrink-0" style={{ backgroundColor:'var(--border-color)' }} />
+        <div className="flex gap-1">
+          {[['all','All'],['high','High'],['medium','Med'],['low','Low']].map(([v,l]) => (
+            <Pill key={v} label={l} active={priority===v} onClick={() => setPriority(v)} />
+          ))}
+        </div>
+        <div className="w-px h-4 flex-shrink-0" style={{ backgroundColor:'var(--border-color)' }} />
+        <div className="flex gap-1">
+          {[['all','All'],['completed','Done'],['pending','Pending']].map(([v,l]) => (
+            <Pill key={v} label={l} active={status===v} onClick={() => setStatus(v)} />
+          ))}
+        </div>
+      </motion.div>
+
+      {/* ── KPI row ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KPICard label="Total Tasks"   value={fmtNum(kpis.total)}   icon={BarChart2}    color="#312783"  spark={sparklines.created} delay={0}   />
+        <KPICard label="Completed"     value={fmtNum(kpis.done)}    icon={CheckCircle2} color="#22c55e"  spark={sparklines.done}    delay={.05} trend={trendRate} />
+        <KPICard label="Pending"       value={fmtNum(kpis.pending)} icon={Clock}        color="#f59e0b"  delay={.1} />
+        <KPICard label="Overdue"       value={fmtNum(kpis.overdue)} icon={AlertTriangle}color="#ef4444"  spark={sparklines.overdue} delay={.15} />
+        <KPICard label="Completion"    value={fmtPct(kpis.compRate)}icon={TrendingUp}   color="#36a9e1"  delay={.2} trend={trendRate} />
+        <KPICard label="Perf. Score"   value={fmtPct(kpis.score)}   icon={Zap}          color="#a855f7"  delay={.25} />
+      </div>
+
+      {/* ── Completion rate rings ── */}
+      <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:.3 }}
+        className="rounded-2xl border p-5"
+        style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+        <p className="text-xs font-black uppercase tracking-widest mb-5" style={{ color:'var(--text-muted)' }}>
+          Completion by Priority
+        </p>
+        <div className="flex items-center justify-around flex-wrap gap-6">
+          {['high','medium','low'].map(p => {
+            const total = filtered.filter(t => (t.priority||'low').toLowerCase() === p).length;
+            const done  = filtered.filter(t => (t.priority||'low').toLowerCase() === p && isCompleted(t)).length;
+            const pct   = total ? (done / total) * 100 : 0;
+            const color = PRIORITY_COLORS[p].solid;
+            return (
+              <div key={p} className="flex flex-col items-center gap-3">
+                <Ring pct={pct} size={96} stroke={8} color={color} />
+                <div className="text-center">
+                  <p className="text-xs font-bold capitalize" style={{ color:'var(--text-primary)' }}>{p} Priority</p>
+                  <p className="text-xs" style={{ color:'var(--text-muted)' }}>{done}/{total} tasks</p>
+                </div>
+              </div>
+            );
+          })}
+          <div className="flex flex-col items-center gap-3">
+            <Ring pct={kpis.compRate} size={96} stroke={8} color="var(--brand-primary)" />
+            <div className="text-center">
+              <p className="text-xs font-bold" style={{ color:'var(--text-primary)' }}>Overall</p>
+              <p className="text-xs" style={{ color:'var(--text-muted)' }}>{kpis.done}/{kpis.total} tasks</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Charts row 1: Trend + Weekly ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:.35 }}
+          className="lg:col-span-2 rounded-2xl border p-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-black uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>
+              Task Velocity
+            </p>
+            <div className="flex gap-3 text-xs">
+              {[['#36a9e1','Created'],['#22c55e','Completed']].map(([c,l]) => (
+                <div key={l} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor:c }} />
+                  <span style={{ color:'var(--text-muted)' }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ height:220 }}>
+            <Line data={trendData} options={cOpts({ plugins: { legend:{ display:false }, tooltip: chartDefaults.plugins.tooltip } })} />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:.4 }}
+          className="rounded-2xl border p-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color:'var(--text-muted)' }}>
+            Weekly Pattern
+          </p>
+          <div style={{ height:220 }}>
+            <Bar data={weeklyData} options={cOpts()} />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ── Charts row 2: Monthly + Priority doughnut + Priority bars ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:.45 }}
+          className="lg:col-span-2 rounded-2xl border p-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-black uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>
+              6-Month Overview
+            </p>
+            <div className="flex gap-3 text-xs">
+              {[['rgba(49,39,131,.5)','Total'],['rgba(54,169,225,.8)','Completed']].map(([c,l]) => (
+                <div key={l} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-md" style={{ backgroundColor:c }} />
+                  <span style={{ color:'var(--text-muted)' }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ height:200 }}>
+            <Bar data={monthlyData} options={cOpts({ plugins: { legend:{ display:false }, tooltip: chartDefaults.plugins.tooltip } })} />
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:.5 }}
+          className="rounded-2xl border p-5 space-y-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          <p className="text-xs font-black uppercase tracking-widest" style={{ color:'var(--text-muted)' }}>
+            Priority Mix
+          </p>
+          <div className="flex items-center gap-4">
+            <div style={{ width:100, height:100 }} className="flex-shrink-0">
+              <Doughnut data={priorityData} options={{
+                responsive:true, maintainAspectRatio:false,
+                cutout:'72%',
+                plugins:{ legend:{ display:false }, tooltip:{ enabled:false } },
+              }} />
+            </div>
+            <div className="flex-1 space-y-3">
+              {priorityStats.map(ps => (
+                <PriorityBar key={ps.label} {...ps} />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ── Heatmap ── */}
+      <Section title="Activity Heatmap" icon={Activity} delay={.55}>
+        <div className="rounded-2xl border p-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          <p className="text-xs mb-4" style={{ color:'var(--text-muted)' }}>
+            Task creation frequency by day and hour
+          </p>
+          <Heatmap data={heatmapData} />
+        </div>
+      </Section>
+
+      {/* ── Insights + Badges ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Section title="AI Insights" icon={TrendingUp} delay={.6}>
+          <div className="rounded-2xl border p-5 space-y-3"
+            style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+            {insights.map((ins, i) => (
+              <div key={i} className="flex items-start gap-3 text-sm">
+                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
+                  style={{ backgroundColor: ins.type==='success' ? '#22c55e' : ins.type==='warn' ? '#f59e0b' : '#36a9e1' }} />
+                <p style={{ color:'var(--text-secondary)' }}>{ins.text}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Achievements" icon={Award} delay={.65}>
+          <div className="rounded-2xl border p-4 grid grid-cols-1 sm:grid-cols-2 gap-2"
+            style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+            {badges.map(b => <Badge key={b.name} {...b} />)}
+          </div>
+        </Section>
+      </div>
+
+      {/* ── Task history ── */}
+      <Section title="Recent Tasks" icon={Calendar} delay={.7}>
+        <div className="rounded-2xl border p-5"
+          style={{ backgroundColor:'var(--bg-surface)', borderColor:'var(--border-color)' }}>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color:'var(--text-muted)' }}>
+              No tasks match the current filters
+            </p>
+          ) : (
+            <>
+              <div className="max-h-72 overflow-y-auto">
+                {filtered.slice(0, 20).map((t, i) => <TaskRow key={t._id || i} task={t} index={i} />)}
+              </div>
+              {filtered.length > 20 && (
+                <p className="text-xs text-center mt-3" style={{ color:'var(--text-muted)' }}>
+                  Showing 20 of {filtered.length} tasks — export CSV for full list
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </Section>
+
+    </div>
+  );
+};
+
 export default PerformanceAnalytics;

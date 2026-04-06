@@ -9,7 +9,7 @@ import {
 import { NavLink } from 'react-router-dom';
 import axios from 'axios';
 
-const API_BASE_URL  = import.meta.env.VITE_API_URL || 'http://localhost:4001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
 
 const Sidebar = ({ user, isExpanded, onToggle }) => {
@@ -44,11 +44,13 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     window.addEventListener('focus', fn);
     return () => window.removeEventListener('focus', fn);
   }, [fetchUnreadTotal]);
+
   useEffect(() => {
     const fn = (e) => setChatUnreadTotal(e.detail?.total ?? 0);
     window.addEventListener('chatUnreadUpdate', fn);
     return () => window.removeEventListener('chatUnreadUpdate', fn);
   }, []);
+
   useEffect(() => {
     const fn = (e) => setSocialUnreadTotal(e.detail?.total ?? 0);
     const focus = () => {
@@ -57,30 +59,34 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     };
     window.addEventListener('socialFeedUnreadUpdate', fn);
     window.addEventListener('focus', focus);
-    return () => { window.removeEventListener('socialFeedUnreadUpdate', fn); window.removeEventListener('focus', focus); };
+    return () => { 
+      window.removeEventListener('socialFeedUnreadUpdate', fn); 
+      window.removeEventListener('focus', focus); 
+    };
   }, []);
+
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
-  /* ── Nav items ───────────────────────────────────────────────────────── */
   const menuItems = [
     { text: 'Dashboard',      path: '/',                   icon: LayoutDashboard },
     { text: 'Pending Tasks',  path: '/pending',            icon: List },
-    { text: 'Completed',      path: '/complete',           icon: CheckCircle },
     { text: 'Newly Assigned', path: '/assigned',           icon: AlertCircle },
+    { text: 'Completed',      path: '/complete',           icon: CheckCircle },
+    { text: 'Analytics',       path: '/analytics',           icon: Calendar },
     { text: 'Calendar',       path: '/calendar',           icon: Calendar },
+    { text: 'Goals',          path: '/goals',              icon: Target },
+    { text: 'Reminders',      path: '/reminders',          icon: Bell },
     { text: 'Team Chat',      path: '/team-chat',          icon: MessageSquare,  badge: chatUnreadTotal },
+    { text: 'Meeting',        path: '/meetroom',           icon: Video },
     { text: 'Social Feed',    path: '/social-feed',        icon: Instagram,      badge: socialUnreadTotal },
+    { text: 'AI Tools',       path: '/ai-tools',           icon: Sparkles },
     { text: 'File Storage',   path: '/file-storage',       icon: File },
     { text: 'Reports',        path: '/reports',            icon: FileText },
-    { text: 'AI Tools',       path: '/ai-tools',           icon: Sparkles },
-    { text: 'Deck Prep',      path: '/document-converter', icon: FileText },
-    { text: 'Reminders',      path: '/reminders',          icon: Bell },
-    { text: 'Goals',          path: '/goals',              icon: Target },
     { text: 'Performance',    path: '/performance',        icon: CreditCard },
-    { text: 'Meeting',        path: '/meetroom',           icon: Video },
+    { text: 'Deck Prep',      path: '/document-converter', icon: FileText },
     { text: 'Training',       path: '/training',           icon: BookOpen },
     { text: 'Feedback',       path: '/feedback',           icon: BookOpen },
   ];
@@ -89,7 +95,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
   const NavItem = ({ item, isMobile = false }) => {
     const { text, path, icon: Icon, badge } = item;
     const show = isExpanded || isMobile;
-
     return (
       <li>
         <NavLink
@@ -120,7 +125,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
                   </span>
                 )}
               </span>
-
               {show && (
                 <>
                   <span className="flex-1 truncate">{text}</span>
@@ -131,7 +135,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
                   )}
                 </>
               )}
-
               {/* Tooltip on collapsed */}
               {!show && (
                 <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white whitespace-nowrap z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
@@ -200,20 +203,16 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-3" style={{ scrollbarWidth: 'thin' }}>
           <UserBlock expanded={isExpanded} />
-
           {isExpanded && (
             <p className="px-4 text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>
               Navigation
             </p>
           )}
-
           <ul className={`space-y-0.5 ${isExpanded ? 'px-2' : 'px-2'}`}>
             {menuItems.map((item) => <NavItem key={item.text} item={item} />)}
           </ul>
-
           {isExpanded && <QuickTip />}
         </div>
-
         {/* Toggle button — pinned at bottom */}
         <button
           onClick={onToggle}
@@ -260,7 +259,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
       >
         {/* Backdrop */}
         <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-
         {/* Drawer */}
         <div
           className={`absolute top-0 left-0 w-72 h-full flex flex-col transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
@@ -289,7 +287,6 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
               <X className="w-5 h-5" />
             </button>
           </div>
-
           {/* Nav items */}
           <div className="flex-1 overflow-y-auto py-3 px-2">
             <ul className="space-y-0.5">

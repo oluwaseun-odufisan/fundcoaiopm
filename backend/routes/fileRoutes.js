@@ -1,67 +1,61 @@
-//fileRoutes.js
-import express from 'express';
+// backend/routes/fileRoutes.js
+// CRITICAL: specific routes MUST come before /:id param routes to avoid Express shadowing
+import express        from 'express';
+import multer         from 'multer';
 import authMiddleware from '../middleware/auth.js';
 import {
-    pinFileToIPFS,
-    getFiles,
-    deleteFile,
-    permanentDeleteFile,
-    restoreFile,
-    clearTrash,
-    shareFile,
-    associateTask,
-    updateTags,
-    moveFiles,
-    adminUploadFile,
-    getUserFiles,
-    adminDeleteFile,
-    adminPermanentDeleteFile,
-    adminModifyFile,
-    getUserStorageUsage,
+  uploadFiles,
+  getFiles,
+  deleteFile,
+  permanentDeleteFile,
+  restoreFile,
+  clearTrash,
+  toggleStar,
+  renameFile,
+  moveFiles,
+  shareFile,
+  updateTags,
+  associateTask,
+  getStorageUsage,
 } from '../controllers/fileController.js';
 import {
-    createFolder,
-    getFolders,
-    deleteFolder,
-    adminCreateFolder,
-    adminGetFolders,
-    adminDeleteFolder,
+  createFolder,
+  getFolders,
+  renameFolder,
+  deleteFolder,
+  getFolderStats,
 } from '../controllers/folderController.js';
-import multer from 'multer';
 
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB per file
 });
 
-const fileRouter = express.Router();
+const router = express.Router();
+router.use(authMiddleware);
 
-// User routes
-fileRouter.get('/', authMiddleware, getFiles);
-fileRouter.post('/pinFileToIPFS', authMiddleware, upload.array('files'), pinFileToIPFS);
-fileRouter.patch('/:id/delete', authMiddleware, deleteFile);
-fileRouter.delete('/:id', authMiddleware, permanentDeleteFile);
-fileRouter.patch('/:id/restore', authMiddleware, restoreFile);
-fileRouter.delete('/trash/clear', authMiddleware, clearTrash);
-fileRouter.post('/:id/share', authMiddleware, shareFile);
-fileRouter.patch('/:id/task', authMiddleware, associateTask);
-fileRouter.patch('/:id/tags', authMiddleware, updateTags);
-fileRouter.patch('/move', authMiddleware, moveFiles);
+// ── Static / specific routes first ───────────────────────────────────────────
+router.get( '/storage',          getStorageUsage);   // GET /api/files/storage
+router.post('/upload',           upload.array('files'), uploadFiles); // POST /api/files/upload
+router.get( '/',                 getFiles);          // GET /api/files
+router.post('/move',             moveFiles);         // POST /api/files/move
+router.delete('/trash/clear',    clearTrash);        // DELETE /api/files/trash/clear
 
-fileRouter.get('/folders', authMiddleware, getFolders);
-fileRouter.post('/folders', authMiddleware, createFolder);
-fileRouter.delete('/folders/:id', authMiddleware, deleteFolder);
+// ── Folder routes ─────────────────────────────────────────────────────────────
+router.get(   '/folders',        getFolders);
+router.post(  '/folders',        createFolder);
+router.get(   '/folders/stats',  getFolderStats);
+router.patch( '/folders/:id',    renameFolder);
+router.delete('/folders/:id',    deleteFolder);
 
-// Admin routes
-fileRouter.post('/admin/upload/:userId', upload.array('files'), adminUploadFile);
-fileRouter.get('/admin/user/:userId', getUserFiles);
-fileRouter.patch('/admin/user/:userId/file/:fileId/delete', adminDeleteFile);
-fileRouter.delete('/admin/user/:userId/file/:fileId', adminPermanentDeleteFile);
-fileRouter.patch('/admin/user/:userId/file/:fileId', adminModifyFile);
-fileRouter.get('/admin/storage/:userId', getUserStorageUsage);
+// ── Param routes last ─────────────────────────────────────────────────────────
+router.patch( '/:id/soft-delete',  deleteFile);        // soft delete → trash
+router.patch( '/:id/restore',      restoreFile);
+router.patch( '/:id/star',         toggleStar);
+router.patch( '/:id/rename',       renameFile);
+router.patch( '/:id/tags',         updateTags);
+router.patch( '/:id/task',         associateTask);
+router.post(  '/:id/share',        shareFile);
+router.delete('/:id',              permanentDeleteFile);
 
-fileRouter.post('/admin/user/:userId/folders', adminCreateFolder);
-fileRouter.get('/admin/user/:userId/folders', adminGetFolders);
-fileRouter.delete('/admin/user/:userId/folders/:folderId', adminDeleteFolder);
-
-export default fileRouter;
+export default router;
