@@ -22,7 +22,7 @@ const AIExtractionPanel = ({ onExtract, prompt, setPrompt }) => {
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl p-8">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] flex items-center gap-2"><Zap className="w-6 h-6 text-[var(--brand-primary)]" /> Meaningful Extraction Prompt</h2>
-            <p className="text-sm text-[var(--text-secondary)]">Customize the prompt for Grok AI to extract meaningful information from the full text.</p>
+            <p className="text-sm text-[var(--text-secondary)]">Customize the prompt for AI to extract meaningful information from the full text.</p>
             <textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}

@@ -205,7 +205,7 @@ const ManualEditor = ({ user, tasks, editReport = null, onSaved, onCancel }) => 
 
         <Field label={`Content (${content.length}/10000 chars)`}>
           <FocusTextarea rows={14} value={content} onChange={e => setContent(e.target.value)}
-            placeholder="Write your honest progress report here. Include what you completed, what is pending, and any blockers." />
+            placeholder="Write your report here. Include what you completed, what is pending, and any blockers." />
         </Field>
 
         {/* Live preview toggle */}
@@ -450,7 +450,7 @@ const AIGenerator = ({ user, tasks, onSaved }) => {
         style={{ backgroundColor: 'var(--brand-primary)' }}>
         {generating
           ? <><Loader2 className="w-5 h-5 animate-spin" /> Generating with AI…</>
-          : <><Sparkles className="w-5 h-5" /> Generate Report with AI</>}
+          : <> Generate Report with AI</>}
       </button>
 
       {/* Error */}

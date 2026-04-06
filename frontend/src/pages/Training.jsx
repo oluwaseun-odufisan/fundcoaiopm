@@ -1254,7 +1254,7 @@ const Training = () => {
         style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
         <button onClick={handleBack} className="flex items-center gap-1.5 text-sm font-bold hover:opacity-75 transition-opacity flex-shrink-0"
           style={{ color: 'var(--brand-primary)' }}>
-          <BookOpen className="w-4 h-4" /> Training Hub
+          <BookOpen className="w-4 h-4" /> Training
         </button>
         <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
         <span className="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--text-secondary)' }}>{activeCourse.title}</span>
@@ -1275,8 +1275,8 @@ const Training = () => {
             <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
           </div>
           <div>
-            <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Training Hub</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>FundCo Capital Managers · Staff Training Portal</p>
+            <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Training</h1>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>FundCo Capital Managers · Staff Learning Portal</p>
           </div>
         </div>
       </div>
@@ -1292,7 +1292,7 @@ const Training = () => {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <p className="font-black text-base mb-3 flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5" /> Welcome to the Training Hub
+                    <GraduationCap className="w-5 h-5" /> Welcome to FundCo LMS
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                     {[

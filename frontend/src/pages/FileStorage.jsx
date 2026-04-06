@@ -1277,7 +1277,7 @@ const FileStorage = () => {
             <div className="flex items-center gap-2 px-4 py-4 border-b"
               style={{ borderColor:'var(--border-color)' }}>
               <HardDrive className="w-5 h-5" style={{ color:'var(--brand-primary)' }} />
-              <span className="font-black text-sm" style={{ color:'var(--text-primary)' }}>FundCo Drive</span>
+              <span className="font-black text-sm" style={{ color:'var(--text-primary)' }}>File Storage</span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-5">

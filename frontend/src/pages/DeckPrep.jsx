@@ -436,9 +436,9 @@ const DeckPrep = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3" style={{color:'var(--text-primary)'}}>
-            <span className="text-3xl">📊</span> DeckPrep AI
+            <span className="text-3xl">📊</span> FundCo DeckPrep AI
           </h1>
-          <p className="text-sm mt-0.5" style={{color:'var(--text-secondary)'}}>Transform PDFs into polished PowerPoint presentations</p>
+          <p className="text-sm mt-0.5" style={{color:'var(--text-secondary)'}}>Convert PDFs into polished PowerPoint presentations</p>
         </div>
         {history.length>0&&<button onClick={()=>setMode('history')}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold"

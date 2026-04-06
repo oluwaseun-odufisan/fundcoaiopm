@@ -71,21 +71,21 @@ const Login = ({ onSubmit, onSwitchMode }) => {
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase"
             style={{ backgroundColor: 'rgba(54,169,225,0.2)', color: 'var(--brand-accent)' }}>
-            Task Management Platform
+            AI Powered Task Management Platform
           </div>
           <h1 className="text-4xl xl:text-5xl font-black text-white leading-tight tracking-tight">
             Plan. Track.<br />
             <span style={{ color: 'var(--brand-accent)' }}>Deliver.</span>
           </h1>
           <p className="text-white/50 text-base leading-relaxed max-w-sm">
-            A unified workspace for your team to manage tasks, track performance, and collaborate — from any device.
+            A unified workspace to manage tasks, track performance, and collaborate from anywhere.
           </p>
           <div className="grid grid-cols-2 gap-3 pt-2">
             {[
               { label: 'Task Tracking', desc: 'Real-time updates' },
               { label: 'Performance',   desc: 'Monthly scoring'  },
               { label: 'AI Assistant',  desc: 'Chat & automate'  },
-              { label: 'Analytics',     desc: 'Deep insights'    },
+              { label: 'Analytics',     desc: 'Deep analysis'    },
             ].map((f) => (
               <div key={f.label} className="p-3.5 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}>
                 <p className="text-white font-semibold text-sm">{f.label}</p>
@@ -125,7 +125,7 @@ const Login = ({ onSubmit, onSwitchMode }) => {
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                 <input
-                  type="email" placeholder="you@fundco.com"
+                  type="email" placeholder="you@fundco.ng"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border text-sm focus:outline-none transition-colors"

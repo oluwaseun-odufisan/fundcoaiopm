@@ -708,7 +708,7 @@ const SocialFeed = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Sparkles className="w-6 h-6" style={{ color: 'var(--brand-accent)' }} /> Social Connect
+             Social Connect
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Share updates with your team</p>
         </div>
@@ -777,7 +777,6 @@ const SocialFeed = () => {
         {posts.length === 0 && !loading && (
           <div className="text-center py-16 rounded-2xl border"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-            <Sparkles className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="font-bold" style={{ color: 'var(--text-secondary)' }}>
               {search || filter ? 'No posts match your search' : 'No posts yet'}
             </p>

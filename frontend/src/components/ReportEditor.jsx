@@ -206,7 +206,7 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder="Write your honest report here... Be detailed about what you completed and what is still pending."
+        placeholder="Write your report here..."
         className="w-full h-96 p-6 text-lg resize-y border border-[var(--border-color)] rounded-3xl focus:ring-2 focus:ring-[var(--brand-primary)] outline-none bg-[var(--bg-surface)] text-[var(--text-primary)]"
       />
 
