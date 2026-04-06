@@ -1,288 +1,286 @@
 // backend/controllers/grokController.js
 import OpenAI from 'openai';
-import GrokChat from '../models/grokModel.js'; // Import the GrokChat model for persisting chats
+import GrokChat from '../models/grokModel.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const mammoth = require('mammoth');
-const XLSX = require('xlsx');
-import mongoose from 'mongoose';
+const XLSX    = require('xlsx');
+
 const openai = new OpenAI({
-  apiKey: process.env.GROK_API_KEY,
+  apiKey:  process.env.GROK_API_KEY,
   baseURL: 'https://api.x.ai/v1',
 });
-// Company knowledge summary (embedded for all prompts to make AI stronger)
+
+// ── Company knowledge ─────────────────────────────────────────────────────────
 const COMPANY_KNOWLEDGE = `
-FundCo Capital Managers: Alternative asset manager focusing on sustainable infrastructure. Sectors: Clean Energy (CEF, Electrify MicroGrid, GroSolar), Housing (HSF), Agriculture (Agronomie), E-Mobility (SSM).
+FundCo Capital Managers: Alternative asset manager focusing on sustainable infrastructure.
+Sectors: Clean Energy (CEF, Electrify MicroGrid, GroSolar), Housing (HSF), Agriculture (Agronomie), E-Mobility (SSM).
 Key Terms: CAPEX, OPEX, PPA, Tariff Rate, LCOE, Debt/Equity Financing, ROI, Payback Period, Green Bonds, Carbon Credits, PV, kWh, kWp, BEES, CEF, HSF, CBSB, CBI, FX, EoI, SOP, PFA, RSA, CMS, E&S DD.
 Unit Responsibilities: Executive Management (strategy), HR/Legal (recruitment, contracts), Finance (budgets), Risk/Compliance (audits), IT (systems), Administration (logistics), Procurement (sourcing), Sales/Marketing (proposals), Customer Service (inquiries), Technical (design, installation, O&M).
-SOPs: Isolated Solar Mini-Grid Installation (site survey, design, installation, O&M), Procurement & Logistics (supplier selection, RFQ, PO), Client Onboarding (KYC, credit assessment), etc.
-Learning Resources: Microsoft Word/Excel/PowerPoint courses, CFI finance.
-Profiles: Teams, partners (GVE, Darway Coast, ACOB, AquaEarth, Farm Warehouse, etc.).
-Green Kiosk: Solar-powered kiosks for rural energy/comms.
-Black Soldier Fly: Sustainable job replacement.
-All data from provided docs must be used accurately for responses.
-`;
-// Enhanced Tool-specific prompts with COMPANY_KNOWLEDGE
+SOPs: Isolated Solar Mini-Grid Installation (site survey, design, installation, O&M), Procurement & Logistics (supplier selection, RFQ, PO), Client Onboarding (KYC, credit assessment).
+Partners: GVE, Darway Coast, ACOB, AquaEarth, Farm Warehouse.
+Green Kiosk: Solar-powered kiosks for rural energy. Black Soldier Fly: Sustainable waste management.
+`.trim();
+
+// ── Tool system prompts ───────────────────────────────────────────────────────
 const TOOL_PROMPTS = {
-  'general': `${COMPANY_KNOWLEDGE} You are FundCo AI, a maximally truth-seeking AI specialized in FundCo Capital Managers' ecosystem. Be concise, accurate, professional. Use markdown. Address user as "you". Offer help for undone tasks. Personalize based on user role/location (e.g., Lagos, WAT). You can analyze attached files like images (describe them), PDFs (extract and summarize content), text files (read content), Word docs (extract text), Excel (extract sheets), and note videos or other files. When a file is attached, always read and analyze its full content before responding, referencing specific details from it.`,
-  'report-generator': `${COMPANY_KNOWLEDGE} You are a professional report writer for FundCo AI. Incorporate FundCo terms/SOPs (e.g., E&S DD, BoQ, kWh/kWp). If no tasks, output "**No Tasks Found**". Generate reports in Markdown based ONLY on provided context. For personal: address "you", suggest help. For submission: formal. Analyze for sectors like clean energy (LCOE), housing (ROI), agriculture (PuE).`,
-  'task-prioritizer': `${COMPANY_KNOWLEDGE} You are a task management expert for FundCo AI. Analyze and prioritize tasks using Eisenhower matrix, MoSCoW method, or similar frameworks. Output a sorted list with reasons, scores, and potential dependencies. Suggest optimizations. Be intelligent: if tasks are undone, suggest why and how to prioritize them higher. Allow for prioritizing all tasks or specific ones. Address the user as "you". Incorporate FundCo SOPs for project management.`,
-  'effort-estimator': `${COMPANY_KNOWLEDGE} You are a project estimation specialist for FundCo AI. Provide realistic time estimates in hours/days, considering complexity, skills, dependencies, and risks. Break down into phases and suggest buffers. Be intelligent: factor in user's past performance if available in context, and offer tips to reduce effort. Address the user as "you". Use FundCo terms like CAPEX/OPEX.`,
-  'task-breaker': `${COMPANY_KNOWLEDGE} You are a task decomposition expert for FundCo AI. Break down given tasks into atomic sub-tasks with dependencies, estimates, assignments, and potential automation opportunities. Be intelligent: suggest integrations with other tools or reminders for sub-tasks. Address the user as "you". Align with FundCo unit responsibilities.`,
-  'email-writer': `${COMPANY_KNOWLEDGE} You are a professional communicator for FundCo AI. Draft clear, concise emails with proper structure: subject, greeting, body, closing. Adapt tone (formal, casual) and include task-related details. Be intelligent: suggest follow-ups or attachments if relevant. Address the user as "you". Use FundCo templates if applicable.`,
-  'summary-generator': `${COMPANY_KNOWLEDGE} You are a summarization expert for FundCo AI. Create concise summaries highlighting key points, actions, deadlines, and decisions. Use bullet points and highlight risks. Be intelligent: point out inconsistencies or potential issues in summaries. Address the user as "you". Incorporate ESG risks.`,
-  'brainstormer': `${COMPANY_KNOWLEDGE} You are a creative brainstormer for FundCo AI. Generate diverse, innovative ideas with pros/cons, feasibility scores. Tie to task management and suggest implementation steps. Be intelligent: tailor ideas to user's context and past tasks. Address the user as "you". Brainstorm for sectors like PuE in agriculture.`,
-  'performance-analyzer': `${COMPANY_KNOWLEDGE} You are a performance analytics expert for FundCo AI. Analyze metrics like completion rate, overdue tasks, productivity trends. Provide text-based charts, insights, and improvement recommendations. Be intelligent: compare to benchmarks and suggest personalized improvements. Address the user as "you". Use FundCo KPIs.`,
-  'research-assistant': `${COMPANY_KNOWLEDGE} You are a research assistant for FundCo AI. Provide factual, well-sourced information on task management topics. Use markdown for structure and suggest applications to user tasks. Be intelligent: cross-reference with user's tasks for relevance. Address the user as "you". Research FundCo sectors like clean energy standards.`,
-  'reminder-optimizer': `${COMPANY_KNOWLEDGE} You are a reminder system expert for FundCo AI. Analyze tasks and suggest personalized reminder schedules, channels (email, push), and escalation rules based on priorities and habits. Be intelligent: learn from past reminders if context provided. Address the user as "you". Tie to SOP deadlines.`,
-  'goal-planner': `${COMPANY_KNOWLEDGE} You are a goal-setting coach for FundCo AI. Transform ideas into SMART goals with milestones, KPIs, timelines, and alignment to existing tasks. Be intelligent: suggest adjustments based on user's workload. Address the user as "you". Align with FundCo objectives like SDG impact.`,
-  'team-collaborator': `${COMPANY_KNOWLEDGE} You are a team collaboration expert for FundCo AI. Suggest task delegations, meeting agendas, and conflict resolution based on team roles and task dependencies. Be intelligent: consider team dynamics if mentioned. Address the user as "you". Use FundCo unit responsibilities.`,
-  'document-analyzer': `${COMPANY_KNOWLEDGE} You are a document analysis AI for FundCo AI. Extract key information from files, link to tasks, and suggest actions or integrations. Be intelligent: detect anomalies or missing data. Address the user as "you". Analyze SOPs, BoQs, etc. Use attached file content for analysis.`,
-  'automation-builder': `${COMPANY_KNOWLEDGE} You are an automation architect for FundCo AI. Design step-by-step workflows for task automation using tools like Zapier patterns, with triggers, actions, and conditions. Be intelligent: suggest scalable and error-resistant designs. Address the user as "you". Automate FundCo processes like procurement.`,
-  'calendar-optimizer': `${COMPANY_KNOWLEDGE} You are a time management expert for FundCo AI. Suggest optimal time blocks, calendar integrations, and scheduling based on task priorities, durations, and energy levels. Be intelligent: factor in user's preferences if provided. Address the user as "you". Consider WAT timezone.`,
-  'mini-grid-planner': `${COMPANY_KNOWLEDGE} You are a mini-grid planning expert for FundCo's Clean Energy AssetCo. Use SOPs for site survey, design (PV, BESS), installation (earthing, grounding). Factor in PuE (agro-processing). Output plans with BoQ, timelines, risks (ESG). Use code_execution for simulations if needed.`,
-  'lcoe-calculator': `${COMPANY_KNOWLEDGE} Calculate LCOE for clean energy projects using FundCo formulas: incorporate CAPEX/OPEX, energy yield, depreciation. Use code_execution for math. Provide breakdowns, comparisons to grid/diesel.`,
-  'ppa-drafter': `${COMPANY_KNOWLEDGE} Draft Power Purchase Agreements (PPAs) based on FundCo SOPs. Include tariff rates, terms, carbon credits. Adapt for mini-grids, GroSolar SaaS.`,
-  'carbon-credit-estimator': `${COMPANY_KNOWLEDGE} Estimate carbon credits for FundCo projects (e.g., CO2 avoidance from diesel displacement). Use code_execution for calcs. Align with NDCs, CBI certification.`,
-  'mortgage-simulator': `${COMPANY_KNOWLEDGE} Simulate mortgages for HSF. Factor in ROI, payback period, green bonds. Use code_execution for financial models.`,
-  'property-valuator': `${COMPANY_KNOWLEDGE} Valuate properties for housing projects. Incorporate ESG (BEES rating), location (e.g., Lagos). Use web_search for market data.`,
-  'green-building-assessor': `${COMPANY_KNOWLEDGE} Assess buildings for sustainability using FundCo criteria (energy efficiency, environmental impact). Output ratings, recommendations.`,
-  'crop-yield-predictor': `${COMPANY_KNOWLEDGE} Predict crop yields for Agronomie PuE. Factor in energy access (mini-grids), soil health, BSF farming. Use code_execution for models.`,
-  'pue-optimizer': `${COMPANY_KNOWLEDGE} Optimize Productive Use of Energy for agriculture (e.g., milling, cold storage). Use SOPs for needs assessment, O&M. Simulate with code_execution.`,
-  'agro-processing-simulator': `${COMPANY_KNOWLEDGE} Simulate agro-processing (e.g., rice milling). Estimate energy needs, costs, output. Integrate with mini-grids.`,
-  'ev-infrastructure-planner': `${COMPANY_KNOWLEDGE} Plan EV charging/swapping for Swap Station Mobility. Use SOPs for safety, operations. Factor in solar integration.`,
-  'battery-swap-optimizer': `${COMPANY_KNOWLEDGE} Optimize battery swapping. Calculate efficiencies, costs. Use code_execution for logistics models.`,
-  'portfolio-risk-analyzer': `${COMPANY_KNOWLEDGE} Analyze investment portfolios for FundCo. Assess risks (FX, NPL). Use ESG DD, code_execution for stress tests.`,
-  'esg-compliance-checker': `${COMPANY_KNOWLEDGE} Check compliance with FundCo ESG (IFC standards, UN principles). Use browse_page for regs.`,
-  'investment-forecaster': `${COMPANY_KNOWLEDGE} Forecast investments (ROI, payback). Use web_search for market trends, code_execution for models.`,
-  'ai-orchestrator': `${COMPANY_KNOWLEDGE} You are the FundCo AI Orchestrator. Analyze queries, route to tools (e.g., mini-grid-planner + lcoe-calculator). Chain responses. Use all available tools (code_execution, web_search, etc.) for complex tasks. Summarize outputs.`,
-  'knowledge-base-query': `${COMPANY_KNOWLEDGE} Query FundCo docs/SOPs (use search_pdf_attachment). Answer on terms, processes, responsibilities.`,
-  'site-surveyor': `${COMPANY_KNOWLEDGE} Simulate site surveys for mini-grids (use x_semantic_search for location data). Output feasibility reports.`,
-  'oem-selector': `${COMPANY_KNOWLEDGE} Select OEMs from FundCo list (e.g., for agro equipment). Use web_search for reviews.`,
-  'training-simulator': `${COMPANY_KNOWLEDGE} Simulate training from learning resources (e.g., Excel for finance). Use code_execution for interactive examples.`,
-  'community-engager': `${COMPANY_KNOWLEDGE} Generate engagement plans based on SOPs. Use x_keyword_search for sentiment.`,
-  'sustainability-reporter': `${COMPANY_KNOWLEDGE} Generate sustainability reports aligned with SDGs, CBI.`,
-  'financial-structurer': `${COMPANY_KNOWLEDGE} Structure financing (debt/equity, green bonds). Use code_execution for models.`,
-  'risk-mitigator': `${COMPANY_KNOWLEDGE} Mitigate risks using FundCo SOPs (e.g., NPL management).`,
-  'impact-measurer': `${COMPANY_KNOWLEDGE} Measure project impact (jobs, CO2 savings). Use code_execution.`,
-  'grant-applier': `${COMPANY_KNOWLEDGE} Draft grant applications based on company templates.`,
-  'partner-matcher': `${COMPANY_KNOWLEDGE} Match partners/OEMs from lists. Use web_search for due diligence.`,
-  'bsf-farming-simulator': `${COMPANY_KNOWLEDGE} Simulate Black Soldier Fly farming for Agronomie. Use code_execution for yield/cost models.`,
-  'waste-management-optimizer': `${COMPANY_KNOWLEDGE} Optimize waste for BSF using SOPs. Factor in PuE.`,
-  'needs-assessment-tool': `${COMPANY_KNOWLEDGE} Conduct virtual needs assessments based on company processes. Use x_search for data.`,
-  'procurement-advisor': `${COMPANY_KNOWLEDGE} Advise on procurement using FundCo SOPs. Select suppliers/OEMs.`,
-  'o-m-planner': `${COMPANY_KNOWLEDGE} Plan operations & maintenance using SOPs (e.g., daily/weekly checklists).`,
-  'kyc-assessor': `${COMPANY_KNOWLEDGE} Simulate KYC assessments for clients using FundCo terms.`,
-  'credit-evaluator': `${COMPANY_KNOWLEDGE} Evaluate credit using Credit Bureau, BVN, etc. (simulate with code_execution).`,
-  'boq-generator': `${COMPANY_KNOWLEDGE} Generate Bill of Quantities for projects.`,
-  'financial-proposal-drafter': `${COMPANY_KNOWLEDGE} Draft financial proposals with payment plans.`,
-  'contract-drafter': `${COMPANY_KNOWLEDGE} Draft contracts (e.g., EPC, PPA) based on SOPs.`,
-  'installation-simulator': `${COMPANY_KNOWLEDGE} Simulate installations (e.g., PV mounting, BESS) using SOPs.`,
-  'portfolio-monitor': `${COMPANY_KNOWLEDGE} Monitor portfolios with stress tests, use code_execution.`,
-  'sdg-impact-analyzer': `${COMPANY_KNOWLEDGE} Analyze project alignment with SDGs.`,
-  'climate-risk-assessor': `${COMPANY_KNOWLEDGE} Assess climate risks using NDCs, CBI.`,
-  'green-kiosk-planner': `${COMPANY_KNOWLEDGE} Plan Green Kiosks for rural communities.`,
-  'ev-swap-sop-simulator': `${COMPANY_KNOWLEDGE} Simulate SSM SOPs for battery swapping.`,
-  'learning-resource-recommender': `${COMPANY_KNOWLEDGE} Recommend training from company resources (e.g., Excel courses).`,
-  'unit-responsibility-query': `${COMPANY_KNOWLEDGE} Query FundCo unit responsibilities.`,
-  'term-definer': `${COMPANY_KNOWLEDGE} Define FundCo terms (e.g., CEF, HSF).`,
-  'sop-query': `${COMPANY_KNOWLEDGE} Query specific SOPs (e.g., procurement, installation).`,
-  'team-profile-query': `${COMPANY_KNOWLEDGE} Query team profiles for collaboration suggestions.`,
-  'pdf-extractor': `${COMPANY_KNOWLEDGE} Extract meaningful content from PDFs. Use search_pdf_attachment or browse_pdf_attachment tools on the file. Summarize key sections, tables, entities intelligently. Output clean text or structured JSON if requested.`,
-  'ppt-generator': `${COMPANY_KNOWLEDGE} Generate PowerPoint slide structures from text/prompts. Output as JSON {slides: [{title, content, layout (e.g., title+bullet, image+text)}]}. Make intelligent, concise slides based on content length (e.g., 20 pages). Suggest designs aligning with templates if mentioned.`
+  'general':                   `${COMPANY_KNOWLEDGE}\n\nYou are FundCo AI, a knowledgeable assistant for FundCo Capital Managers. Be concise, accurate, and professional. Use Markdown formatting. Address the user as "you". Analyze attached files thoroughly.`,
+  'report-generator':          `${COMPANY_KNOWLEDGE}\n\nYou are a professional report writer. Generate clear, structured progress reports in Markdown using ONLY the tasks provided. Be truthful about completed and incomplete work. Use FundCo terminology.`,
+  'task-prioritizer':          `${COMPANY_KNOWLEDGE}\n\nYou are a task management expert. Analyze and prioritize tasks using Eisenhower matrix or MoSCoW. Output a sorted list with scores and reasoning. Use FundCo SOPs for context.`,
+  'effort-estimator':          `${COMPANY_KNOWLEDGE}\n\nYou are a project estimation specialist. Provide realistic time and resource estimates with phase breakdowns. Use FundCo terms like CAPEX/OPEX.`,
+  'task-breaker':              `${COMPANY_KNOWLEDGE}\n\nYou are a task decomposition expert. Break tasks into atomic sub-tasks with dependencies and estimates. Align with FundCo unit responsibilities.`,
+  'email-writer':              `${COMPANY_KNOWLEDGE}\n\nYou are a professional communicator. Draft clear, structured emails with subject, greeting, body, and closing. Adapt tone as needed.`,
+  'summary-generator':         `${COMPANY_KNOWLEDGE}\n\nYou are a summarization expert. Create concise summaries highlighting key points, actions, deadlines, and risks. Use bullet points.`,
+  'brainstormer':              `${COMPANY_KNOWLEDGE}\n\nYou are a creative brainstormer. Generate diverse ideas with pros/cons and feasibility scores. Tailor ideas to FundCo's sectors.`,
+  'document-analyzer':         `${COMPANY_KNOWLEDGE}\n\nYou are a document analysis expert. Extract key information from attached files, identify anomalies, and suggest actions. Analyze SOPs and BoQs thoroughly.`,
+  'mini-grid-planner':         `${COMPANY_KNOWLEDGE}\n\nYou are a mini-grid planning expert. Use FundCo SOPs for site survey, design (PV, BESS), and installation. Include BoQ, timelines, and ESG risks.`,
+  'lcoe-calculator':           `${COMPANY_KNOWLEDGE}\n\nYou are an LCOE calculation expert. Calculate levelized cost of energy incorporating CAPEX/OPEX, energy yield, and depreciation. Provide comparisons to grid/diesel.`,
+  'ppa-drafter':               `${COMPANY_KNOWLEDGE}\n\nYou are a PPA drafting expert. Draft Power Purchase Agreements based on FundCo SOPs including tariff rates, terms, and carbon credits.`,
+  'carbon-credit-estimator':   `${COMPANY_KNOWLEDGE}\n\nYou are a carbon credit estimation expert. Calculate CO2 avoidance from diesel displacement. Align with NDCs and CBI certification.`,
+  'mortgage-simulator':        `${COMPANY_KNOWLEDGE}\n\nYou are a mortgage simulation expert for HSF. Factor in ROI, payback period, and green bonds in financial models.`,
+  'property-valuator':         `${COMPANY_KNOWLEDGE}\n\nYou are a property valuation expert. Incorporate ESG factors (BEES rating), location analysis, and market data.`,
+  'green-building-assessor':   `${COMPANY_KNOWLEDGE}\n\nYou are a green building assessment expert. Assess energy efficiency, environmental impact, and sustainability ratings.`,
+  'crop-yield-predictor':      `${COMPANY_KNOWLEDGE}\n\nYou are a crop yield prediction expert for Agronomie. Factor in energy access from mini-grids, soil health, and BSF farming.`,
+  'pue-optimizer':             `${COMPANY_KNOWLEDGE}\n\nYou are a Productive Use of Energy optimizer. Analyze agro-processing needs (milling, cold storage) and optimize energy usage.`,
+  'ev-infrastructure-planner': `${COMPANY_KNOWLEDGE}\n\nYou are an EV infrastructure planning expert for SSM. Plan charging and swapping stations with solar integration.`,
+  'portfolio-risk-analyzer':   `${COMPANY_KNOWLEDGE}\n\nYou are a portfolio risk analysis expert. Assess FX risks, NPL exposure, and ESG compliance. Run stress tests.`,
+  'esg-compliance-checker':    `${COMPANY_KNOWLEDGE}\n\nYou are an ESG compliance expert. Check against IFC standards and UN principles. Flag non-compliance issues.`,
+  'investment-forecaster':     `${COMPANY_KNOWLEDGE}\n\nYou are an investment forecasting expert. Project ROI and payback periods using market trends and financial models.`,
+  'financial-structurer':      `${COMPANY_KNOWLEDGE}\n\nYou are a financial structuring expert. Design debt/equity financing, green bond structures, and payment plans.`,
+  'contract-drafter':          `${COMPANY_KNOWLEDGE}\n\nYou are a contract drafting expert. Draft EPC, PPA, and other contracts based on FundCo SOPs and legal templates.`,
+  'procurement-advisor':       `${COMPANY_KNOWLEDGE}\n\nYou are a procurement advisor. Guide supplier selection, RFQ processes, and PO management using FundCo SOPs.`,
+  'boq-generator':             `${COMPANY_KNOWLEDGE}\n\nYou are a Bill of Quantities expert. Generate detailed BoQs for FundCo projects with materials, quantities, and cost estimates.`,
+  'sdg-impact-analyzer':       `${COMPANY_KNOWLEDGE}\n\nYou are an SDG impact analysis expert. Map project activities to UN Sustainable Development Goals with measurable indicators.`,
 };
+
+// ── File processing helper ─────────────────────────────────────────────────────
+const processFiles = async (files, lastMessage) => {
+  let contentParts = typeof lastMessage.content === 'string'
+    ? [{ type: 'text', text: lastMessage.content }]
+    : (Array.isArray(lastMessage.content) ? lastMessage.content : [{ type: 'text', text: String(lastMessage.content) }]);
+
+  for (const file of files) {
+    const mime = file.mimetype || file.mime || '';
+    try {
+      if (mime.startsWith('image/')) {
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: `data:${mime};base64,${file.buffer.toString('base64')}` },
+        });
+      } else if (mime.startsWith('text/')) {
+        contentParts.push({ type: 'text', text: `📄 Attached: "${file.originalname}"\n\n${file.buffer.toString('utf-8')}` });
+      } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        contentParts.push({ type: 'text', text: `📄 Word doc "${file.originalname}":\n\n${result.value}` });
+      } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        const wb = XLSX.read(file.buffer, { type: 'buffer' });
+        let text = '';
+        wb.SheetNames.forEach(s => { text += `Sheet "${s}":\n${XLSX.utils.sheet_to_txt(wb.Sheets[s])}\n\n`; });
+        contentParts.push({ type: 'text', text: `📊 Excel "${file.originalname}":\n\n${text}` });
+      } else {
+        contentParts.push({ type: 'text', text: `📎 File attached: "${file.originalname}" (${mime}) — note: binary content not directly readable.` });
+      }
+    } catch (e) {
+      contentParts.push({ type: 'text', text: `⚠️ Could not process "${file.originalname}": ${e.message}` });
+    }
+  }
+  return contentParts;
+};
+
+// ── Auto-generate title + summary ─────────────────────────────────────────────
+const generateTitleAndSummary = async (fullContent) => {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'grok-4',
+      messages: [
+        { role: 'system', content: 'You generate a short title (max 8 words) and one-sentence summary for chat sessions. Reply with EXACTLY two lines:\nTitle: <title>\nSummary: <summary>' },
+        { role: 'user',   content: `Generate title and summary for this response:\n\n${fullContent.slice(0, 800)}` },
+      ],
+      temperature: 0.3,
+      max_tokens: 100,
+    });
+    const text  = resp.choices[0].message.content || '';
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const title   = (lines.find(l => l.startsWith('Title:'))   || '').replace('Title:', '').trim()   || 'FundCo AI Chat';
+    const summary = (lines.find(l => l.startsWith('Summary:')) || '').replace('Summary:', '').trim() || '';
+    return { title, summary };
+  } catch {
+    return { title: 'FundCo AI Chat', summary: '' };
+  }
+};
+
+// ── Main chat handler (streaming SSE) ────────────────────────────────────────
 export const grokChat = async (req, res) => {
-  let { messages, taskContext, toolId } = req.body;
-  // Parse JSON strings if from formData
-  if (typeof messages === 'string') {
-    try {
-      messages = JSON.parse(messages);
-    } catch (e) {
-      return res.status(400).json({ error: 'Invalid messages format' });
-    }
+  let { messages, taskContext, toolId, chatId } = req.body;
+
+  // Parse JSON strings (from FormData)
+  if (typeof messages    === 'string') try { messages    = JSON.parse(messages);    } catch { return res.status(400).json({ error: 'Invalid messages' }); }
+  if (typeof taskContext === 'string') try { taskContext = JSON.parse(taskContext); } catch {}
+
+  if (!Array.isArray(messages) || !messages.length)
+    return res.status(400).json({ error: 'messages array required' });
+
+  // Process file attachments
+  if (req.files?.length) {
+    const lastMsg = messages[messages.length - 1];
+    lastMsg.content = await processFiles(req.files, lastMsg);
   }
-  if (typeof taskContext === 'string') {
-    try {
-      taskContext = JSON.parse(taskContext);
-    } catch (e) {
-      // If not JSON, keep as string
-    }
+
+  // Build system prompt
+  const systemPrompt = TOOL_PROMPTS[toolId] || TOOL_PROMPTS['general'];
+  let systemContent = systemPrompt;
+  if (taskContext) {
+    const tc = Array.isArray(taskContext) ? taskContext : [taskContext];
+    systemContent += `\n\n--- User's Current Tasks ---\n${JSON.stringify(tc.slice(0, 50), null, 2)}`;
   }
+  systemContent += `\n\nCurrent user: ${req.user?.firstName || req.user?.name || 'User'}. Date: ${new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' })} (WAT/Lagos time).`;
+
+  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
   try {
-    // Process attached files
-    if (req.files && req.files.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      let contentParts = typeof lastMessage.content === 'string' ? [{ type: 'text', text: lastMessage.content }] : lastMessage.content;
-      for (const file of req.files) {
-        const mime = file.mimetype;
-        let extractedText = '';
-        if (mime.startsWith('image/')) {
-          contentParts.push({
-            type: 'image_url',
-            image_url: {
-              url: `data:${mime};base64,${file.buffer.toString('base64')}`
-            }
-          });
-          extractedText = '[Image attached: Describe and analyze it based on the query.]';
-        } else if (mime.startsWith('text/')) {
-          extractedText = file.buffer.toString('utf-8');
-          contentParts.push({
-            type: 'text',
-            text: `Attached text file "${file.originalname}":\n${extractedText}`
-          });
-        } else if (mime.startsWith('video/')) {
-          contentParts.push({
-            type: 'text',
-            text: `Attached video file "${file.originalname}". Note: Video analysis may be limited.`
-          });
-          extractedText = '[Video attached: Note limitations in analysis.]';
-        } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-          const result = await mammoth.extractRawText({ buffer: file.buffer });
-          extractedText = result.value;
-          contentParts.push({
-            type: 'text',
-            text: `Attached Word file "${file.originalname}":\n${extractedText}`
-          });
-        } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-          const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-          let text = '';
-          workbook.SheetNames.forEach(sheetName => {
-            const sheet = XLSX.utils.sheet_to_txt(workbook.Sheets[sheetName]);
-            text += `Sheet ${sheetName}:\n${sheet}\n\n`;
-          });
-          extractedText = text;
-          contentParts.push({
-            type: 'text',
-            text: `Attached Excel file "${file.originalname}":\n${extractedText}`
-          });
-        } else {
-          extractedText = '[Unsupported file type: Limited analysis available.]';
-          contentParts.push({
-            type: 'text',
-            text: `Attached file "${file.originalname}" of type ${mime}. Analysis may be limited.\n${extractedText}`
-          });
-        }
-      }
-      lastMessage.content = contentParts;
-    }
-    const systemPrompt = TOOL_PROMPTS[toolId] || TOOL_PROMPTS['general'];
     const stream = await openai.chat.completions.create({
       model: 'grok-4',
       messages: [
-        {
-          role: 'system',
-          content: `${systemPrompt}\nCurrent user: ${req.user?.name || 'User'}\nTask context: ${taskContext || 'None'}\nUse tools if needed (code_execution for calcs, web_search for data).`,
-        },
-        ...messages,
+        { role: 'system', content: systemContent },
+        ...messages.map(m => ({
+          role:    m.role,
+          content: Array.isArray(m.content) ? m.content : (typeof m.content === 'string' ? m.content : String(m.content)),
+        })),
       ],
-      temperature: 0.3,
-      max_tokens: 4096,
+      temperature: 0.35,
+      max_tokens:  4096,
       stream: true,
     });
+
     let fullContent = '';
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        fullContent += content;
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta) {
+        fullContent += delta;
+        res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
       }
     }
-    res.write(`data: [DONE]\n\n`);
-    // Auto-generate title and summary for new chat
-    const summaryMessages = [{ role: 'user', content: `Summarize this chat in 1 sentence and suggest a title: ${fullContent}` }];
-    const summaryResponse = await openai.chat.completions.create({
-      model: 'grok-4',
-      messages: [{ role: 'system', content: 'Generate concise title and summary.' }, ...summaryMessages],
-    });
-    let summaryText = summaryResponse.choices[0].message.content;
-    let title = 'Untitled Chat';
-    let summary = 'No summary available';
-    const lines = summaryText.split('\n');
-    if (lines.length >= 2) {
-      title = lines[0].replace('Title: ', '').trim();
-      summary = lines[1].replace('Summary: ', '').trim();
-    } else if (lines.length === 1) {
-      title = lines[0].trim();
+    res.write('data: [DONE]\n\n');
+
+    // Persist / update chat history
+    try {
+      const assistantMsg = { role: 'assistant', content: fullContent };
+      const allMessages  = [...messages, assistantMsg];
+
+      if (chatId) {
+        // Continue existing chat
+        const existing = await GrokChat.findOne({ _id: chatId, userId: req.user._id });
+        if (existing) {
+          existing.messages = allMessages;
+          existing.taskContext = taskContext || existing.taskContext;
+          await existing.save();
+          res.write(`data: ${JSON.stringify({ chatId: existing._id.toString(), saved: true })}\n\n`);
+        }
+      } else {
+        // Create new chat
+        const { title, summary } = await generateTitleAndSummary(fullContent);
+        const newChat = await GrokChat.create({
+          userId:      req.user._id,
+          toolId,
+          messages:    allMessages,
+          taskContext,
+          title,
+          summary,
+        });
+        res.write(`data: ${JSON.stringify({ chatId: newChat._id.toString(), title, summary, saved: true })}\n\n`);
+      }
+    } catch (saveErr) {
+      console.error('Chat save error:', saveErr.message);
     }
-    // Persist chat
-    const newChat = await GrokChat.create({
-      userId: req.user._id,
-      toolId,
-      messages: [...messages, { role: 'assistant', content: fullContent }],
-      taskContext,
-      title,
-      summary,
-      tags: [] // Can extract tags via another call if needed
-    });
-    res.write(`data: ${JSON.stringify({ chatId: newChat._id, title, summary })}\n\n`); // Send back for frontend
-  } catch (error) {
-    console.error('Grok API Error:', error.message);
-    res.write(`data: ${JSON.stringify({ error: 'Failed to reach FundCo AI.' })}\n\n`);
+  } catch (err) {
+    console.error('FundCo AI error:', err.message);
+    res.write(`data: ${JSON.stringify({ error: 'FundCo AI is temporarily unavailable. Please try again.' })}\n\n`);
   } finally {
     res.end();
   }
 };
+
+// ── Get chat history ──────────────────────────────────────────────────────────
 export const getChatHistory = async (req, res) => {
-  const { toolId, search } = req.query;
-  const filter = { userId: req.user._id };
-  if (toolId) filter.toolId = toolId;
-  if (search) filter.$or = [{ title: { $regex: search, $options: 'i' } }, { summary: { $regex: search, $options: 'i' } }];
   try {
-    const histories = await GrokChat.find(filter).sort({ createdAt: -1 }).limit(100); // Increased limit
-    res.json({ success: true, histories });
-  } catch (error) {
+    const { toolId, toolIds, search, starred, page = 1, limit = 30 } = req.query;
+    const filter = { userId: req.user._id };
+    // toolIds = comma-separated list (AI Tools section scope)
+    // toolId  = single exact match
+    if (toolIds) {
+      filter.toolId = { $in: toolIds.split(',').map(s => s.trim()).filter(Boolean) };
+    } else if (toolId) {
+      filter.toolId = toolId;
+    }
+    if (starred === 'true') filter.starred = true;
+    if (search)  filter.$text   = { $search: search };
+
+    const chats = await GrokChat.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .select('-messages'); // Don't send full messages in list — saves bandwidth
+
+    const total = await GrokChat.countDocuments(filter);
+    res.json({ success: true, histories: chats, total, page: Number(page) });
+  } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to fetch history' });
   }
 };
-export const updateChat = async (req, res) => {
-  const { chatId, title, tags } = req.body;
+
+// ── Get single chat (with messages) ──────────────────────────────────────────
+export const getChatById = async (req, res) => {
   try {
+    const chat = await GrokChat.findOne({ _id: req.params.chatId, userId: req.user._id });
+    if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+    res.json({ success: true, chat });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to fetch chat' });
+  }
+};
+
+// ── Update chat (title / tags / starred) ──────────────────────────────────────
+export const updateChat = async (req, res) => {
+  try {
+    const { title, tags, starred } = req.body;
+    const update = {};
+    if (title   !== undefined) update.title   = title;
+    if (tags    !== undefined) update.tags    = tags;
+    if (starred !== undefined) update.starred = starred;
+
     const chat = await GrokChat.findOneAndUpdate(
-      { _id: chatId, userId: req.user._id },
-      { title, tags },
+      { _id: req.params.chatId, userId: req.user._id },
+      update,
       { new: true }
     );
     if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
     res.json({ success: true, chat });
-  } catch (error) {
+  } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update chat' });
   }
 };
+
+// ── Delete chat ───────────────────────────────────────────────────────────────
 export const deleteChat = async (req, res) => {
-  const { chatId } = req.params;
   try {
-    const deleted = await GrokChat.findOneAndDelete({ _id: chatId, userId: req.user._id });
+    const deleted = await GrokChat.findOneAndDelete({ _id: req.params.chatId, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, error: 'Chat not found' });
     res.json({ success: true });
-  } catch (error) {
+  } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to delete chat' });
   }
 };
-export const summarizeChat = async (req, res) => {
-  const { chatId } = req.params;
+
+// ── Delete all chats for a tool ───────────────────────────────────────────────
+export const clearToolHistory = async (req, res) => {
   try {
-    const chat = await GrokChat.findOne({ _id: chatId, userId: req.user._id });
-    if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
-    const messagesStr = chat.messages.map(m => {
-      let content = '';
-      if (Array.isArray(m.content)) {
-        content = m.content.map(part => part.type === 'text' ? part.text : (part.type === 'image_url' ? '[Image attached]' : '[File attached]')).join('\n');
-      } else {
-        content = m.content;
-      }
-      return `${m.role}: ${content}`;
-    }).join('\n');
-    const response = await openai.chat.completions.create({
-      model: 'grok-4',
-      messages: [{ role: 'user', content: `Summarize this chat: ${messagesStr}` }],
-    });
-    const summary = response.choices[0].message.content;
-    await GrokChat.updateOne({ _id: chatId }, { summary });
-    res.json({ success: true, summary });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to summarize' });
+    await GrokChat.deleteMany({ userId: req.user._id, toolId: req.params.toolId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to clear history' });
   }
 };

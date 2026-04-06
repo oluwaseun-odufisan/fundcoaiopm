@@ -1,3 +1,4 @@
+// backend/controllers/goalController.js
 import Goal from '../models/goalModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
@@ -8,13 +9,10 @@ const createOrUpdateGoalReminder = async (goal, userId, io) => {
         await Reminder.deleteMany({ targetId: goal._id, targetModel: 'Goal', user: userId });
         return;
     }
-
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
-
     const reminderTime = user.preferences?.reminders?.defaultReminderTimes?.goal_deadline || 1440;
     const remindAt = new Date(goal.endDate.getTime() - reminderTime * 60 * 1000);
-
     let reminder = await Reminder.findOne({ targetId: goal._id, targetModel: 'Goal', user: userId });
     if (reminder) {
         reminder.message = `Goal "${goal.title}" deadline approaching`;
@@ -79,7 +77,6 @@ export const createGoal = async (req, res) => {
         if (!title || !timeframe || !startDate || !endDate) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
-
         const goal = new Goal({
             title,
             subGoals: subGoals || [],
@@ -89,12 +86,10 @@ export const createGoal = async (req, res) => {
             endDate: new Date(endDate),
             owner: req.user._id,
         });
-
         const saved = await goal.save();
         await updateUserPerformance(req.user._id, getGoalPoints(saved));
         await createOrUpdateGoalReminder(saved, req.user._id, req.io);
         req.io.to(`user:${req.user._id}`).emit('newGoal', saved);
-
         res.status(201).json({ success: true, goal: saved });
     } catch (err) {
         console.error('Error creating goal:', err.message);
@@ -102,10 +97,12 @@ export const createGoal = async (req, res) => {
     }
 };
 
-// GET ALL GOALS FOR LOGGED-IN USER
+// GET ALL GOALS FOR LOGGED-IN USER (optimized with .lean() for speed)
 export const getGoals = async (req, res) => {
     try {
-        const goals = await Goal.find({ owner: req.user._id }).sort({ createdAt: -1 });
+        const goals = await Goal.find({ owner: req.user._id })
+            .sort({ createdAt: -1 })
+            .lean();   // ← FIXED: faster query, no mongoose document overhead
         res.json({ success: true, goals });
     } catch (err) {
         console.error('Error fetching goals:', err.message);
@@ -134,21 +131,17 @@ export const updateGoal = async (req, res) => {
         const data = { ...req.body };
         if (data.startDate) data.startDate = new Date(data.startDate);
         if (data.endDate) data.endDate = new Date(data.endDate);
-
         const updated = await Goal.findOneAndUpdate(
             { _id: req.params.id, owner: req.user._id },
             data,
             { new: true, runValidators: true }
         );
-
         if (!updated) {
             return res.status(404).json({ success: false, message: 'Goal not found or not yours' });
         }
-
         await updateUserGoalPerformance(req.user._id, oldGoal, updated);
         await createOrUpdateGoalReminder(updated, req.user._id, req.io);
         req.io.to(`user:${req.user._id}`).emit('goalUpdated', updated);
-
         res.json({ success: true, goal: updated });
     } catch (err) {
         console.error('Error updating goal:', err.message);
@@ -163,12 +156,9 @@ export const deleteGoal = async (req, res) => {
         if (!deleted) {
             return res.status(404).json({ success: false, message: 'Goal not found or not yours' });
         }
-
         await updateUserPerformance(req.user._id, -getGoalPoints(deleted));
-
         await Reminder.deleteMany({ targetId: req.params.id, targetModel: 'Goal', user: req.user._id });
         req.io.to(`user:${req.user._id}`).emit('goalDeleted', req.params.id);
-
         res.json({ success: true, message: 'Goal deleted' });
     } catch (err) {
         console.error('Error deleting goal:', err.message);
