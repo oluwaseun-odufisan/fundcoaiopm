@@ -548,10 +548,10 @@ const HistoryPanel = ({ toolId, onResume, onClose }) => {
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
-      // Only return chats whose toolId belongs to the AI Tools catalog.
+      // Only return chats whose toolId belongs to the AI Tools catalog
       // Other parts of the app (Training LMS, DeckPrep, Reports) use
       // toolIds like 'pdf-extractor', 'ppt-generator', 'report-generator'
-      // via their own controllers — those should not appear here.
+      // via their own controllers — those should not appear here
       const r = await axios.get(`${API}/api/grok/history`, {
         headers: authHeaders(),
         params: { toolIds: AI_TOOL_IDS.join(','), limit: 100 },
