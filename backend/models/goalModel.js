@@ -1,4 +1,4 @@
-//goalModel.js
+// backend/models/goalModel.js
 import mongoose from 'mongoose';
 
 const goalSchema = new mongoose.Schema({
@@ -41,6 +41,12 @@ const goalSchema = new mongoose.Schema({
         type: Date,
         required: true,
     },
+    // NEW: Allow linking goal to one or more tasks
+    associatedTasks: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Task',
+        default: []
+    }],
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'user',

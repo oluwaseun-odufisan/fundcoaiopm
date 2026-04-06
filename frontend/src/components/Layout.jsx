@@ -205,7 +205,7 @@ const Layout = ({ onLogout, user: initialUser }) => {
           <motion.div
             initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="fixed bottom-0 right-0 w-full sm:w-96 flex flex-col shadow-2xl z-[1000] border-l"
+            className="fixed bottom-0 right-0 mt-20 w-full sm:w-96 flex flex-col shadow-2xl z-[1000] border-l"
             style={{
               top: NAV_H,
               height: `calc(100vh - ${NAV_H}px)`,

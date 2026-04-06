@@ -3,6 +3,12 @@ import Goal from '../models/goalModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 
+// ── Missing helper (was causing the error) ───────────────────────────────────
+const updateUserPerformance = async (userId, delta) => {
+  if (!delta) return;
+  await User.findByIdAndUpdate(userId, { $inc: { points: delta } });
+};
+
 // Helper function to create or update reminder for a goal
 const createOrUpdateGoalReminder = async (goal, userId, io) => {
     if (!goal.endDate) {
@@ -51,11 +57,11 @@ const createOrUpdateGoalReminder = async (goal, userId, io) => {
 // Helper to calculate goal points
 const getGoalPoints = (goal) => {
   const progress = calculateGoalProgress(goal);
-  return Math.round(progress / 100 * 50);  // Max 50 points per goal
+  return Math.round(progress / 100 * 50);
 };
 
 const calculateGoalProgress = (goal) => {
-  if (!goal.subGoals.length) return 0;
+  if (!goal.subGoals?.length) return 0;
   const completed = goal.subGoals.filter(sg => sg.completed).length;
   return (completed / goal.subGoals.length) * 100;
 };
@@ -73,7 +79,7 @@ const updateUserGoalPerformance = async (userId, oldGoal, newGoal) => {
 // CREATE A NEW GOAL
 export const createGoal = async (req, res) => {
     try {
-        const { title, subGoals, type, timeframe, startDate, endDate } = req.body;
+        const { title, subGoals, type, timeframe, startDate, endDate, associatedTasks } = req.body;
         if (!title || !timeframe || !startDate || !endDate) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
@@ -84,6 +90,7 @@ export const createGoal = async (req, res) => {
             timeframe,
             startDate: new Date(startDate),
             endDate: new Date(endDate),
+            associatedTasks: associatedTasks || [],
             owner: req.user._id,
         });
         const saved = await goal.save();
@@ -97,12 +104,12 @@ export const createGoal = async (req, res) => {
     }
 };
 
-// GET ALL GOALS FOR LOGGED-IN USER (optimized with .lean() for speed)
+// GET ALL GOALS FOR LOGGED-IN USER
 export const getGoals = async (req, res) => {
     try {
         const goals = await Goal.find({ owner: req.user._id })
             .sort({ createdAt: -1 })
-            .lean();   // ← FIXED: faster query, no mongoose document overhead
+            .lean();
         res.json({ success: true, goals });
     } catch (err) {
         console.error('Error fetching goals:', err.message);

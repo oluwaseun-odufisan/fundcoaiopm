@@ -556,7 +556,7 @@ const PerformanceAnalytics = () => {
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3" style={{ color:'var(--text-primary)' }}>
             <BarChart2 className="w-6 h-6" style={{ color:'var(--brand-primary)' }} />
-            Performance Analytics
+            Tasks Performance Analytics
           </h1>
           <p className="text-sm mt-0.5" style={{ color:'var(--text-secondary)' }}>
             {filtered.length} tasks in view · Last updated {new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}

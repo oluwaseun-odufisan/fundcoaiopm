@@ -372,12 +372,6 @@ const Dashboard = () => {
       )}
 
       {/* FAB */}
-      <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-        onClick={() => { setSelectedTask(null); setShowModal(true); }}
-        className="fixed bottom-20 right-6 sm:bottom-6 w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg z-30"
-        style={{ backgroundColor: 'var(--brand-accent)' }}>
-        <Plus className="w-5 h-5" />
-      </motion.button>
 
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedTask(null); }} taskToEdit={selectedTask} onSave={handleTaskSave} onLogout={onLogout} />
       <AnimatePresence>
