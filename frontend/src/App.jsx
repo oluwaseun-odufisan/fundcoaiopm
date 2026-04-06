@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, useNavigate, Route, Outlet, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './components/Login';
@@ -25,11 +25,12 @@ import Meeting from './pages/Meeting';
 import Training from './pages/Training';
 import Feedback from './pages/Feedback';
 import DeckPrep from './pages/DeckPrep';
-import ReportGeneration from './pages/ReportGeneration';
 import MeetingLobby from './pages/MeetingLobby';
 import VideoRoom from './pages/VideoRoom';
-
 import { ThemeProvider } from './context/ThemeContext';
+
+// ← NEW: Lazy load the heavy report page
+const ReportGeneration = lazy(() => import('./pages/ReportGeneration'));
 
 const App = () => {
   const navigate = useNavigate();
@@ -71,50 +72,44 @@ const App = () => {
   return (
     <ThemeProvider>
       <Routes>
-        <Route
-          path="/login"
-          element={
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <Login onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/signup')} />
-            </div>
-          }
-        />
-
-        <Route
-          path="/signup"
-          element={
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <Signup onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/login')} />
-            </div>
-          }
-        />
+        <Route path="/login" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Login onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/signup')} /></div>} />
+        <Route path="/signup" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Signup onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/login')} /></div>} />
 
         <Route element={currentUser ? <ProtectedLayout /> : <Navigate to="/login" replace />}>
-          <Route path="/"                   element={<Dashboard />} />
-          <Route path="/pending"            element={<PendingPage />} />
-          <Route path="/complete"           element={<CompletePage />} />
-          <Route path="/profile"            element={<Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />} />
-          <Route path="/assigned"           element={<AssignedTasks />} />
-          <Route path="/calendar"           element={<CalendarView />} />
-          <Route path="/team-chat"          element={<TeamChat />} />
-          <Route path="/url-shortener"      element={<UrlShortener />} />
-          <Route path="/file-storage"       element={<FileStorage />} />
-          <Route path="/analytics"          element={<PerformanceAnalytics />} />
-          <Route path="/performance"        element={<PerformanceDashboard />} />
-          <Route path="/social-feed"        element={<SocialFeed />} />
-          <Route path="/ai-tools"           element={<AiTools />} />
-          <Route path="/reminders"          element={<Reminders />} />
-          <Route path="/goals"              element={<Goals />} />
-          <Route path="/appraisals"         element={<Appraisals />} />
-          <Route path="/meeting"            element={<Meeting />} />
-          <Route path="/training"           element={<Training />} />
-          <Route path="/feedback"           element={<Feedback />} />
-          <Route path="/deck-prep"          element={<DeckPrep />} />
-          {/* Legacy redirect: old document-converter URL → new deck-prep */}
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/pending" element={<PendingPage />} />
+          <Route path="/complete" element={<CompletePage />} />
+          <Route path="/profile" element={<Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />} />
+          <Route path="/assigned" element={<AssignedTasks />} />
+          <Route path="/calendar" element={<CalendarView />} />
+          <Route path="/team-chat" element={<TeamChat />} />
+          <Route path="/url-shortener" element={<UrlShortener />} />
+          <Route path="/file-storage" element={<FileStorage />} />
+          <Route path="/analytics" element={<PerformanceAnalytics />} />
+          <Route path="/performance" element={<PerformanceDashboard />} />
+          <Route path="/social-feed" element={<SocialFeed />} />
+          <Route path="/ai-tools" element={<AiTools />} />
+          <Route path="/reminders" element={<Reminders />} />
+          <Route path="/goals" element={<Goals />} />
+          <Route path="/appraisals" element={<Appraisals />} />
+          <Route path="/meeting" element={<Meeting />} />
+          <Route path="/training" element={<Training />} />
+          <Route path="/feedback" element={<Feedback />} />
+          <Route path="/deck-prep" element={<DeckPrep />} />
           <Route path="/document-converter" element={<Navigate to="/deck-prep" replace />} />
-          <Route path="/reports"            element={<ReportGeneration />} />
-          <Route path="/meetroom"           element={<MeetingLobby />} />
-          <Route path="/room/:roomId"       element={<VideoRoom />} />
+
+          {/* ← LAZY LOADED + Suspense (this fixes the huge chunk) */}
+          <Route
+            path="/reports"
+            element={
+              <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading Report Tool...</div>}>
+                <ReportGeneration />
+              </Suspense>
+            }
+          />
+
+          <Route path="/meetroom" element={<MeetingLobby />} />
+          <Route path="/room/:roomId" element={<VideoRoom />} />
         </Route>
 
         <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
