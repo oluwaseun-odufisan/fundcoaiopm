@@ -50,7 +50,7 @@ const app = express();
 const httpServer = createServer(app);
 
 // ─────────────────────────────────────────────────────────────
-// PORT — comes ONLY from .env (no hardcoded fallback)
+// PORT — comes ONLY from .env
 const port = parseInt(process.env.PORT, 10);
 if (!port) {
     console.error('❌ PORT is not defined in your .env file');
@@ -59,13 +59,13 @@ if (!port) {
 console.log(`Starting server on port: ${port}`);
 
 // ─────────────────────────────────────────────────────────────
-// Socket.IO with CORS from .env ONLY
+// Socket.IO
 const io = new Server(httpServer, {
     cors: {
         origin: [
             process.env.FRONTEND_URL,
             process.env.ADMIN_FRONTEND_URL,
-        ].filter(Boolean),   // removes undefined/null entries
+        ].filter(Boolean),
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true,
@@ -81,17 +81,11 @@ const io = new Server(httpServer, {
 });
 
 setupRoomSignaling(io);
-
-// Make io globally accessible
 global.io = io;
 
-// Attach io to every request
-app.use((req, res, next) => {
-    req.io = io;
-    next();
-});
+app.use((req, res, next) => { req.io = io; next(); });
 
-// Global CORS middleware — also from .env ONLY
+// CORS
 app.use(cors({
     origin: [
         process.env.FRONTEND_URL,
@@ -111,137 +105,128 @@ app.use('/api/bot', fileUpload());
 app.use('/api/posts', fileUpload());
 
 // Routes
-app.use('/api/user', userRouter);
-app.use('/api/tasks', taskRouter);
-app.use('/api/files', fileRouter);
-app.use('/api/chats', chatRouter);
-app.use('/api/urls', urlRouter);
-app.use('/download', urlRouter);
-app.use('/api/bot', botChatRouter);
-app.use('/api/posts', postRouter);
-app.use('/api/reminders', reminderRouter);
-app.use('/api/goals', goalRouter);
+app.use('/api/user',        userRouter);
+app.use('/api/tasks',       taskRouter);
+app.use('/api/files',       fileRouter);
+app.use('/api/chats',       chatRouter);
+app.use('/api/urls',        urlRouter);
+app.use('/download',        urlRouter);
+app.use('/api/bot',         botChatRouter);
+app.use('/api/posts',       postRouter);
+app.use('/api/reminders',   reminderRouter);
+app.use('/api/goals',       goalRouter);
 app.use('/api/performance', performanceRouter);
-app.use('/api/grok', grokRouter);
-app.use('/api/meetings', meetingRouter);
-app.use('/api/learning', learningRouter);
-app.use('/api/documents', documentRoutes);
-app.use('/api/reports', reportRouter);
-app.use('/api/feedback', feedbackRouter);
-app.use('/api/rooms', roomRouter);
+app.use('/api/grok',        grokRouter);
+app.use('/api/meetings',    meetingRouter);
+app.use('/api/learning',    learningRouter);
+app.use('/api/documents',   documentRoutes);
+app.use('/api/reports',     reportRouter);
+app.use('/api/feedback',    feedbackRouter);
+app.use('/api/rooms',       roomRouter);
 
-
-// Environment variable validation (already strict)
+// Environment variable validation
 const requiredEnvVars = [
     'MONGO_URI', 'JWT_SECRET', 'WIT_AI_TOKEN', 'PINATA_API_KEY',
     'PINATA_SECRET_API_KEY', 'PINATA_JWT', 'BASE_URL', 'FRONTEND_URL',
-    'EMAIL_USER', 'EMAIL_PASS', 'FIREBASE_CREDENTIALS', 'GROK_API_KEY',
-    'PORT',                    // ← now required
+    'EMAIL_USER', 'EMAIL_PASS', 'FIREBASE_CREDENTIALS', 'GROK_API_KEY', 'PORT',
 ];
-
-const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+const missingEnvVars = requiredEnvVars.filter(v => !process.env[v]);
 if (missingEnvVars.length > 0) {
     console.error(`❌ Missing required environment variables: ${missingEnvVars.join(', ')}`);
-    console.error('Please add them to your .env file');
     process.exit(1);
 }
 
-// Socket.IO authentication
+// ─────────────────────────────────────────────────────────────
+// Socket.IO Auth
 io.use(async (socket, next) => {
     try {
-        const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+        const token = socket.handshake.auth?.token ||
+            socket.handshake.headers?.authorization?.split(' ')[1];
         if (!token) return next(new Error('Authentication token required'));
-
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         socket.user = { id: decoded.id, email: decoded.email };
         next();
     } catch (error) {
-        console.error('Socket auth error:', error.message);
         next(new Error('Authentication failed'));
     }
 });
 
+// ─────────────────────────────────────────────────────────────
+// Socket.IO Events
 io.on('connection', async (socket) => {
     console.log(`✅ Socket connected: ${socket.id} | User: ${socket.user?.id || 'unknown'}`);
 
+    // Update lastActive
     try {
         const user = await User.findById(socket.user.id).select('lastActive');
-        if (user) {
-            user.lastActive = new Date();
-            await user.save({ validateBeforeSave: false });
-        }
+        if (user) { user.lastActive = new Date(); await user.save({ validateBeforeSave: false }); }
     } catch (err) {
         console.error('Error updating lastActive:', err.message);
     }
 
     socket.join(`user:${socket.user.id}`);
 
-    // Event handlers (unchanged)
-    socket.on('joinChat', (chatId) => { if (typeof chatId === 'string' && chatId) socket.join(chatId); });
-    socket.on('leaveChat', (chatId) => { if (typeof chatId === 'string' && chatId) socket.leave(chatId); });
+    // ── Chat ──────────────────────────────────────────────────
+    socket.on('joinChat',  (chatId) => { if (chatId) socket.join(chatId); });
+    socket.on('leaveChat', (chatId) => { if (chatId) socket.leave(chatId); });
     socket.on('typing', ({ chatId, userId, isTyping }) => {
-        if (typeof chatId === 'string' && typeof userId === 'string') {
-            socket.to(chatId).emit('typing', { chatId, userId, isTyping });
-        }
+        if (chatId && userId) socket.to(chatId).emit('typing', { chatId, userId, isTyping });
     });
-    // ... (all other socket events remain exactly as before)
-    socket.on('joinPost', (postId) => { if (typeof postId === 'string') socket.join(`post:${postId}`); });
-    socket.on('leavePost', (postId) => { if (typeof postId === 'string') socket.leave(`post:${postId}`); });
-    socket.on('posting', ({ postId, userId, isPosting }) => {
-        if (typeof postId === 'string' && typeof userId === 'string') {
-            socket.to(`post:${postId}`).emit('posting', { postId, userId, isPosting });
-        }
-    });
-    socket.on('newPost', (post) => io.emit('newPost', post));
-    socket.on('postUpdated', (post) => io.emit('postUpdated', post));
-    socket.on('postDeleted', (postId) => io.emit('postDeleted', postId));
-    socket.on('newReminder', (reminder) => io.to(`user:${socket.user.id}`).emit('newReminder', reminder));
-    socket.on('reminderUpdated', (reminder) => io.to(`user:${socket.user.id}`).emit('reminderUpdated', reminder));
-    socket.on('reminderTriggered', (reminder) => io.to(`user:${socket.user.id}`).emit('reminderTriggered', reminder));
-    socket.on('newGoal', (goal) => io.to(`user:${socket.user.id}`).emit('newGoal', goal));
-    socket.on('goalUpdated', (goal) => io.to(`user:${socket.user.id}`).emit('goalUpdated', goal));
-    socket.on('goalDeleted', (id) => io.to(`user:${socket.user.id}`).emit('goalDeleted', id));
-    socket.on('newMeeting', (meeting) => io.emit('newMeeting', meeting));
-    socket.on('meetingUpdated', (meeting) => io.emit('meetingUpdated', meeting));
-    socket.on('meetingDeleted', (id) => io.emit('meetingDeleted', id));
-    socket.on('newMeetingInvitation', (data) => io.to(`user:${data.participantId}`).emit('newMeetingInvitation', data));
- 
-    // ★ NEW: Forward room invitations to specific users
+
+    // ── Posts (namespaced events: post:new, post:updated, post:deleted) ───
+    // These are emitted server-side via req.io in postRoutes.js.
+    // Clients can also push post events for broadcasting:
+    socket.on('post:new',     (post)   => socket.broadcast.emit('post:new', post));
+    socket.on('post:updated', (post)   => socket.broadcast.emit('post:updated', post));
+    socket.on('post:deleted', (data)   => socket.broadcast.emit('post:deleted', data));
+
+    // ── Reminders ─────────────────────────────────────────────
+    socket.on('newReminder',      (r) => io.to(`user:${socket.user.id}`).emit('newReminder', r));
+    socket.on('reminderUpdated',  (r) => io.to(`user:${socket.user.id}`).emit('reminderUpdated', r));
+    socket.on('reminderTriggered',(r) => io.to(`user:${socket.user.id}`).emit('reminderTriggered', r));
+
+    // ── Goals ─────────────────────────────────────────────────
+    socket.on('newGoal',     (g) => io.to(`user:${socket.user.id}`).emit('newGoal', g));
+    socket.on('goalUpdated', (g) => io.to(`user:${socket.user.id}`).emit('goalUpdated', g));
+    socket.on('goalDeleted', (id)=> io.to(`user:${socket.user.id}`).emit('goalDeleted', id));
+
+    // ── Meetings ──────────────────────────────────────────────
+    socket.on('newMeeting',           (m)  => io.emit('newMeeting', m));
+    socket.on('meetingUpdated',       (m)  => io.emit('meetingUpdated', m));
+    socket.on('meetingDeleted',       (id) => io.emit('meetingDeleted', id));
+    socket.on('newMeetingInvitation', (d)  => io.to(`user:${d.participantId}`).emit('newMeetingInvitation', d));
+
+    // ── Room signaling (handled by setupRoomSignaling) ─────────
     socket.on('roomInvitation', (data) => {
         if (data.userId) io.to(`user:${data.userId}`).emit('roomInvitation', data);
     });
-    socket.on('error', (error) => console.error('Socket error:', error.message));
-    socket.on('disconnect', (reason) => {
-        console.log(`❌ Socket disconnected: ${socket.id} | Reason: ${reason}`);
-    });
+
+    socket.on('error',      (err)    => console.error('Socket error:', err.message));
+    socket.on('disconnect', (reason) => console.log(`❌ Socket disconnected: ${socket.id} | ${reason}`));
 });
 
+// ─────────────────────────────────────────────────────────────
 // Health check
 app.get('/', (req, res) => res.json({
-    success: true,
-    message: 'API is running',
-    port: port,
-    socketEnabled: true,
-    env: process.env.NODE_ENV || 'development'
+    success: true, message: 'API is running', port,
+    socketEnabled: true, env: process.env.NODE_ENV || 'development',
 }));
 
 // Admin emit endpoint
 app.post('/api/emit', (req, res) => {
     const { event, data } = req.body;
-    if (!event || !data) {
-        return res.status(400).json({ success: false, message: 'Event and data are required' });
-    }
+    if (!event || !data) return res.status(400).json({ success: false, message: 'Event and data are required' });
     io.emit(event, data);
-    res.json({ success: true, message: 'Event emitted successfully' });
+    res.json({ success: true, message: 'Event emitted' });
 });
 
-// Error handling
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('Server error:', err.stack);
     res.status(500).json({
         success: false,
         message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
 });
 
@@ -254,9 +239,7 @@ cron.schedule('*/5 * * * *', async () => {
             { status: 'ongoing', $expr: { $gt: [{ $subtract: [now, '$startTime'] }, { $multiply: ['$duration', 60000] }] } },
             { status: 'ended', endedAt: now }
         );
-    } catch (err) {
-        console.error('Cron meeting status error:', err);
-    }
+    } catch (err) { console.error('Cron meeting status error:', err); }
 });
 
 // Start server
@@ -264,11 +247,10 @@ async function startServer() {
     try {
         await connectDB();
         console.log('✅ MongoDB connected successfully');
-
         httpServer.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${port}`);
             console.log(`📡 Socket.IO ready on ws://localhost:${port}/socket.io`);
-            console.log(`Frontend URL (from .env): ${process.env.FRONTEND_URL}`);
+            console.log(`Frontend URL: ${process.env.FRONTEND_URL}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
             startReminderScheduler();
         });
@@ -279,7 +261,4 @@ async function startServer() {
 }
 
 export { app, io };
-
-if (process.env.NODE_ENV !== 'test') {
-    startServer();
-}
+if (process.env.NODE_ENV !== 'test') startServer();

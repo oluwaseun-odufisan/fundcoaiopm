@@ -1,9 +1,10 @@
+// backend/routes/reportRoutes.js
 import express from 'express';
 import authMiddleware from '../middleware/auth.js';
-import multer from 'multer';
 import {
   createManualReport,
   generateAIReport,
+  saveAIReport,
   getMyReports,
   getReportById,
   updateReport,
@@ -11,31 +12,16 @@ import {
   deleteReport,
 } from '../controllers/reportController.js';
 
-const upload = multer({ storage: multer.memoryStorage() });
-
 const router = express.Router();
-
 router.use(authMiddleware);
 
-// Manual creation (supports image attachments)
-router.post('/', upload.array('attachments'), createManualReport);
-
-// AI generation
-router.post('/ai-generate', upload.array('attachments'), generateAIReport);
-
-// List my reports
-router.get('/', getMyReports);
-
-// Single report
-router.get('/:id', getReportById);
-
-// Update (only drafts)
-router.put('/:id', updateReport);
-
-// Submit
-router.post('/:id/submit', submitReport);
-
-// Delete draft
-router.delete('/:id', deleteReport);
+router.post('/',              createManualReport);  // Create manual draft
+router.post('/ai-generate',   generateAIReport);    // AI generate content (no save)
+router.post('/ai-save',       saveAIReport);        // Save AI-generated report
+router.get('/',               getMyReports);
+router.get('/:id',            getReportById);
+router.put('/:id',            updateReport);
+router.post('/:id/submit',    submitReport);
+router.delete('/:id',         deleteReport);
 
 export default router;

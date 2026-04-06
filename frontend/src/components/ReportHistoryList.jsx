@@ -139,13 +139,13 @@ const ReportHistoryList = ({ user }) => {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Search className="w-6 h-6 text-blue-500" />
+        <Search className="w-6 h-6 text-[var(--brand-primary)]" />
         <input
           type="text"
           placeholder="Search reports..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 p-4 rounded-3xl border border-blue-200 focus:border-blue-500 outline-none"
+          className="flex-1 p-4 rounded-3xl border border-[var(--border-color)] focus:border-[var(--brand-primary)] outline-none bg-[var(--bg-surface)] text-[var(--text-primary)]"
         />
       </div>
 
@@ -153,20 +153,20 @@ const ReportHistoryList = ({ user }) => {
         {filtered.map((report) => (
           <motion.div
             key={report._id}
-            className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow flex justify-between items-center"
+            className="bg-[var(--bg-surface)] p-6 rounded-3xl shadow flex justify-between items-center border border-[var(--border-color)]"
           >
             <div>
-              <h4 className="font-semibold text-xl">{report.title}</h4>
-              <p className="text-sm text-gray-500">
+              <h4 className="font-semibold text-xl text-[var(--text-primary)]">{report.title}</h4>
+              <p className="text-sm text-[var(--text-secondary)]">
                 {new Date(report.createdAt).toLocaleDateString()} • {report.reportType}
               </p>
               <span
                 className={`inline-block px-4 py-1 text-xs rounded-full mt-2 ${
                   report.status === 'draft'
-                    ? 'bg-amber-100 text-amber-700'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
                     : report.status === 'reviewed'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-blue-100 text-blue-700'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
+                    : 'bg-[var(--brand-light)] text-[var(--brand-primary)]'
                 }`}
               >
                 {report.status.toUpperCase()}
@@ -176,21 +176,21 @@ const ReportHistoryList = ({ user }) => {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setViewingReport(report)}
-                className="flex items-center gap-2 px-6 py-3 hover:bg-blue-50 rounded-2xl transition-all"
+                className="flex items-center gap-2 px-6 py-3 hover:bg-[var(--bg-hover)] rounded-3xl transition-all text-[var(--text-primary)]"
               >
                 <Eye className="w-5 h-5" /> View
               </button>
 
               <button
                 onClick={() => setEditingReport(report)}
-                className="flex items-center gap-2 px-6 py-3 hover:bg-amber-50 rounded-2xl transition-all"
+                className="flex items-center gap-2 px-6 py-3 hover:bg-amber-100 rounded-3xl transition-all text-[var(--text-primary)]"
               >
                 <Edit className="w-5 h-5" /> Edit
               </button>
 
               <button
                 onClick={() => exportReportToPDF(report)}
-                className="flex items-center gap-2 px-6 py-3 hover:bg-emerald-50 rounded-2xl transition-all"
+                className="flex items-center gap-2 px-6 py-3 hover:bg-emerald-100 rounded-3xl transition-all text-[var(--text-primary)]"
               >
                 <Download className="w-5 h-5" /> PDF
               </button>
@@ -198,7 +198,7 @@ const ReportHistoryList = ({ user }) => {
               {report.status === 'draft' && (
                 <button
                   onClick={() => handleSubmit(report._id)}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700"
+                  className="px-8 py-3 bg-[var(--brand-primary)] text-white rounded-3xl hover:bg-[var(--brand-primary)]/90"
                 >
                   Submit
                 </button>
@@ -220,8 +220,8 @@ const ReportHistoryList = ({ user }) => {
       {/* VIEW MODAL - Now shows Admin Feedback */}
       {viewingReport && (
         <motion.div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
-          <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl p-10">
-            <div className="prose dark:prose-invert max-w-none">
+          <div className="bg-[var(--bg-surface)] w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl p-10 border border-[var(--border-color)]">
+            <div className="prose max-w-none text-[var(--text-primary)]">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewingReport.content}</ReactMarkdown>
             </div>
 
@@ -231,13 +231,13 @@ const ReportHistoryList = ({ user }) => {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-amber-600 font-semibold text-lg">Admin Feedback</span>
                 </div>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{viewingReport.feedback}</p>
+                <p className="text-[var(--text-primary)] whitespace-pre-wrap">{viewingReport.feedback}</p>
               </div>
             )}
 
             <button
               onClick={() => setViewingReport(null)}
-              className="mt-8 px-8 py-4 bg-gray-200 dark:bg-gray-700 rounded-2xl w-full text-lg font-medium"
+              className="mt-8 px-8 py-4 bg-[var(--bg-subtle)] rounded-3xl w-full text-lg font-medium text-[var(--text-primary)]"
             >
               Close
             </button>
@@ -248,7 +248,7 @@ const ReportHistoryList = ({ user }) => {
       {/* Edit Modal */}
       {editingReport && (
         <motion.div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000]">
-          <div className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl">
+          <div className="bg-[var(--bg-surface)] w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl border border-[var(--border-color)]">
             <ReportEditor
               user={user}
               tasks={[]}               

@@ -1,58 +1,177 @@
 // src/pages/PerformanceDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Trophy, Users, Gift, RefreshCw, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Trophy, Users, Gift, RefreshCw, Info, ChevronDown, ChevronUp,
+  TrendingUp, Award, Star, Crown, CheckCircle2, Target,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import LeaderboardTable from '../components/LeaderboardTable';
+import LeaderboardTable    from '../components/LeaderboardTable';
 import UserPerformanceCard from '../components/UserPerformanceCard';
-import BonusAwardModal from '../components/BonusAwardModal';
-import UserDetailModal from '../components/UserDetailModal';
+import BonusAwardModal     from '../components/BonusAwardModal';
+import UserDetailModal     from '../components/UserDetailModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const RANK_CONFIG = [
+  { emoji: '🥇', accent: '#f59e0b', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.4)' },
+  { emoji: '🥈', accent: '#94a3b8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.4)' },
+  { emoji: '🥉', accent: '#b45309', bg: 'rgba(180,83,9,.08)',    border: 'rgba(180,83,9,.4)' },
+];
+
+const getFullName = (u) => {
+  if (!u) return 'Unknown';
+  if (u.fullName) return u.fullName.trim();
+  if (u.firstName || u.lastName) return `${u.firstName || ''} ${u.lastName || ''} ${u.otherName || ''}`.trim();
+  return u.name?.trim() || 'Unknown';
+};
+
+// ── Section heading ─────────────────────────────────────────────────────────
+const SectionHeading = ({ children, icon: Icon }) => (
+  <div className="flex items-center gap-2 mb-4">
+    {Icon && <Icon className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
+    <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>{children}</h2>
+    <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-color)' }} />
+  </div>
+);
+
+// ── Podium card ─────────────────────────────────────────────────────────────
+const PodiumCard = ({ player, idx, onClick }) => {
+  const cfg  = RANK_CONFIG[idx];
+  const name = getFullName(player);
+
+  return (
+    <motion.button
+      initial={{ y: 16, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: idx * 0.08 }}
+      onClick={onClick}
+      className="w-full rounded-2xl border-2 p-5 text-left relative overflow-hidden transition-all hover:-translate-y-1"
+      style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = `0 8px 24px ${cfg.bg}`}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+
+      {/* Rank emoji */}
+      <div className="text-3xl mb-3">{cfg.emoji}</div>
+
+      {/* Name + avatar */}
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+          style={{ backgroundColor: cfg.accent }}>
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-black truncate" style={{ color: 'var(--text-primary)' }}>{name}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{player.level}</p>
+        </div>
+      </div>
+
+      {/* Score */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-3xl font-black leading-none" style={{ color: cfg.accent }}>{player.totalScore}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide mt-0.5" style={{ color: 'var(--text-muted)' }}>points</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-bold" style={{ color: '#16a34a' }}>{player.completionRate}%</p>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>done</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-hover)' }}>
+        <div className="h-full rounded-full" style={{ width: `${player.completionRate}%`, backgroundColor: cfg.accent }} />
+      </div>
+    </motion.button>
+  );
+};
+
+// ── My Performance mini-bar ──────────────────────────────────────────────────
+const MyPerformanceBar = ({ performance, user, onClick }) => {
+  if (!performance) return null;
+  const name = getFullName(user);
+  const { totalScore = 0, completionRate = 0, level = 'Novice', taskPoints = 0, goalPoints = 0 } = performance;
+
+  return (
+    <motion.div whileHover={{ y: -1 }}
+      onClick={onClick}
+      className="rounded-xl border p-5 cursor-pointer transition-all"
+      style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-primary)'; e.currentTarget.style.boxShadow = '0 4px 16px var(--shadow-color)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}>
+
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        {/* Left: identity */}
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-black flex-shrink-0"
+            style={{ backgroundColor: 'var(--brand-primary)' }}>
+            {name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{name}</p>
+            <p className="text-xs font-semibold" style={{ color: 'var(--brand-accent)' }}>{level}</p>
+          </div>
+        </div>
+
+        {/* Right: stats */}
+        <div className="flex items-center gap-6 flex-wrap">
+          {[
+            { label: 'Total Score',   value: totalScore,       color: 'var(--brand-primary)' },
+            { label: 'Task Points',   value: taskPoints,       color: '#36a9e1' },
+            { label: 'Goal Points',   value: goalPoints,       color: '#16a34a' },
+            { label: 'Completion',    value: `${completionRate}%`, color: '#d97706' },
+          ].map(s => (
+            <div key={s.label} className="text-center">
+              <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mt-4">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Task completion</span>
+          <span className="text-xs font-bold" style={{ color: 'var(--brand-primary)' }}>{completionRate}%</span>
+        </div>
+        <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-hover)' }}>
+          <div className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${completionRate}%`, backgroundColor: 'var(--brand-primary)' }} />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// ── Main Dashboard ───────────────────────────────────────────────────────────
 const PerformanceDashboard = () => {
   const { user, onLogout } = useOutletContext();
-  const [leaderboardData, setLeaderboardData] = useState({ top3: [], rest: [] });
-  const [myPerformance, setMyPerformance] = useState(null);
-  const [allUsers, setAllUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showBonusModal, setShowBonusModal] = useState(false);
-  const [selectedBonusUser, setSelectedBonusUser] = useState(null);
+  const [leaderboardData,      setLeaderboardData]      = useState({ top3: [], rest: [] });
+  const [myPerformance,        setMyPerformance]        = useState(null);
+  const [allUsers,             setAllUsers]             = useState([]);
+  const [loading,              setLoading]              = useState(true);
+  const [showBonusModal,       setShowBonusModal]       = useState(false);
+  const [selectedBonusUser,    setSelectedBonusUser]    = useState(null);
   const [selectedDetailUserId, setSelectedDetailUserId] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showPointsCalculation, setShowPointsCalculation] = useState(true);
+  const [detailData,           setDetailData]           = useState(null);
+  const [showDetailModal,      setShowDetailModal]      = useState(false);
+  const [showPointsCalc,       setShowPointsCalc]       = useState(false);
 
   const isAdmin = user?.role === 'admin';
-
-  // Safe full name helper
-  const getFullName = (u) => {
-    if (!u) return 'Unknown User';
-    if (u.fullName) return u.fullName.trim();
-    if (u.firstName || u.lastName) {
-      return `${u.firstName || ''} ${u.lastName || ''} ${u.otherName || ''}`.trim();
-    }
-    return u.name?.trim() || 'Unknown User';
-  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [lbRes, myRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/performance/leaderboard`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }),
-        axios.get(`${API_BASE}/api/performance/me`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }),
+        axios.get(`${API_BASE}/api/performance/leaderboard`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
+        axios.get(`${API_BASE}/api/performance/me`,          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
       ]);
-
       setLeaderboardData(lbRes.data.leaderboard);
       setMyPerformance(myRes.data.performance);
       setAllUsers(lbRes.data.allUsers || []);
     } catch (err) {
-      console.error(err);
       if (err.response?.status === 401) onLogout?.();
     } finally {
       setLoading(false);
@@ -66,15 +185,12 @@ const PerformanceDashboard = () => {
       });
       setDetailData(res.data);
       setShowDetailModal(true);
-    } catch (err) {
-      console.error('Failed to load user details:', err);
-      alert('Could not load detailed statistics');
+    } catch {
+      alert('Could not load user details');
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleOpenDetails = (userObj) => {
     if (!userObj?._id) return;
@@ -82,181 +198,146 @@ const PerformanceDashboard = () => {
     fetchUserDetails(userObj._id);
   };
 
-  const handleAwardBonus = (targetUser) => {
-    setSelectedBonusUser(targetUser);
-    setShowBonusModal(true);
-  };
+  const handleAwardBonus = (targetUser) => { setSelectedBonusUser(targetUser); setShowBonusModal(true); };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 rounded-full border-4 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--brand-primary)', borderTopColor: 'transparent' }} />
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading performance data…</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-800 p-4 md:p-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="max-w-7xl mx-auto"
-      >
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight">
-              Performance Board
-            </h1>
-            <p className="text-lg md:text-xl text-blue-700 dark:text-blue-400 mt-2 font-medium">
-              Monthly Bonus System • 100% Transparent Scoring
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={fetchData}
-              className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl shadow hover:shadow-lg transition-all"
-            >
-              <RefreshCw className="w-5 h-5" />
-              Refresh
+    <div className="space-y-7 py-4">
+
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Performance Board</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            Monthly Bonus System · 100% Transparent Scoring
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <button onClick={fetchData}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}>
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          {isAdmin && (
+            <button onClick={() => handleAwardBonus(null)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#f59e0b' }}>
+              <Gift className="w-4 h-4" /> Award Bonus
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => handleAwardBonus(null)}
-                className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-              >
-                <Gift className="w-6 h-6" />
-                Award Bonus
-              </button>
-            )}
+          )}
+        </div>
+      </div>
+
+      {/* ── How points work accordion ─────────────────────────────────────── */}
+      <div className="rounded-xl border overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+        <button onClick={() => setShowPointsCalc(p => !p)}
+          className="w-full flex items-center justify-between px-5 py-4 text-left transition-colors"
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+          <div className="flex items-center gap-2.5">
+            <Info className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />
+            <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>How Points Are Calculated</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{showPointsCalc ? 'Hide' : 'Show'}</span>
+            {showPointsCalc ? <ChevronUp className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {showPointsCalc && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="overflow-hidden">
+              <div className="px-5 pb-5 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                <div className="pt-4 grid sm:grid-cols-3 gap-3 mb-3">
+                  {[
+                    { title: 'Task Points',  desc: 'Priority weight (Low: 10 / Med: 25 / High: 50) + Approval bonus (+30) + Checklist bonus (0–20)', color: 'var(--brand-primary)' },
+                    { title: 'Goal Points',  desc: '% of sub-goals completed × 100 (max 100 per goal)', color: '#36a9e1' },
+                    { title: 'Total Score',  desc: 'Sum of all Task Points + all Goal Points',           color: '#f59e0b' },
+                  ].map(item => (
+                    <div key={item.title} className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                      <p className="text-xs font-bold mb-1.5" style={{ color: item.color }}>{item.title}</p>
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs font-semibold" style={{ color: '#dc2626' }}>
+                  ⚠️ This exact formula determines who receives a monthly bonus.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Top 3 Podium ─────────────────────────────────────────────────── */}
+      {leaderboardData.top3.length > 0 && (
+        <div>
+          <SectionHeading icon={Crown}>Top Performers</SectionHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {leaderboardData.top3.map((player, idx) => (
+              <PodiumCard key={player._id} player={player} idx={idx} onClick={() => handleOpenDetails(player)} />
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Points Calculation Section with Toggle */}
-        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-blue-200 dark:border-blue-900 rounded-3xl p-6 mb-10 shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Info className="w-7 h-7 text-blue-600 flex-shrink-0" />
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                How Points Are Calculated (100% Transparent)
-              </h3>
-            </div>
-            <button
-              onClick={() => setShowPointsCalculation(!showPointsCalculation)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300 font-medium transition-colors"
-            >
-              {showPointsCalculation ? (
-                <>
-                  <ChevronUp className="w-5 h-5" />
-                  Hide Details
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-5 h-5" />
-                  Show Details
-                </>
-              )}
-            </button>
-          </div>
-          <AnimatePresence>
-            {showPointsCalculation && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="overflow-hidden"
-              >
-                <div className="pt-4 space-y-3 text-gray-700 dark:text-gray-300 text-sm md:text-base">
-                  <ul className="list-disc pl-5 space-y-2">
-                    <li>
-                      <strong>Task Points</strong> = Priority Weight (Low: 10, Medium: 25, High: 50) + Approval Bonus (+30 if approved) + Checklist Bonus (0–20 based on % completed)
-                    </li>
-                    <li>
-                      <strong>Goal Points</strong> = Percentage of sub-goals completed × 100 (max 100 per goal)
-                    </li>
-                    <li>
-                      <strong>Total Score</strong> = Sum of all Task Points + all Goal Points
-                    </li>
-                  </ul>
-                  <p className="text-red-600 dark:text-red-400 font-medium pt-2">
-                    This exact formula determines who receives a bonus at the end of each month.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Top 3 Podium */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
-          {leaderboardData.top3.map((player, idx) => {
-            const colors = ['amber-400', 'slate-300', 'amber-600'];
-            const sizes = ['scale-110', 'scale-105', 'scale-100'];
-            const displayName = getFullName(player);
-            return (
-              <motion.div
-                key={player._id}
-                initial={{ y: 30, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: idx * 0.15 }}
-                onClick={() => handleOpenDetails(player)}
-                className={`cursor-pointer bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl border-4 border-${colors[idx]} ${sizes[idx]} hover:shadow-2xl transition-all`}
-              >
-                <div className="text-center">
-                  <div className={`text-8xl mb-4`}>{['🥇', '🥈', '🥉'][idx]}</div>
-                  <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{displayName}</h3>
-                  <p className="text-blue-600 dark:text-blue-400 mt-1">{player.level}</p>
-                  <div className="mt-6 text-7xl font-black text-amber-500">{player.totalScore}</div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">points</p>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* My Performance Card */}
-        <div onClick={() => handleOpenDetails({ _id: user.id, ...user })} className="cursor-pointer mb-12">
-          <UserPerformanceCard
+      {/* ── My Performance ────────────────────────────────────────────────── */}
+      {myPerformance && (
+        <div>
+          <SectionHeading icon={Star}>Your Performance</SectionHeading>
+          <MyPerformanceBar
             performance={myPerformance}
-            user={{ ...user, fullName: getFullName(user) }} // ← Safe fullName passed
+            user={{ ...user, fullName: getFullName(user) }}
+            onClick={() => handleOpenDetails({ _id: user.id || user._id, ...user })}
           />
         </div>
+      )}
 
-        {/* Leaderboard Table */}
+      {/* ── Full Leaderboard ──────────────────────────────────────────────── */}
+      <div>
+        <SectionHeading icon={Trophy}>Full Leaderboard</SectionHeading>
         <LeaderboardTable
           top3={leaderboardData.top3}
           rest={leaderboardData.rest}
           onAwardBonus={isAdmin ? handleAwardBonus : null}
           onUserClick={handleOpenDetails}
         />
+      </div>
 
-        {/* All Users Grid */}
-        <div className="mt-16">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3">
-            <Users className="w-9 h-9 text-blue-600" />
-            All Participants
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {allUsers.map((u) => {
-              const displayUser = { ...u, fullName: getFullName(u) };
-              return (
-                <div key={u._id} onClick={() => handleOpenDetails(u)} className="cursor-pointer">
-                  <UserPerformanceCard
-                    performance={u}
-                    user={displayUser}           // ← Safe fullName passed
-                    compact
-                    onAwardBonus={isAdmin ? handleAwardBonus : null}
-                  />
-                </div>
-              );
-            })}
+      {/* ── All Participants grid ─────────────────────────────────────────── */}
+      {allUsers.length > 0 && (
+        <div>
+          <SectionHeading icon={Users}>All Participants</SectionHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allUsers.map(u => (
+              <div key={u._id} onClick={() => handleOpenDetails(u)} className="cursor-pointer">
+                <UserPerformanceCard
+                  performance={u}
+                  user={{ ...u, fullName: getFullName(u) }}
+                  compact
+                  onAwardBonus={isAdmin ? handleAwardBonus : null}
+                />
+              </div>
+            ))}
           </div>
         </div>
-      </motion.div>
+      )}
 
-      {/* Modals */}
+      {/* ── Modals ────────────────────────────────────────────────────────── */}
       <BonusAwardModal
         isOpen={showBonusModal}
         onClose={() => setShowBonusModal(false)}

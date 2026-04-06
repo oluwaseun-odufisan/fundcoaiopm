@@ -1,12 +1,27 @@
 // components/TaskItem.jsx
 import React, { useEffect, useState } from 'react';
-import { CalendarHeart, X, CheckCircle2, Clock, MoreVertical, CheckSquare, Check } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock, MoreVertical, Check, Trash2 } from 'lucide-react';
 import axios from 'axios';
-import { format, isToday } from 'date-fns';
+import { format, isToday, isPast } from 'date-fns';
 
-const API_BASE = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api/tasks` 
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/tasks`
   : 'http://localhost:4000/api/tasks';
+
+const PRIORITY_CONFIG = {
+  urgent: { bg: '#fef2f2', text: '#dc2626', border: '#dc2626', dot: '#dc2626' },
+  high:   { bg: '#fff7ed', text: '#ea580c', border: '#ea580c', dot: '#ea580c' },
+  medium: { bg: '#fefce8', text: '#ca8a04', border: '#ca8a04', dot: '#ca8a04' },
+  low:    { bg: '#f0f9ff', text: '#0369a1', border: '#e2e8f0', dot: '#94a3b8' },
+};
+
+const getPriority = (p) => PRIORITY_CONFIG[p?.toLowerCase()] || PRIORITY_CONFIG.low;
+
+const SUBMISSION_LABELS = {
+  submitted: { label: 'Submitted', bg: '#fff7ed', text: '#c2410c' },
+  approved:  { label: 'Approved',  bg: '#f0fdf4', text: '#15803d' },
+  rejected:  { label: 'Rejected',  bg: '#fef2f2', text: '#dc2626' },
+};
 
 const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -15,20 +30,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
       typeof task.completed === 'string' ? task.completed.toLowerCase() : task.completed
     )
   );
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showChecklistModal, setShowChecklistModal] = useState(false);
-
-  // Hover popup
-  const [showHoverPopup, setShowHoverPopup] = useState(false);
-
-  const progress = task.checklist?.length
-    ? (task.checklist.filter(st => st.completed).length / task.checklist.length) * 100
-    : isCompleted ? 100 : 0;
-
-  const label = task.submissionStatus === 'submitted' ? 'Submitted' : task.submissionStatus === 'approved' ? 'Approved' : task.submissionStatus === 'rejected' ? 'Rejected' : '';
-  const labelColor = task.submissionStatus === 'approved' ? 'bg-green-100 text-green-700' : task.submissionStatus === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
-  const appealLabel = task.appealStatus === 'rejected' ? 'Rejected' : task.appealStatus === 'accepted' ? 'Accepted' : '';
-  const appealColor = task.appealStatus === 'accepted' ? 'bg-green-100 text-green-700' : task.appealStatus === 'rejected' ? 'bg-red-100 text-red-700' : '';
+  const [showHover, setShowHover] = useState(false);
 
   useEffect(() => {
     setIsCompleted(
@@ -38,237 +40,293 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
     );
   }, [task.completed]);
 
+  const pConfig = getPriority(task.priority);
+  const progress = task.checklist?.length
+    ? Math.round((task.checklist.filter((i) => i.completed).length / task.checklist.length) * 100)
+    : isCompleted ? 100 : 0;
+
+  const subLabel = SUBMISSION_LABELS[task.submissionStatus];
+  const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isCompleted;
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
-    if (!token) throw new Error("No auth token found");
+    if (!token) throw new Error('No auth token found');
     return { Authorization: `Bearer ${token}` };
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'urgent': return 'border-blue-700 dark:border-blue-400';
-      case 'high': return 'border-indigo-600 dark:border-indigo-400';
-      case 'medium': return 'border-amber-600 dark:border-amber-400';
-      case 'low': return 'border-gray-500 dark:border-gray-400';
-      default: return 'border-gray-500 dark:border-gray-400';
-    }
-  };
-
-  const getPriorityBadgeColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'urgent': return 'bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300';
-      case 'high': return 'bg-indigo-100/50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
-      case 'medium': return 'bg-amber-100/50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
-      case 'low': return 'bg-gray-100/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300';
-      default: return 'bg-gray-100/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300';
-    }
-  };
-
-  const borderColor = isCompleted ? "border-green-700 dark:border-green-400" : getPriorityColor(task.priority);
-
-  const handleComplete = async () => {
-    const newCompleted = !isCompleted;
+  const handleComplete = async (e) => {
+    e.stopPropagation();
+    const newVal = !isCompleted;
     try {
-      const payload = newCompleted
-        ? (task.checklist?.length > 0 ? { checklist: task.checklist.map(item => ({ ...item, completed: true })) } : { completed: 'Yes' })
-        : (task.checklist?.length > 0 ? { checklist: task.checklist.map(item => ({ ...item, completed: false })) } : { completed: 'No' });
+      const payload = newVal
+        ? (task.checklist?.length ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) } : { completed: 'Yes' })
+        : (task.checklist?.length ? { checklist: task.checklist.map((i) => ({ ...i, completed: false })) } : { completed: 'No' });
       await axios.put(`${API_BASE}/${task._id}/gp`, payload, { headers: getAuthHeaders() });
-      setIsCompleted(newCompleted);
+      setIsCompleted(newVal);
       onRefresh?.();
     } catch (err) {
-      console.error(err);
       if (err.response?.status === 401) onLogout?.();
     }
   };
 
-  const handleSubmitForApproval = async () => {
-    try {
-      await axios.post(`${API_BASE}/${task._id}/submit`, {}, { headers: getAuthHeaders() });
-      onRefresh?.();
-    } catch (err) {
-      console.error(err);
-      if (err.response?.status === 401) onLogout?.();
-    }
-  };
-
-  const handleAction = (action) => {
+  const handleAction = async (action, e) => {
+    e.stopPropagation();
     setShowMenu(false);
-    if (action === 'edit') setShowEditModal(true);
-    if (action === 'delete') handleDelete();
-    if (action === 'checklist') setShowChecklistModal(true);
-    if (action === 'submit') handleSubmitForApproval();
-  };
-
-  const handleDelete = async () => {
-    try {
-      await axios.delete(`${API_BASE}/${task._id}/gp`, { headers: getAuthHeaders() });
-      onRefresh?.();
-    } catch (err) {
-      if (err.response?.status === 401) onLogout?.();
+    if (action === 'delete') {
+      try {
+        await axios.delete(`${API_BASE}/${task._id}/gp`, { headers: getAuthHeaders() });
+        onRefresh?.();
+      } catch (err) {
+        if (err.response?.status === 401) onLogout?.();
+      }
+    }
+    if (action === 'submit') {
+      try {
+        await axios.post(`${API_BASE}/${task._id}/submit`, {}, { headers: getAuthHeaders() });
+        onRefresh?.();
+      } catch (err) {
+        if (err.response?.status === 401) onLogout?.();
+      }
     }
   };
-
-  const handleSave = async (updateTask) => {
-    try {
-      const payload = (({ title, description, priority, dueDate, checklist }) => (
-        { title, description, priority, dueDate, checklist }
-      ))(updateTask);
-      await axios.put(`${API_BASE}/${task._id}/gp`, payload, { headers: getAuthHeaders() });
-      setShowEditModal(false);
-      onRefresh?.();
-    } catch (err) {
-      if (err.response?.status === 401) onLogout?.();
-    }
-  };
-
-  const MENU_OPTIONS = [
-    { action: 'edit', label: 'Edit Task', icon: <CalendarHeart className='w-4 h-4 text-gray-600 dark:text-gray-400' /> },
-    { action: 'checklist', label: 'Update Checklist', icon: <CheckSquare className='w-4 h-4 text-blue-600 dark:text-blue-400' /> },
-    ...(isCompleted && task.submissionStatus === 'not_submitted' ? [{ action: 'submit', label: 'Submit for Approval', icon: <Check className='w-4 h-4 text-green-600 dark:text-green-400' /> }] : []),
-    { action: 'delete', label: 'Delete Task', icon: <Clock className='w-4 h-4 text-red-600 dark:text-red-400' /> },
-  ];
 
   return (
-    <>
-      {/* Main Task Card */}
-      <div 
-        className={`bg-white/95 dark:bg-gray-800/95 rounded-3xl p-5 flex justify-between gap-4 shadow-lg border-l-4 ${borderColor} transition-all duration-300 hover:shadow-2xl relative`}
-        onMouseEnter={() => setShowHoverPopup(true)}
-        onMouseLeave={() => setShowHoverPopup(false)}
-      >
-        <div className='flex gap-4 flex-1 min-w-0'>
+    <div
+      className="relative rounded-xl border overflow-hidden transition-all hover:shadow-md cursor-pointer"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: 'var(--border-color)',
+        borderLeftWidth: '3px',
+        borderLeftColor: isCompleted ? '#16a34a' : pConfig.border,
+      }}
+      onMouseEnter={() => setShowHover(true)}
+      onMouseLeave={() => setShowHover(false)}
+    >
+      <div className="p-4">
+        {/* Top row */}
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
           {showCompleteCheckbox && (
             <button
               onClick={handleComplete}
-              className={`flex-shrink-0 p-2 ${isCompleted ? 'text-green-700 dark:text-green-300' : 'text-gray-300 dark:text-gray-600'} hover:text-green-700 dark:hover:text-green-300 transition-colors duration-200`}
+              className="mt-0.5 flex-shrink-0 transition-colors"
+              aria-label={isCompleted ? 'Mark incomplete' : 'Mark complete'}
             >
               <CheckCircle2
-                size={26}
-                className={`w-7 h-7 sm:w-8 sm:h-8 ${isCompleted ? 'fill-green-700 dark:fill-green-300' : ''}`}
+                className={`w-5 h-5 transition-colors ${
+                  isCompleted
+                    ? 'fill-green-500 text-green-500'
+                    : 'text-[var(--text-muted)] hover:text-green-500'
+                }`}
               />
             </button>
           )}
-          <div className='flex-1 min-w-0'>
-            <div className='flex items-baseline gap-3 mb-3 flex-wrap'>
-              <h3 className={`text-base font-semibold truncate ${isCompleted ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h3
+                className={`text-sm font-semibold leading-snug truncate ${
+                  isCompleted
+                    ? 'line-through'
+                    : ''
+                }`}
+                style={{ color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)' }}
+              >
                 {task.title}
               </h3>
-              <span className={`px-4 py-1 rounded-3xl text-sm font-medium ${getPriorityBadgeColor(task.priority)}`}>
-                {task.priority}
-              </span>
-              {label && <span className={`px-4 py-1 rounded-3xl text-sm font-medium ${labelColor}`}>{label}</span>}
-              {appealLabel && <span className={`px-4 py-1 rounded-3xl text-sm font-medium ${appealColor}`}>{appealLabel}</span>}
-            </div>
-            {task.description && (
-              <p className='text-sm text-gray-600 dark:text-gray-400 line-clamp-2'>{task.description}</p>
-            )}
-            <div className="mt-4 bg-gray-100 dark:bg-gray-700 rounded-3xl h-3">
-              <div className="bg-blue-600 dark:bg-blue-400 h-3 rounded-3xl" style={{ width: `${progress}%` }}></div>
-            </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">{Math.round(progress)}% complete</span>
-          </div>
-        </div>
 
-        <div className='flex flex-col items-end justify-between'>
-          <div className='relative'>
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className='p-3 text-gray-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-2xl transition-all duration-200'
-            >
-              <MoreVertical className='w-5 h-5' />
-            </button>
-            {showMenu && (
-              <div className='absolute top-12 right-0 w-52 bg-white/95 dark:bg-gray-800/95 rounded-3xl shadow-2xl border border-blue-100 dark:border-gray-700 z-50 py-2'>
-                {MENU_OPTIONS.map(opt => (
-                  <button
-                    key={opt.action}
-                    onClick={() => handleAction(opt.action)}
-                    className='w-full px-6 py-4 text-left text-base hover:bg-blue-50 dark:hover:bg-blue-900/50 flex items-center gap-3 transition-all duration-200 text-gray-900 dark:text-gray-100'
+              {/* Menu */}
+              <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setShowMenu((p) => !p)}
+                  className="p-1 rounded-lg transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {showMenu && (
+                  <div
+                    className="absolute top-7 right-0 w-48 rounded-xl shadow-xl py-1 z-50 border"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-color)',
+                    }}
                   >
-                    {opt.icon}{opt.label}
-                  </button>
-                ))}
+                    {isCompleted && task.submissionStatus === 'not_submitted' && (
+                      <button
+                        onClick={(e) => handleAction('submit', e)}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors"
+                        style={{ color: '#c2410c' }}
+                      >
+                        <Check className="w-4 h-4" /> Submit for Approval
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => handleAction('delete', e)}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete Task
+                    </button>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span
+                className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md"
+                style={{ backgroundColor: pConfig.bg, color: pConfig.text }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: pConfig.dot }} />
+                {task.priority || 'Low'}
+              </span>
+
+              {subLabel && (
+                <span
+                  className="text-xs font-semibold px-2 py-0.5 rounded-md"
+                  style={{ backgroundColor: subLabel.bg, color: subLabel.text }}
+                >
+                  {subLabel.label}
+                </span>
+              )}
+
+              {isOverdue && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-red-50 text-red-600">
+                  Overdue
+                </span>
+              )}
+            </div>
+
+            {/* Description preview */}
+            {task.description && (
+              <p
+                className="text-xs mt-2 line-clamp-2 leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {task.description}
+              </p>
             )}
-          </div>
-          <div className='text-right'>
-            <div className={`flex items-center gap-2 text-sm ${task.dueDate && isToday(new Date(task.dueDate)) ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}>
-              <CalendarHeart className='w-4 h-4' />
-              {task.dueDate ? (isToday(new Date(task.dueDate)) ? 'Today' : format(new Date(task.dueDate), 'MMM dd')) : '-'}
-            </div>
-            <div className='flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mt-2'>
-              <Clock className='w-4 h-4' />
-              {task.createdAt ? `Created ${format(new Date(task.createdAt), 'MMM dd')}` : 'No date'}
-            </div>
           </div>
         </div>
 
-        {/* ==================== HOVER POPUP - EXACTLY ON THE TASK ==================== */}
-        {showHoverPopup && (
-          <div className="absolute inset-0 z-50 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 overflow-y-auto custom-scrollbar flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-              <h4 className="font-semibold text-xl text-gray-900 dark:text-gray-100 truncate pr-4">{task.title}</h4>
-              <span className={`px-4 py-1 text-sm font-medium rounded-3xl ${getPriorityBadgeColor(task.priority)}`}>
-                {task.priority}
+        {/* Progress bar */}
+        {task.checklist?.length > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Progress</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                {progress}%
               </span>
             </div>
-
-            {/* Description Section - clearly labeled */}
-            <div className="mb-6">
-              <div className="text-xs uppercase tracking-widest font-medium text-gray-500 dark:text-gray-400 mb-2">Description</div>
-              <p className="text-base leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {task.description || 'No description provided.'}
-              </p>
-            </div>
-
-            {/* Checklist */}
-            {task.checklist && task.checklist.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-widest font-medium text-gray-500 dark:text-gray-400">
-                  <CheckSquare className="w-4 h-4" />
-                  Checklist
-                </div>
-                <ul className="space-y-3">
-                  {task.checklist.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <CheckCircle2 className={`w-5 h-5 mt-px flex-shrink-0 ${item.completed ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'}`} />
-                      <span className={`text-base ${item.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
-                        {item.text}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Footer dates */}
-            <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
-              <div>Created • {task.createdAt ? format(new Date(task.createdAt), 'MMM dd, yyyy') : '—'}</div>
-              <div>Due • {task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'No due date'}</div>
+            <div
+              className="h-1.5 rounded-full overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-subtle)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: progress === 100 ? '#16a34a' : 'var(--brand-primary)',
+                }}
+              />
             </div>
           </div>
         )}
+
+        {/* Footer dates */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+          <div
+            className={`flex items-center gap-1.5 text-xs ${isOverdue ? 'text-red-500 font-semibold' : ''}`}
+            style={{ color: isOverdue ? '#dc2626' : 'var(--text-muted)' }}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            {task.dueDate
+              ? isToday(new Date(task.dueDate))
+                ? 'Due Today'
+                : format(new Date(task.dueDate), 'MMM dd, yyyy')
+              : 'No due date'}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <Clock className="w-3.5 h-3.5" />
+            {task.createdAt ? format(new Date(task.createdAt), 'MMM dd') : '—'}
+          </div>
+        </div>
       </div>
 
-      {/* Existing Modals */}
-      {showEditModal && (
-        <TaskModal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          taskToEdit={task}
-          onSave={handleSave}
-          onLogout={onLogout}
-        />
+      {/* Hover detail overlay */}
+      {showHover && (task.description || (task.checklist?.length > 0)) && (
+        <div
+          className="absolute inset-0 rounded-xl p-4 overflow-y-auto z-20 border shadow-xl"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-color)',
+          }}
+          onMouseLeave={() => setShowHover(false)}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <h4
+              className="font-bold text-sm pr-4 line-clamp-2"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {task.title}
+            </h4>
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-md flex-shrink-0"
+              style={{ backgroundColor: pConfig.bg, color: pConfig.text }}
+            >
+              {task.priority}
+            </span>
+          </div>
+
+          {task.description && (
+            <div className="mb-4">
+              <p className="text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                Description
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                {task.description}
+              </p>
+            </div>
+          )}
+
+          {task.checklist?.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                Checklist ({task.checklist.filter((i) => i.completed).length}/{task.checklist.length})
+              </p>
+              <ul className="space-y-2">
+                {task.checklist.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <CheckCircle2
+                      className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                        item.completed ? 'text-green-500 fill-green-500' : 'text-[var(--text-muted)]'
+                      }`}
+                    />
+                    <span
+                      className={`text-sm ${item.completed ? 'line-through' : ''}`}
+                      style={{ color: item.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}
+                    >
+                      {item.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div
+            className="flex items-center justify-between text-xs mt-4 pt-3 border-t"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+          >
+            <span>Created {task.createdAt ? format(new Date(task.createdAt), 'MMM dd, yyyy') : '—'}</span>
+            <span>Due {task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None'}</span>
+          </div>
+        </div>
       )}
-      {showChecklistModal && (
-        <ChecklistModal
-          isOpen={showChecklistModal}
-          onClose={() => setShowChecklistModal(false)}
-          task={task}
-        />
-      )}
-    </>
+    </div>
   );
 };
 

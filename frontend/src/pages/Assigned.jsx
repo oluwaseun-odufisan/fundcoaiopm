@@ -1,147 +1,124 @@
-// Assigned.jsx
+// src/pages/Assigned.jsx
 import React, { useMemo, useState } from 'react';
-import { Clock, Filter, ListChecks, Plus } from 'lucide-react';
+import { Clock, Filter, ListChecks, Search } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
+
+const SkeletonCard = () => (
+  <div className="rounded-xl border p-4 animate-pulse"
+    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+    <div className="flex gap-3">
+      <div className="flex-1 space-y-2.5">
+        <div className="h-3.5 rounded w-3/4" style={{ backgroundColor: 'var(--bg-hover)' }} />
+        <div className="h-2.5 rounded w-1/3" style={{ backgroundColor: 'var(--bg-subtle)' }} />
+      </div>
+    </div>
+  </div>
+);
+
 const Assigned = () => {
-    const { tasks = [], refreshTasks } = useOutletContext();
-    const [sortBy, setSortBy] = useState('newest');
-    const [search, setSearch] = useState('');
-    const [selectedTask, setSelectedTask] = useState(null);
-    const [showModal, setShowModal] = useState(false);
-    const sortedAssignedTasks = useMemo(() => {
-      const filtered = tasks.filter(
-        (t) => t.createdByAdmin
-      ).filter(task => task.title.toLowerCase().includes(search.toLowerCase()) || task.description?.toLowerCase().includes(search.toLowerCase()));
-      return filtered.sort((a, b) => {
-        if (sortBy === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
-        if (sortBy === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
-        const order = { high: 3, medium: 2, low: 1 };
-        return (order[b.priority?.toLowerCase()] || 0) - (order[a.priority?.toLowerCase()] || 0);
+  const { tasks = [], tasksLoading, fetchTasks: refreshTasks, onLogout } = useOutletContext();
+  const [sortBy,        setSortBy]        = useState('newest');
+  const [search,        setSearch]        = useState('');
+  const [selectedTask,  setSelectedTask]  = useState(null);
+  const [showModal,     setShowModal]     = useState(false);
+
+  const sorted = useMemo(() => {
+    return tasks
+      .filter((t) => t.createdByAdmin)
+      .filter((t) =>
+        t.title.toLowerCase().includes(search.toLowerCase()) ||
+        t.description?.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (sortBy === 'newest')   return new Date(b.createdAt) - new Date(a.createdAt);
+        if (sortBy === 'oldest')   return new Date(a.createdAt) - new Date(b.createdAt);
+        const o = { high: 3, medium: 2, low: 1 };
+        return (o[b.priority?.toLowerCase()] || 0) - (o[a.priority?.toLowerCase()] || 0);
       });
-    }, [tasks, sortBy, search]);
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans">
-        {/* === Main Container === */}
-        <div className="flex-1 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex flex-col">
-            {/* === Header === */}
-            <header className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <ListChecks className="w-6 h-6 sm:w-7 h-7 text-blue-600 dark:text-blue-400" />
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Assigned Tasks</h1>
-                  <p className="text-sm text-blue-600 dark:text-blue-400">
-                    {sortedAssignedTasks.length} assigned task{sortedAssignedTasks.length !== 1 && 's'}
-                  </p>
-                </div>
-              </div>
-            </header>
-            {/* === Sort Controls === */}
-            <div className="px-5 sm:px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-3">
-                <Filter className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="text-sm font-medium text-blue-800 dark:text-blue-200 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
-                  <option value="priority">By Priority</option>
-                </select>
-                <input // Added search input for improved UX
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search assigned tasks..."
-                  className="flex-1 border border-blue-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white text-gray-800 placeholder-gray-500 text-sm"
-                />
-              </div>
-            </div>
-            {/* === Task List — Hover Preview with Scroll === */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
-              {sortedAssignedTasks.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">No assigned tasks</h3>
-                  <p className="text-sm text-blue-600 dark:text-blue-400">No tasks assigned to you by admin.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {sortedAssignedTasks.map((task) => (
-                    <div
-                      key={task._id || task.id}
-                      className="group relative bg-gray-50 dark:bg-gray-700 rounded-xl p-4 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md transition-all duration-200 cursor-pointer"
-                      onClick={() => { setSelectedTask(task); setShowModal(true); }}
-                    >
-                      {/* Task Item */}
-                      <div className="pr-8">
-                        <TaskItem
-                          task={task}
-                          showCompleteCheckbox
-                          onDelete={() => refreshTasks?.()}
-                          onToggleComplete={() => refreshTasks?.()}
-                          onEdit={() => { setSelectedTask(task); setShowModal(true); }}
-                          onRefresh={refreshTasks}
-                        />
-                      </div>
-                      {/* === SCROLLABLE HOVER PREVIEW === */}
-                      <div
-                        className="absolute inset-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none p-4 flex flex-col z-10"
-                        style={{ maxHeight: '100%' }}
-                      >
-                        <div className="overflow-y-auto pr-2 flex-1 custom-scrollbar">
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm pb-1">
-                            {task.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap mb-2">
-                            {task.description || 'No description'}
-                          </p>
-                          {task.dueDate && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                              Due: {new Date(task.dueDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  }, [tasks, sortBy, search]);
+
+  return (
+    <div className="space-y-5 py-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ backgroundColor: 'var(--brand-light)' }}>
+          <ListChecks className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Assigned Tasks</h1>
+          <p className="text-sm font-medium" style={{ color: 'var(--brand-primary)' }}>
+            {sorted.length} assigned task{sorted.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="rounded-xl border p-4"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }} />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search assigned tasks…"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none transition-colors"
+              style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--brand-accent)'}
+              onBlur={(e)  => e.target.style.borderColor = 'var(--input-border)'}
+            />
+          </div>
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }} />
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+              className="pl-9 pr-8 py-2.5 rounded-lg border text-sm focus:outline-none appearance-none cursor-pointer transition-colors"
+              style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' }}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="priority">By Priority</option>
+            </select>
           </div>
         </div>
-        {/* === Task Modal === */}
-        <TaskModal
-          isOpen={!!selectedTask || showModal}
-          onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks?.(); }}
-          taskToEdit={selectedTask}
-        />
-        {/* === Scrollbar for Hover (Hidden when not needed) === */}
-        <style jsx>{`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #93C5FD;
-            border-radius: 2px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #60A5FA;
-          }
-          .custom-scrollbar {
-            scrollbar-width: thin;
-            scrollbar-color: #93C5FD transparent;
-          }
-        `}</style>
       </div>
-    );
+
+      {/* List */}
+      {tasksLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="rounded-xl border py-16 text-center"
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ backgroundColor: 'var(--brand-light)' }}>
+            <Clock className="w-7 h-7" style={{ color: 'var(--brand-primary)' }} />
+          </div>
+          <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>No assigned tasks</h3>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Tasks assigned by admin will appear here.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sorted.map((task) => (
+            <div key={task._id || task.id}
+              className="cursor-pointer"
+              onClick={() => { setSelectedTask(task); setShowModal(true); }}>
+              <TaskItem task={task} showCompleteCheckbox onRefresh={refreshTasks} onLogout={onLogout} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <TaskModal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks?.(); }}
+        taskToEdit={selectedTask}
+        onLogout={onLogout}
+      />
+    </div>
+  );
 };
+
 export default Assigned;

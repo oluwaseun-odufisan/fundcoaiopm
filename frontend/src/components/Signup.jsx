@@ -1,59 +1,79 @@
 // src/pages/Signup.jsx
 import React from 'react';
-import { ShieldAlert, Mail, LogIn } from 'lucide-react';
+import { ShieldAlert, Mail, LogIn, ArrowLeft } from 'lucide-react';
 
 const Signup = ({ onSwitchMode }) => {
-    return (
-        <div className="min-h-screen w-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-            <div className="w-full max-w-md bg-white shadow-xl rounded-3xl p-8 sm:p-10 border border-blue-200 text-center">
+  return (
+    <div className="min-h-screen w-screen flex items-center justify-center p-6" style={{ backgroundColor: '#f0f2f8' }}>
+      <div className="w-full max-w-lg">
+        {/* Card */}
+        <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+          {/* Top accent bar */}
+          <div className="h-1.5 w-full" style={{ backgroundColor: '#312783' }} />
 
-                {/* Icon */}
-                <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
-                    <ShieldAlert className="w-12 h-12 text-red-600" />
-                </div>
-
-                {/* Main Heading */}
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
-                    Registration Unavailable
-                </h2>
-
-                {/* Bold Notice */}
-                <p className="text-lg sm:text-xl font-black text-red-600 uppercase tracking-wide mb-6">
-                    Self-registration is currently disabled.
-                </p>
-
-                {/* Explanation */}
-                <p className="text-gray-600 text-base sm:text-lg leading-relaxed mb-6">
-                    Accounts on this platform are created exclusively by the Administrator.
-                    To get access, please reach out to the Admin and your account will be set up.
-                </p>
-
-                {/* Admin Contact Box */}
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl px-6 py-5 mb-8">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                        <Mail className="w-5 h-5 text-blue-700 flex-shrink-0" />
-                        <span className="font-bold text-blue-800 text-base sm:text-lg">How to get your account</span>
-                    </div>
-                    <p className="text-blue-700 text-sm sm:text-base leading-relaxed">
-                        Contact your your team lead or admin and provide your <strong>full name</strong>,{' '}
-                        <strong>email address</strong>, <strong>position</strong>, and <strong>unit/sector</strong>.
-                        Your account will be created and credentials sent to you directly.
-                    </p>
-                </div>
-
-                {/* Back to Login */}
-                <p className="text-base sm:text-lg text-gray-600">
-                    Already have an account?{' '}
-                    <button
-                        onClick={onSwitchMode}
-                        className="text-blue-700 hover:text-blue-800 font-bold hover:underline transition-all duration-300"
-                    >
-                        Log In here
-                    </button>
-                </p>
+          <div className="p-8 sm:p-10">
+            {/* Icon */}
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
+              style={{ backgroundColor: '#fef2f2' }}
+            >
+              <ShieldAlert className="w-7 h-7" style={{ color: '#dc2626' }} />
             </div>
+
+            {/* Heading */}
+            <h2 className="text-2xl font-black tracking-tight mb-2" style={{ color: '#1a1a2e' }}>
+              Registration Restricted
+            </h2>
+            <p className="text-sm font-bold uppercase tracking-widest mb-5" style={{ color: '#dc2626' }}>
+              Self-registration is disabled
+            </p>
+
+            {/* Body */}
+            <p className="text-gray-600 text-sm leading-relaxed mb-6">
+              Accounts on this platform are created exclusively by the Administrator.
+              To get access, contact your team lead or admin and your account will be set up for you.
+            </p>
+
+            {/* Info box */}
+            <div
+              className="rounded-xl p-5 mb-8 border"
+              style={{ backgroundColor: '#f0f4ff', borderColor: '#c7d2fe' }}
+            >
+              <div className="flex items-center gap-2.5 mb-3">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: '#312783' }}
+                >
+                  <Mail className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="font-bold text-sm" style={{ color: '#312783' }}>How to request an account</span>
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: '#4c4c8a' }}>
+                Contact your team lead or admin and provide your{' '}
+                <strong>full name</strong>, <strong>email address</strong>,{' '}
+                <strong>position</strong>, and <strong>unit/sector</strong>.
+                Your account will be created and credentials sent directly to you.
+              </p>
+            </div>
+
+            {/* Back to login */}
+            <button
+              onClick={onSwitchMode}
+              className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl font-bold text-sm text-white transition-opacity hover:opacity-90"
+              style={{ backgroundColor: '#312783' }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Sign In
+            </button>
+          </div>
         </div>
-    );
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          © {new Date().getFullYear()} FundCo Capital Managers
+        </p>
+      </div>
+    </div>
+  );
 };
 
 export default Signup;

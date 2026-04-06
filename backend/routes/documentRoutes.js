@@ -1,16 +1,33 @@
 // backend/routes/documentRoutes.js
 import express from 'express';
 import authMiddleware from '../middleware/auth.js';
-import { createDocument, rawExtract, extractText, generatePPT, getHistory, extractTemplateStructure, cleanTemplate } from '../controllers/documentController.js';
+import {
+  createDocument,
+  rawExtract,
+  extractText,
+  quickConvert,
+  generatePPT,
+  regenerateSlide,
+  savePptJson,
+  getHistory,
+  getDocument,
+  deleteDocument,
+} from '../controllers/documentController.js';
 
 const router = express.Router();
 
-router.post('/', authMiddleware, createDocument);
-router.post('/raw-extract', authMiddleware, rawExtract);
-router.post('/extract', authMiddleware, extractText);
-router.post('/generate-ppt', authMiddleware, generatePPT);
-router.post('/extract-template-structure', authMiddleware, extractTemplateStructure);
-router.post('/clean-template', authMiddleware, cleanTemplate);
-router.get('/history', authMiddleware, getHistory);
+// Document lifecycle
+router.post('/',                   authMiddleware, createDocument);
+router.get('/history',             authMiddleware, getHistory);
+router.get('/:id',                 authMiddleware, getDocument);
+router.delete('/:id',              authMiddleware, deleteDocument);
+
+// AI pipeline
+router.post('/raw-extract',        authMiddleware, rawExtract);
+router.post('/extract',            authMiddleware, extractText);
+router.post('/quick-convert',      authMiddleware, quickConvert);
+router.post('/generate-ppt',       authMiddleware, generatePPT);
+router.post('/regenerate-slide',   authMiddleware, regenerateSlide);
+router.post('/save-ppt',           authMiddleware, savePptJson);
 
 export default router;

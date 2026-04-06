@@ -1,8 +1,11 @@
 // Dashboard.jsx
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { Star, Flag, CircleDot, Clock, CheckSquare, Filter, Plus, Rocket, Search, ArrowUpDown, PieChart, CircleCheck, Layers, CheckCircle, Pen, Trash2 } from 'lucide-react';
+import {
+  Flag, Clock, CheckSquare, Filter, Plus, Rocket,
+  Search, ArrowUpDown, CircleCheck, Layers, CheckCircle, Pen, Trash2,
+} from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import TaskItem from '../components/TaskItem';
 import axios from 'axios';
 import TaskModal from '../components/TaskModal';
@@ -11,229 +14,245 @@ import io from 'socket.io-client';
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
 const USER_API_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:4001';
 
+const FILTER_LABELS = {
+  all:'All', today:'Today', week:'Week', month:'Month',
+  high:'High', medium:'Medium', low:'Low',
+  done:'Done', undone:'Undone', overdue:'Overdue',
+  approved:'Approved', rejected:'Rejected',
+};
+const FILTER_OPTIONS = Object.keys(FILTER_LABELS);
+const SORT_OPTIONS   = [
+  { value: 'dueDate',   label: 'Due Date'  },
+  { value: 'priority',  label: 'Priority'  },
+  { value: 'title',     label: 'Title'     },
+];
+
+/* ── Skeleton ──────────────────────────────────────────────────────────────── */
+const SkeletonCard = () => (
+  <div className="rounded-xl border p-4 animate-pulse"
+    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+    <div className="flex items-start gap-3">
+      <div className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: 'var(--bg-hover)' }} />
+      <div className="flex-1 space-y-2.5">
+        <div className="h-3.5 rounded w-3/4" style={{ backgroundColor: 'var(--bg-hover)' }} />
+        <div className="h-2.5 rounded w-1/3" style={{ backgroundColor: 'var(--bg-subtle)' }} />
+        <div className="h-2 rounded w-full"  style={{ backgroundColor: 'var(--bg-subtle)' }} />
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Task Action Modal ─────────────────────────────────────────────────────── */
 const TaskActionModal = ({ isOpen, onClose, onAction, task }) => {
-  if (!isOpen) return null;
-  const isCompleted = task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes');
-  const submissionStatus = task.submissionStatus;
-
+  if (!isOpen || !task) return null;
+  const isComp = task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes');
+  const { submissionStatus } = task;
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6" onClick={onClose} role="dialog" aria-label="Task Actions Modal">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm md:max-w-md border border-blue-200/50 dark:border-gray-700/50 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Task Actions</h3>
-        <div className="space-y-2 sm:space-y-3">
-          <button onClick={() => onAction('complete')} disabled={isCompleted} className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-200 ${isCompleted ? 'bg-green-200 text-green-700 cursor-not-allowed' : 'bg-green-100/50 dark:bg-green-900/50 text-green-700 dark:text-green-300 hover:bg-green-200/70 dark:hover:bg-green-800/70'}`}>
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-            {isCompleted ? '✅ Already Completed' : 'Mark as Done'}
+    <div className="fixed inset-0 flex items-center justify-center z-[1000] p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+          <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{task.title}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Choose an action</p>
+        </div>
+        <div className="p-4 space-y-2">
+          <button onClick={() => onAction('complete')} disabled={isComp}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${isComp ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
+            style={{ color: '#16a34a', backgroundColor: isComp ? '#f0fdf4' : undefined }}>
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            {isComp ? 'Already Completed' : 'Mark as Done'}
           </button>
-
-          {isCompleted && submissionStatus === 'not_submitted' && (
-            <button onClick={() => onAction('submit')} className="w-full flex items-center gap-2 sm:gap-3 bg-yellow-100/50 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-yellow-200/70 dark:hover:bg-yellow-800/70 transition-all duration-200 text-sm sm:text-base">
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> Submit for Approval
+          {isComp && submissionStatus === 'not_submitted' && (
+            <button onClick={() => onAction('submit')}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors">
+              <CheckSquare className="w-4 h-4 flex-shrink-0" /> Submit for Approval
             </button>
           )}
-          {isCompleted && submissionStatus !== 'not_submitted' && (
-            <button disabled className="w-full flex items-center gap-2 sm:gap-3 bg-gray-100 dark:bg-gray-700 text-gray-500 px-3 sm:px-4 py-2 sm:py-3 rounded-lg cursor-not-allowed text-sm sm:text-base">
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" />
-              {submissionStatus === 'submitted' ? 'Submitted (Waiting Approval)' : submissionStatus === 'approved' ? 'Approved' : 'Rejected'}
-            </button>
+          {isComp && submissionStatus && submissionStatus !== 'not_submitted' && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold cursor-not-allowed"
+              style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-subtle)' }}>
+              <CheckSquare className="w-4 h-4 flex-shrink-0" />
+              {submissionStatus === 'submitted' ? 'Waiting Approval' : submissionStatus === 'approved' ? 'Approved ✓' : 'Rejected'}
+            </div>
           )}
-
-          <button onClick={() => onAction('edit')} className="w-full flex items-center gap-2 sm:gap-3 bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-blue-200/70 dark:hover:bg-blue-800/70 transition-all duration-200 text-sm sm:text-base">
-            <Pen className="w-4 h-4 sm:w-5 sm:h-5" /> Edit Task
+          <button onClick={() => onAction('edit')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors"
+            style={{ color: 'var(--brand-primary)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--brand-light)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <Pen className="w-4 h-4 flex-shrink-0" /> Edit Task
           </button>
-          <button onClick={() => onAction('delete')} className="w-full flex items-center gap-2 sm:gap-3 bg-red-100/50 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-red-200/70 dark:hover:bg-red-800/70 transition-all duration-200 text-sm sm:text-base">
-            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /> Delete Task
+          <button onClick={() => onAction('delete')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors">
+            <Trash2 className="w-4 h-4 flex-shrink-0" /> Delete Task
           </button>
         </div>
-        <button onClick={onClose} className="mt-3 sm:mt-4 w-full text-gray-600 dark:text-gray-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200">
-          Cancel
-        </button>
+        <div className="px-4 pb-4">
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+            Cancel
+          </button>
+        </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
-const DeleteConfirmationModal = ({ isOpen, onConfirm, onCancel }) => {
+/* ── Delete Confirm ───────────────────────────────────────────────────────── */
+const DeleteModal = ({ isOpen, onConfirm, onCancel }) => {
   if (!isOpen) return null;
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6" onClick={onCancel} role="dialog" aria-label="Delete Confirmation Modal">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm border border-gray-200/50 dark:border-gray-700/50 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Delete Task?</h3>
-        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4 sm:mb-6 line-clamp-3">Are you sure you want to delete this task? This action cannot be undone.</p>
-        <div className="flex gap-2 sm:gap-3">
-          <button onClick={onConfirm} className="flex-1 bg-red-500 dark:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-600 dark:hover:bg-red-500 transition-all duration-200 text-xs sm:text-sm">Yes, Delete</button>
-          <button onClick={onCancel} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 text-xs sm:text-sm">No, Keep It</button>
+    <div className="fixed inset-0 flex items-center justify-center z-[1001] p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onCancel}>
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="rounded-2xl shadow-2xl w-full max-w-sm p-6 border"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <Trash2 className="w-6 h-6 text-red-500" />
+        </div>
+        <h3 className="text-lg font-bold text-center mb-2" style={{ color: 'var(--text-primary)' }}>Delete Task?</h3>
+        <p className="text-sm text-center mb-6" style={{ color: 'var(--text-secondary)' }}>This action cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold transition-colors"
+            style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+            Keep It
+          </button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">
+            Delete
+          </button>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
+/* ── Stat Card ────────────────────────────────────────────────────────────── */
+const StatCard = ({ label, value, icon: Icon, bg, color }) => (
+  <div className="rounded-xl border p-4 flex items-center gap-3"
+    style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
+      <Icon className="w-5 h-5" style={{ color }} />
+    </div>
+    <div>
+      <p className="text-xl font-black leading-none" style={{ color }}>{value}</p>
+      <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+    </div>
+  </div>
+);
+
+/* ── Dashboard ────────────────────────────────────────────────────────────── */
 const Dashboard = () => {
-  const { user, tasks, fetchTasks: refreshTasks, onLogout } = useOutletContext();
-  const [showModal, setShowModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [showActionModal, setShowActionModal] = useState(false);
+  const { user, tasks, tasksLoading, fetchTasks: refreshTasks, onLogout } = useOutletContext();
+  const [showModal,         setShowModal]         = useState(false);
+  const [selectedTask,      setSelectedTask]      = useState(null);
+  const [showActionModal,   setShowActionModal]   = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('dueDate');
+  const [filter,  setFilter]  = useState('all');
+  const [search,  setSearch]  = useState('');
+  const [sort,    setSort]    = useState('dueDate');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [localTasks, setLocalTasks] = useState(tasks);
+  const [localTasks,  setLocalTasks]  = useState(tasks);
 
   useEffect(() => {
     const socket = io(USER_API_URL, { auth: { token: localStorage.getItem('token') } });
-    socket.on('connect', () => console.log('✅ Dashboard socket connected:', socket.id));
-    socket.on('newTask', (task) => {
-      if (task.owner?._id === user?.id) setLocalTasks((prev) => [...prev, task]);
-    });
-    socket.on('updateTask', (updatedTask) => {
-      if (updatedTask.owner?._id === user?.id) {
-        setLocalTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)));
-      }
-    });
-    socket.on('deleteTask', (taskId) => setLocalTasks((prev) => prev.filter((t) => t._id !== taskId)));
-    socket.on('connect_error', (err) => console.error('Socket connection error:', err));
+    socket.on('newTask',    (t)   => { if (t.owner?._id === user?.id) setLocalTasks((p) => [...p, t]); });
+    socket.on('updateTask', (t)   => { if (t.owner?._id === user?.id) setLocalTasks((p) => p.map((x) => x._id === t._id ? t : x)); });
+    socket.on('deleteTask', (tid) => setLocalTasks((p) => p.filter((x) => x._id !== tid)));
     return () => socket.disconnect();
   }, [user?.id]);
 
   useEffect(() => setLocalTasks(tasks), [tasks]);
+  useEffect(() => { const t = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const isComp = (t) => t.completed === true || t.completed === 1 || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes');
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    return {
-      total: localTasks.length,
-      completed: localTasks.filter(t => t.completed === true || t.completed === 1 || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes')).length,
-      undone: localTasks.filter(t => t.completed === false || t.completed === 0 || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'no')).length,
-      highPriority: localTasks.filter(t => t.priority?.toLowerCase() === 'high').length,
-      mediumPriority: localTasks.filter(t => t.priority?.toLowerCase() === 'medium').length,
-      lowPriority: localTasks.filter(t => t.priority?.toLowerCase() === 'low').length,
-      overdue: localTasks.filter(t => t.dueDate && new Date(t.dueDate) < now && !(t.completed === true || t.completed === 1 || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes'))).length,
-      approved: localTasks.filter(t => t.submissionStatus === 'approved').length,
-      rejected: localTasks.filter(t => t.submissionStatus === 'rejected').length,
-    };
-  }, [localTasks]);
+  const stats = useMemo(() => ({
+    total:     localTasks.length,
+    completed: localTasks.filter(isComp).length,
+    undone:    localTasks.filter((t) => !isComp(t)).length,
+    highPri:   localTasks.filter((t) => t.priority?.toLowerCase() === 'high').length,
+    overdue:   localTasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && !isComp(t)).length,
+    approved:  localTasks.filter((t) => t.submissionStatus === 'approved').length,
+  }), [localTasks]);
 
   const filteredTasks = useMemo(() => {
-    let filtered = localTasks.filter(task => {
-      if (!task || !task.title) return false;
-      const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-      const today = new Date();
-      const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
-      const nextMonth = new Date(today); nextMonth.setMonth(today.getMonth() + 1);
-      const searchLower = search.toLowerCase();
-      const matchesSearch = task.title.toLowerCase().includes(searchLower) || (task.description || '').toLowerCase().includes(searchLower);
-
-      switch (filter) {
-        case 'today': return dueDate && dueDate.toDateString() === today.toDateString() && matchesSearch;
-        case 'week': return dueDate && dueDate >= today && dueDate <= nextWeek && matchesSearch;
-        case 'month': return dueDate && dueDate >= today && dueDate <= nextMonth && matchesSearch;
-        case 'high':
-        case 'medium':
-        case 'low': return task.priority?.toLowerCase() === filter && matchesSearch;
-        case 'done': return (task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
-        case 'undone': return (task.completed === false || task.completed === 0 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'no')) && matchesSearch;
-        case 'overdue': return dueDate && dueDate < today && !(task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes')) && matchesSearch;
-        case 'approved': return task.submissionStatus === 'approved' && matchesSearch;
-        case 'rejected': return task.submissionStatus === 'rejected' && matchesSearch;
-        default: return matchesSearch;
-      }
-    });
-
-    return filtered.sort((a, b) => {
-      if (sort === 'dueDate') {
-        const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-        const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-        return dateA - dateB;
-      } else if (sort === 'priority') {
-        const priorityOrder = { high: 3, medium: 2, low: 1 };
-        return (priorityOrder[b.priority?.toLowerCase()] || 0) - (priorityOrder[a.priority?.toLowerCase()] || 0);
-      } else if (sort === 'title') {
-        return a.title.localeCompare(b.title);
-      }
-      return 0;
-    });
+    const now = new Date();
+    const nw  = new Date(now); nw.setDate(now.getDate() + 7);
+    const nm  = new Date(now); nm.setMonth(now.getMonth() + 1);
+    const sl  = search.toLowerCase();
+    return localTasks
+      .filter((task) => {
+        if (!task?.title) return false;
+        const ms = task.title.toLowerCase().includes(sl) || (task.description || '').toLowerCase().includes(sl);
+        const due = task.dueDate ? new Date(task.dueDate) : null;
+        switch (filter) {
+          case 'today':   return due && due.toDateString() === now.toDateString() && ms;
+          case 'week':    return due && due >= now && due <= nw  && ms;
+          case 'month':   return due && due >= now && due <= nm  && ms;
+          case 'high': case 'medium': case 'low': return task.priority?.toLowerCase() === filter && ms;
+          case 'done':    return isComp(task) && ms;
+          case 'undone':  return !isComp(task) && ms;
+          case 'overdue': return due && due < now && !isComp(task) && ms;
+          case 'approved':return task.submissionStatus === 'approved' && ms;
+          case 'rejected':return task.submissionStatus === 'rejected' && ms;
+          default:        return ms;
+        }
+      })
+      .sort((a, b) => {
+        if (sort === 'dueDate')  return (a.dueDate ? new Date(a.dueDate) : Infinity) - (b.dueDate ? new Date(b.dueDate) : Infinity);
+        if (sort === 'priority') { const o = { high:3, medium:2, low:1 }; return (o[b.priority?.toLowerCase()]||0) - (o[a.priority?.toLowerCase()]||0); }
+        if (sort === 'title')    return a.title.localeCompare(b.title);
+        return 0;
+      });
   }, [localTasks, filter, search, sort]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    if (!token) throw new Error('No auth token found');
-    return { Authorization: `Bearer ${token}` };
-  };
+  const getAuth = () => { const t = localStorage.getItem('token'); if (!t) throw new Error('No token'); return { Authorization: `Bearer ${t}` }; };
 
   const handleComplete = async (task) => {
     try {
-      const headers = getAuthHeaders();
-      let payload = { completed: 'Yes' };
-      if (task.checklist && task.checklist.length > 0) {
-        payload = { checklist: task.checklist.map(item => ({ ...item, completed: true })) };
-      }
-      await axios.put(`${API_BASE_URL}/${task._id}/gp`, payload, { headers });
-      await refreshTasks();
-      setShowActionModal(false);
-      setSelectedTask(null);
-    } catch (error) {
-      console.error('Error marking task as done:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
-    }
+      const payload = task.checklist?.length
+        ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) }
+        : { completed: 'Yes' };
+      await axios.put(`${API_BASE_URL}/${task._id}/gp`, payload, { headers: getAuth() });
+      await refreshTasks(); setShowActionModal(false); setSelectedTask(null);
+    } catch (err) { if (err.response?.status === 401) onLogout?.(); }
   };
 
   const handleSubmit = async (task) => {
     try {
-      const headers = getAuthHeaders();
-      await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers });
-      await refreshTasks();
-      setShowActionModal(false);
-      setSelectedTask(null);
-    } catch (error) {
-      console.error('Error submitting task:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
-    }
+      await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers: getAuth() });
+      await refreshTasks(); setShowActionModal(false); setSelectedTask(null);
+    } catch (err) { if (err.response?.status === 401) onLogout?.(); }
   };
 
   const handleDelete = async () => {
     try {
-      const headers = getAuthHeaders();
-      await axios.delete(`${API_BASE_URL}/${selectedTask._id}/gp`, { headers });
-      await refreshTasks();
-      setShowDeleteConfirm(false);
-      setShowActionModal(false);
-      setSelectedTask(null);
-    } catch (error) {
-      console.error('Error deleting task:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
-    }
+      await axios.delete(`${API_BASE_URL}/${selectedTask._id}/gp`, { headers: getAuth() });
+      await refreshTasks(); setShowDeleteConfirm(false); setShowActionModal(false); setSelectedTask(null);
+    } catch (err) { if (err.response?.status === 401) onLogout?.(); }
   };
 
   const handleTaskSave = useCallback(async (taskData) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("No authentication token found");
-      const payload = {
-        title: taskData.title?.trim() || "",
-        description: taskData.description || "",
-        priority: taskData.priority || "Low",
-        dueDate: taskData.dueDate || undefined,
-        checklist: taskData.checklist || [],
-      };
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token');
+      const payload = { title: taskData.title?.trim()||'', description: taskData.description||'', priority: taskData.priority||'Low', dueDate: taskData.dueDate||undefined, checklist: taskData.checklist||[] };
       if (!payload.title) return;
       if (taskData._id) {
         await axios.put(`${API_BASE_URL}/${taskData._id}/gp`, payload, { headers: { Authorization: `Bearer ${token}` } });
       } else {
-        await axios.post(`${API_BASE_URL}/gp`, { ...payload, userId: user?.id || null }, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.post(`${API_BASE_URL}/gp`, { ...payload, userId: user?.id||null }, { headers: { Authorization: `Bearer ${token}` } });
       }
-      await refreshTasks();
-      setShowModal(false);
-      setSelectedTask(null);
-    } catch (error) {
-      console.error("Error saving task:", error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
-    }
+      await refreshTasks(); setShowModal(false); setSelectedTask(null);
+    } catch (err) { if (err.response?.status === 401) onLogout?.(); }
   }, [refreshTasks, user, onLogout]);
 
   const handleAction = (action) => {
@@ -243,177 +262,129 @@ const Dashboard = () => {
     else if (action === 'delete') setShowDeleteConfirm(true);
   };
 
-  const FILTER_LABELS = {
-    all: 'All', today: 'Today', week: 'Week', month: 'Month',
-    high: 'High', medium: 'Medium', low: 'Low',
-    done: 'Done', undone: 'Undone', overdue: 'Overdue',
-    approved: 'Approved', rejected: 'Rejected'
-  };
-  const FILTER_OPTIONS = ['all', 'today', 'week', 'month', 'high', 'medium', 'low', 'done', 'undone', 'overdue', 'approved', 'rejected'];
-  const SORT_OPTIONS = [
-    { value: 'dueDate', label: 'Due Date', icon: Clock },
-    { value: 'priority', label: 'Priority', icon: Flag },
-    { value: 'title', label: 'Title', icon: CircleDot },
-  ];
-
-  const STATS = [
-    { key: 'total', label: 'Total', icon: Rocket, color: 'bg-blue-500/15 dark:bg-blue-900/15 text-blue-600 dark:text-blue-400', valueKey: 'total', textColor: 'text-blue-700 dark:text-blue-300' },
-    { key: 'completed', label: 'Done', icon: CircleCheck, color: 'bg-green-500/15 dark:bg-green-900/15 text-green-600 dark:text-green-400', valueKey: 'completed', textColor: 'text-green-700 dark:text-green-300' },
-    { key: 'undone', label: 'Undone', icon: Layers, color: 'bg-amber-500/15 dark:bg-amber-900/15 text-amber-600 dark:text-amber-400', valueKey: 'undone', textColor: 'text-amber-700 dark:text-amber-300' },
-    { key: 'highPriority', label: 'High', icon: Flag, color: 'bg-indigo-500/15 dark:bg-indigo-900/15 text-indigo-600 dark:text-indigo-400', valueKey: 'highPriority', textColor: 'text-indigo-700 dark:text-indigo-300' },
-    { key: 'mediumPriority', label: 'Medium', icon: Flag, color: 'bg-amber-500/15 dark:bg-amber-900/15 text-amber-600 dark:text-amber-400', valueKey: 'mediumPriority', textColor: 'text-amber-700 dark:text-amber-300' },
-    { key: 'lowPriority', label: 'Low', icon: Flag, color: 'bg-gray-500/15 dark:bg-gray-700/15 text-gray-600 dark:text-gray-400', valueKey: 'lowPriority', textColor: 'text-gray-700 dark:text-gray-300' },
-    { key: 'overdue', label: 'Overdue', icon: Clock, color: 'bg-red-500/15 dark:bg-red-900/15 text-red-600 dark:text-red-400', valueKey: 'overdue', textColor: 'text-red-700 dark:text-red-300' },
+  const STAT_CARDS = [
+    { label: 'Total Tasks',   value: stats.total,     icon: Layers,      bg: 'var(--brand-light)',      color: 'var(--brand-primary)' },
+    { label: 'Completed',     value: stats.completed,  icon: CircleCheck, bg: '#f0fdf4', color: '#16a34a' },
+    { label: 'Pending',       value: stats.undone,     icon: Clock,       bg: '#fff7ed', color: '#ea580c' },
+    { label: 'High Priority', value: stats.highPri,    icon: Flag,        bg: '#fef2f2', color: '#dc2626' },
+    { label: 'Overdue',       value: stats.overdue,    icon: Clock,       bg: '#fefce8', color: '#ca8a04' },
+    { label: 'Approved',      value: stats.approved,   icon: CheckSquare, bg: '#f0fdf4', color: '#15803d' },
   ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: 'easeOut' }} className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col font-sans">
-      <div className="flex-1 max-w-[1600px] mx-auto w-full px-8 py-12">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-blue-100/50 dark:border-gray-700/50 rounded-3xl shadow-lg flex flex-col overflow-hidden">
-          <header className="bg-blue-50/50 dark:bg-blue-900/30 border-b border-blue-200/50 dark:border-gray-700/50 px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Star className="w-6 h-6 sm:w-7 h-7 md:w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin-slow flex-shrink-0" />
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-indigo-900 dark:text-indigo-100 tracking-tight truncate">Dashboard</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-              <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="sm:hidden bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-1">
-                <Plus className="w-4 h-4" /> Task
-              </button>
-              <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="hidden sm:flex bg-white/95 dark:bg-gray-800/95 text-blue-700 dark:text-blue-300 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2">
-                <Plus className="w-4 h-4 sm:w-5 h-5" /> Add Task
-              </button>
-              <div className="bg-white/95 dark:bg-gray-800/95 border border-blue-300/50 dark:border-gray-700/50 rounded-lg px-3 sm:px-4 py-2 text-gray-800 dark:text-gray-200 text-xs sm:text-sm lg:text-base font-medium flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 h-5 lg:w-6 h-6 text-blue-600 dark:text-blue-400 animate-pulse flex-shrink-0" />
-                <span className="truncate">{currentTime.toLocaleTimeString('en-US', { hour12: true, timeZone: 'Africa/Lagos' })}</span>
-              </div>
-              <img
-                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullName || user?.name || 'User')}`}
-                alt="User Avatar"
-                className="w-8 h-8 sm:w-9 h-9 md:w-10 h-10 lg:w-12 h-12 rounded-full border-2 border-blue-400/50 dark:border-blue-800/50 hover:shadow-sm transition-all duration-200 flex-shrink-0"
-              />
-            </div>
-          </header>
-
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4 max-w-[1400px] mx-auto">
-                {STATS.map(({ key, label, icon: Icon, color, valueKey, textColor }, index) => (
-                  <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 * (index + 1) }} className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-2 sm:p-3 md:p-4 lg:p-4 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 min-w-0">
-                    <div className="flex items-center gap-2 sm:gap-3 md:gap-3 lg:gap-3">
-                      {key === 'completed' ? (
-                        <div className="relative w-8 h-8 sm:w-10 h-10 md:w-12 h-12 lg:w-12 h-12 flex-shrink-0">
-                          <svg className="w-full h-full" viewBox="0 0 36 36">
-                            <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" stroke="#DBEAFE" strokeWidth="4" />
-                            <path d="M18 2 a 16 16 0 0 1 0 32 a 16 16 0 0 1 0 -32" fill="none" stroke="#10B981" strokeWidth="4" strokeDasharray={`${(stats.completed / stats.total) * 100 || 0}, 100`} strokeLinecap="round" />
-                          </svg>
-                          <PieChart className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 h-5 md:w-6 h-6 lg:w-6 h-6 text-green-600 dark:text-green-400" />
-                        </div>
-                      ) : (
-                        <div className={`p-1 sm:p-2 md:p-3 lg:p-3 rounded-lg ${color} flex-shrink-0`}>
-                          <Icon className="w-4 h-4 sm:w-5 h-5 md:w-6 h-6 lg:w-6 h-6" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className={`text-base sm:text-lg md:text-xl lg:text-xl font-bold ${textColor} truncate`}>{stats[valueKey]}</p>
-                        <p className="text-xs sm:text-sm md:text-sm lg:text-sm text-gray-600 dark:text-gray-400 tracking-tight truncate">{label}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-3 sm:p-4 md:p-5 shadow-sm">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 sm:gap-3 flex-1 w-full">
-                    <Search className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks..." className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 w-full transition-all duration-300" />
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                    <ArrowUpDown className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full sm:w-40 md:w-48">
-                      {SORT_OPTIONS.map(({ value, label }) => (
-                        <option key={value} value={value} className="text-blue-800 dark:text-blue-200">{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-xl p-3 sm:p-4 md:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Filter className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                  <span className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight truncate">{FILTER_LABELS[filter]}</span>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
-                  <select value={filter} onChange={(e) => setFilter(e.target.value)} className="lg:hidden bg-white dark:bg-gray-700 border border-blue-300/50 dark:border-gray-600/50 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-blue-800 dark:text-blue-200 focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition-all duration-300 w-full">
-                    {FILTER_OPTIONS.map(opt => (
-                      <option key={opt} value={opt} className="text-blue-800 dark:text-blue-200">{FILTER_LABELS[opt]}</option>
-                    ))}
-                  </select>
-                  <div className="hidden lg:flex flex-wrap gap-1 sm:gap-2 bg-blue-100/50 dark:bg-blue-900/30 p-1 sm:p-2 rounded-lg">
-                    {FILTER_OPTIONS.map(opt => (
-                      <button key={opt} onClick={() => setFilter(opt)} className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-semibold transition-all duration-300 hover:scale-105 truncate ${filter === opt ? 'bg-blue-500 dark:bg-blue-600 text-white dark:text-gray-100 shadow-md' : 'text-blue-700 dark:text-blue-300 hover:bg-blue-200/50 dark:hover:bg-blue-800/50'}`} title={FILTER_LABELS[opt]}>
-                        {FILTER_LABELS[opt]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-2xl p-4 sm:p-5 md:p-6 shadow-sm">
-                  <div className="overflow-y-auto pr-2 sm:pr-3 custom-scrollbar">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {filteredTasks.length === 0 ? (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="col-span-full bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-blue-200/50 dark:border-gray-700/50 rounded-2xl p-6 sm:p-8 md:p-10 text-center shadow-md">
-                          <div className="w-16 h-16 sm:w-20 h-20 md:w-24 h-24 bg-blue-100/50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                            <Layers className="w-8 h-8 sm:w-10 h-10 md:w-12 h-12 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 tracking-tight truncate">No Tasks Found</h3>
-                          <p className="text-sm sm:text-base md:text-lg text-blue-600 dark:text-blue-400 mb-6 sm:mb-8 leading-relaxed line-clamp-2">
-                            {filter === 'all' && !search ? 'Start your productivity journey with a new task!' : 'No tasks match your current filters.'}
-                          </p>
-                          <button onClick={() => { setSelectedTask(null); setShowModal(true); }} className="bg-blue-500 dark:bg-blue-600 text-white px-6 sm:px-8 py-2 sm:py-3 rounded-lg flex items-center gap-2 sm:gap-3 mx-auto hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg text-sm sm:text-base">
-                            <Plus className="w-5 h-5 sm:w-6 h-6" /> Create New Task
-                          </button>
-                        </motion.div>
-                      ) : (
-                        filteredTasks.map((task, index) => (
-                          <motion.div key={task._id || task.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="relative" onClick={() => { setSelectedTask(task); setShowActionModal(true); }}>
-                            <div className="p-4 sm:p-5 md:p-6">
-                              <TaskItem task={task} onRefresh={refreshTasks} showCompleteCheckbox onLogout={onLogout} />
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </main>
-
-          <motion.button initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => { setSelectedTask(null); setShowModal(true); }} className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 bg-blue-500 dark:bg-blue-600 text-white p-3 sm:p-4 md:p-5 rounded-full shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-300 z-30" title="Add New Task">
-            <Plus className="w-5 h-5 sm:w-6 h-6 md:w-7 h-7" />
-          </motion.button>
-        </motion.div>
-
-        <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedTask(null); }} taskToEdit={selectedTask} onSave={handleTaskSave} onLogout={onLogout} />
-        <TaskActionModal isOpen={showActionModal} onClose={() => { setShowActionModal(false); setSelectedTask(null); }} onAction={handleAction} task={selectedTask} />
-        <DeleteConfirmationModal isOpen={showDeleteConfirm} onConfirm={handleDelete} onCancel={() => setShowDeleteConfirm(false)} />
+    <div className="space-y-5 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            {currentTime.toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {' · '}
+            <span style={{ color: 'var(--brand-accent)' }}>
+              {currentTime.toLocaleTimeString('en-US', { hour12: true, timeZone: 'Africa/Lagos' })}
+            </span>
+          </p>
+        </div>
+        <button onClick={() => { setSelectedTask(null); setShowModal(true); }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 active:scale-[0.98] transition-all"
+          style={{ backgroundColor: 'var(--brand-primary)' }}>
+          <Plus className="w-4 h-4" /> New Task
+        </button>
       </div>
 
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(59, 130, 246, 0.1); border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3B82F6; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #2563EB; }
-        .animate-pulse-slow { animation: pulse 3s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.3; } }
-      `}</style>
-    </motion.div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {STAT_CARDS.map((s) => <StatCard key={s.label} {...s} />)}
+      </div>
+
+      {/* Filter bar */}
+      <div className="rounded-xl border p-4 space-y-3"
+        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tasks…"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none transition-colors"
+              style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--brand-accent)'}
+              onBlur={(e)  => e.target.style.borderColor = 'var(--input-border)'}
+            />
+          </div>
+          {/* Sort */}
+          <div className="relative">
+            <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+            <select value={sort} onChange={(e) => setSort(e.target.value)}
+              className="pl-9 pr-8 py-2.5 rounded-lg border text-sm focus:outline-none appearance-none cursor-pointer transition-colors"
+              style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' }}>
+              {SORT_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {FILTER_OPTIONS.map((opt) => (
+            <button key={opt} onClick={() => setFilter(opt)}
+              className="flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={filter === opt
+                ? { backgroundColor: 'var(--brand-primary)', color: '#fff' }
+                : { backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }
+              }>
+              {FILTER_LABELS[opt]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Task grid */}
+      {tasksLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="rounded-xl border py-16 text-center"
+          style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+          <Layers className="w-10 h-10 mx-auto mb-4" style={{ color: 'var(--text-muted)' }} />
+          <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>No tasks found</h3>
+          <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
+            {filter === 'all' && !search ? 'Start by adding a task.' : 'Try a different filter.'}
+          </p>
+          <button onClick={() => { setSelectedTask(null); setShowModal(true); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: 'var(--brand-primary)' }}>
+            <Plus className="w-4 h-4" /> Add Task
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {filteredTasks.map((task, idx) => (
+            <motion.div key={task._id || task.id}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.03 }}
+              onClick={() => { setSelectedTask(task); setShowActionModal(true); }}
+              className="cursor-pointer">
+              <TaskItem task={task} onRefresh={refreshTasks} showCompleteCheckbox onLogout={onLogout} />
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* FAB */}
+      <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+        onClick={() => { setSelectedTask(null); setShowModal(true); }}
+        className="fixed bottom-20 right-6 sm:bottom-6 w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg z-30"
+        style={{ backgroundColor: 'var(--brand-accent)' }}>
+        <Plus className="w-5 h-5" />
+      </motion.button>
+
+      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedTask(null); }} taskToEdit={selectedTask} onSave={handleTaskSave} onLogout={onLogout} />
+      <AnimatePresence>
+        {showActionModal && <TaskActionModal isOpen task={selectedTask} onClose={() => { setShowActionModal(false); setSelectedTask(null); }} onAction={handleAction} />}
+      </AnimatePresence>
+      <DeleteModal isOpen={showDeleteConfirm} onConfirm={handleDelete} onCancel={() => setShowDeleteConfirm(false)} />
+    </div>
   );
 };
 

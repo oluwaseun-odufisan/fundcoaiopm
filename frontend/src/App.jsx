@@ -25,11 +25,10 @@ import Appraisals from './pages/Appraisals';
 import Meeting from './pages/Meeting';
 import Training from './pages/Training';
 import Feedback from './pages/Feedback';
-import DocumentConverter from './pages/DocumentConverter';
+import DeckPrep from './pages/DeckPrep';
 import ReportGeneration from './pages/ReportGeneration';
 import MeetingLobby from './pages/MeetingLobby';
 import VideoRoom from './pages/VideoRoom';
-
 
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -92,34 +91,35 @@ const App = () => {
         />
 
         <Route element={currentUser ? <ProtectedLayout /> : <Navigate to="/login" replace />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/pending" element={<PendingPage />} />
-          <Route path="/complete" element={<CompletePage />} />
-          <Route path="/profile" element={<Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />} />
-          <Route path="/assigned" element={<AssignedTasks />} />
-          <Route path="/calendar" element={<CalendarView />} />
-          <Route path="/team-chat" element={<TeamChat />} />
-          <Route path="/url-shortener" element={<UrlShortener />} />
-          <Route path="/file-storage" element={<FileStorage />} />
-          <Route path="/analytics" element={<PerformanceAnalytics />} />
-          <Route path="/generate-report" element={<GenerateReport />} />
-          <Route path="/performance" element={<PerformanceDashboard />} />
-          <Route path="/social-feed" element={<SocialFeed />} />
-          <Route path="/ai-tools" element={<AiTools />} />
-          <Route path="/reminders" element={<Reminders />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/appraisals" element={<Appraisals />} />
-          <Route path="/meeting" element={<Meeting />} />
-          <Route path="/training" element={<Training />} />
-          <Route path="/feedback" element={<Feedback />} />
-          <Route path="/document-converter" element={<DocumentConverter />} />
-          <Route path="/reports" element={<ReportGeneration />} />
-          <Route path="/meeting" element={<MeetingLobby />} />
-          <Route path="/meetroom" element={<MeetingLobby />} />
-          <Route path="/room/:roomId" element={<VideoRoom />} />
+          <Route path="/"                   element={<Dashboard />} />
+          <Route path="/pending"            element={<PendingPage />} />
+          <Route path="/complete"           element={<CompletePage />} />
+          <Route path="/profile"            element={<Profile user={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout} />} />
+          <Route path="/assigned"           element={<AssignedTasks />} />
+          <Route path="/calendar"           element={<CalendarView />} />
+          <Route path="/team-chat"          element={<TeamChat />} />
+          <Route path="/url-shortener"      element={<UrlShortener />} />
+          <Route path="/file-storage"       element={<FileStorage />} />
+          <Route path="/analytics"          element={<PerformanceAnalytics />} />
+          <Route path="/generate-report"    element={<GenerateReport />} />
+          <Route path="/performance"        element={<PerformanceDashboard />} />
+          <Route path="/social-feed"        element={<SocialFeed />} />
+          <Route path="/ai-tools"           element={<AiTools />} />
+          <Route path="/reminders"          element={<Reminders />} />
+          <Route path="/goals"              element={<Goals />} />
+          <Route path="/appraisals"         element={<Appraisals />} />
+          <Route path="/meeting"            element={<Meeting />} />
+          <Route path="/training"           element={<Training />} />
+          <Route path="/feedback"           element={<Feedback />} />
+          <Route path="/deck-prep"          element={<DeckPrep />} />
+          {/* Legacy redirect: old document-converter URL → new deck-prep */}
+          <Route path="/document-converter" element={<Navigate to="/deck-prep" replace />} />
+          <Route path="/reports"            element={<ReportGeneration />} />
+          <Route path="/meetroom"           element={<MeetingLobby />} />
+          <Route path="/room/:roomId"       element={<VideoRoom />} />
         </Route>
 
-        <Route path="/" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
       </Routes>
     </ThemeProvider>
   );

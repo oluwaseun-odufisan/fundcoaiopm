@@ -1,81 +1,133 @@
 // PendingPage.jsx
 import React, { useMemo, useState, useCallback } from 'react';
-import { Clock, Filter, ListChecks, Plus, CheckCircle, CheckSquare, Pen, Trash2 } from 'lucide-react';
+import { Clock, Filter, ListChecks, Plus, CheckCircle, CheckSquare, Pen, Trash2, Search } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
 import axios from 'axios';
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
 
-// TaskActionModal defined first (prevents any JSX parsing issues)
+// Updated TaskActionModal using new design system
 const TaskActionModal = ({ isOpen, onClose, onAction, task }) => {
-  if (!isOpen) return null;
+  if (!isOpen || !task) return null;
   const isCompleted = task.completed === true || task.completed === 1 || (typeof task.completed === 'string' && task.completed.toLowerCase() === 'yes');
-  const submissionStatus = task.submissionStatus;
+  const { submissionStatus } = task;
 
   return (
-    <div className="fixed inset-0 bg-gray-950/80 dark:bg-gray-950/80 backdrop-blur-sm flex items-center justify-center z-[1000] px-4 sm:px-6">
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl p-4 sm:p-6 w-full max-w-xs sm:max-w-sm border border-blue-200/50 dark:border-gray-700/50 shadow-xl">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 truncate">Task Actions</h3>
-        <div className="space-y-2 sm:space-y-3">
+    <div
+      className="fixed inset-0 flex items-center justify-center z-[1000] p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-color)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="px-5 py-4 border-b"
+          style={{ borderColor: 'var(--border-color)' }}
+        >
+          <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{task.title}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Choose an action</p>
+        </div>
+        <div className="p-4 space-y-2">
           <button
             onClick={() => onAction('complete')}
             disabled={isCompleted}
-            className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-200 ${
-              isCompleted 
-                ? 'bg-green-200 text-green-700 cursor-not-allowed' 
-                : 'bg-green-100/50 dark:bg-green-900/50 text-green-700 dark:text-green-300 hover:bg-green-200/70 dark:hover:bg-green-800/70'
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
+              isCompleted
+                ? 'bg-green-50 text-green-600 cursor-not-allowed opacity-60'
+                : 'hover:bg-green-50'
             }`}
+            style={{ color: isCompleted ? '#16a34a' : '#16a34a' }}
           >
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> 
-            {isCompleted ? '✅ Already Completed' : 'Mark as Done'}
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            {isCompleted ? 'Already Completed' : 'Mark as Done'}
           </button>
 
           {isCompleted && submissionStatus === 'not_submitted' && (
             <button
               onClick={() => onAction('submit')}
-              className="w-full flex items-center gap-2 sm:gap-3 bg-yellow-100/50 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-yellow-200/70 dark:hover:bg-yellow-800/70 transition-all duration-200 text-sm sm:text-base"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:bg-amber-50"
+              style={{ color: '#c2410c' }}
             >
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> Submit for Approval
+              <CheckSquare className="w-4 h-4 flex-shrink-0" /> Submit for Approval
             </button>
           )}
-          {isCompleted && submissionStatus !== 'not_submitted' && (
-            <button
-              disabled
-              className="w-full flex items-center gap-2 sm:gap-3 bg-gray-100 dark:bg-gray-700 text-gray-500 px-3 sm:px-4 py-2 sm:py-3 rounded-lg cursor-not-allowed text-sm sm:text-base"
+
+          {isCompleted && submissionStatus && submissionStatus !== 'not_submitted' && (
+            <div
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold cursor-not-allowed"
+              style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-muted)' }}
             >
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> 
-              {submissionStatus === 'submitted' ? 'Submitted (Waiting Approval)' : submissionStatus === 'approved' ? 'Approved' : 'Rejected'}
-            </button>
+              <CheckSquare className="w-4 h-4 flex-shrink-0" />
+              {submissionStatus === 'submitted'
+                ? 'Waiting Approval'
+                : submissionStatus === 'approved'
+                ? 'Approved ✓'
+                : 'Rejected'}
+            </div>
           )}
 
           <button
             onClick={() => onAction('edit')}
-            className="w-full flex items-center gap-2 sm:gap-3 bg-blue-100/50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-blue-200/70 dark:hover:bg-blue-800/70 transition-all duration-200 text-sm sm:text-base"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:bg-[var(--brand-light)]"
+            style={{ color: 'var(--brand-primary)' }}
           >
-            <Pen className="w-4 h-4 sm:w-5 sm:h-5" /> Edit Task
+            <Pen className="w-4 h-4 flex-shrink-0" /> Edit Task
           </button>
+
           <button
             onClick={() => onAction('delete')}
-            className="w-full flex items-center gap-2 sm:gap-3 bg-red-100/50 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded-lg hover:bg-red-200/70 dark:hover:bg-red-800/70 transition-all duration-200 text-sm sm:text-base"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:bg-red-50 text-red-600"
           >
-            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /> Delete Task
+            <Trash2 className="w-4 h-4 flex-shrink-0" /> Delete Task
           </button>
         </div>
-        <button
-          onClick={onClose}
-          className="mt-3 sm:mt-4 w-full text-gray-600 dark:text-gray-400 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
-        >
-          Cancel
-        </button>
-      </div>
+
+        <div className="px-4 pb-4">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 };
 
+const SkeletonCard = () => (
+  <div
+    className="rounded-xl border p-4 animate-pulse"
+    style={{
+      backgroundColor: 'var(--bg-surface)',
+      borderColor: 'var(--border-color)',
+    }}
+  >
+    <div className="flex items-start gap-3">
+      <div className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: 'var(--bg-hover)' }} />
+      <div className="flex-1 space-y-2.5">
+        <div className="h-3.5 rounded w-3/4" style={{ backgroundColor: 'var(--bg-hover)' }} />
+        <div className="h-2.5 rounded w-1/3" style={{ backgroundColor: 'var(--bg-subtle)' }} />
+        <div className="h-2 rounded w-full" style={{ backgroundColor: 'var(--bg-subtle)' }} />
+      </div>
+    </div>
+  </div>
+);
+
 const PendingPage = () => {
-  const { tasks = [], fetchTasks: refreshTasks, user, onLogout } = useOutletContext();
+  const { tasks = [], tasksLoading, fetchTasks: refreshTasks, user, onLogout } = useOutletContext();
 
   const [sortBy, setSortBy] = useState('newest');
   const [search, setSearch] = useState('');
@@ -84,18 +136,18 @@ const PendingPage = () => {
   const [showActionModal, setShowActionModal] = useState(false);
 
   const sortedPendingTasks = useMemo(() => {
-    const filtered = tasks.filter(
-      (t) => !t.completed || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'no')
-    ).filter(task => 
-      task.title.toLowerCase().includes(search.toLowerCase()) || 
-      task.description?.toLowerCase().includes(search.toLowerCase())
-    );
-    return filtered.sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
-      if (sortBy === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
-      const order = { high: 3, medium: 2, low: 1 };
-      return (order[b.priority?.toLowerCase()] || 0) - (order[a.priority?.toLowerCase()] || 0);
-    });
+    return tasks
+      .filter((t) => !t.completed || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'no'))
+      .filter((t) =>
+        t.title.toLowerCase().includes(search.toLowerCase()) ||
+        t.description?.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (sortBy === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
+        if (sortBy === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
+        const order = { high: 3, medium: 2, low: 1 };
+        return (order[b.priority?.toLowerCase()] || 0) - (order[a.priority?.toLowerCase()] || 0);
+      });
   }, [tasks, sortBy, search]);
 
   const getAuthHeaders = () => {
@@ -106,13 +158,13 @@ const PendingPage = () => {
 
   const handleTaskSave = useCallback(async (taskData) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("No authentication token found");
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No authentication token found');
 
       const payload = {
-        title: taskData.title?.trim() || "",
-        description: taskData.description || "",
-        priority: taskData.priority || "Low",
+        title: taskData.title?.trim() || '',
+        description: taskData.description || '',
+        priority: taskData.priority || 'Low',
         dueDate: taskData.dueDate || undefined,
         checklist: taskData.checklist || [],
       };
@@ -132,150 +184,198 @@ const PendingPage = () => {
       await refreshTasks();
       setShowModal(false);
       setSelectedTask(null);
-    } catch (error) {
-      console.error("Error saving task from Pending page:", error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
+    } catch (err) {
+      if (err.response?.status === 401) onLogout?.();
     }
   }, [refreshTasks, user, onLogout]);
 
   const handleComplete = async (task) => {
     try {
-      const headers = getAuthHeaders();
-      let payload = { completed: 'Yes' };
-      if (task.checklist && task.checklist.length > 0) {
-        payload = { checklist: task.checklist.map(item => ({ ...item, completed: true })) };
-      }
-      await axios.put(`${API_BASE_URL}/${task._id}/gp`, payload, { headers });
+      const payload = task.checklist?.length > 0
+        ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) }
+        : { completed: 'Yes' };
+      await axios.put(`${API_BASE_URL}/${task._id}/gp`, payload, { headers: getAuthHeaders() });
       await refreshTasks();
       setShowActionModal(false);
       setSelectedTask(null);
-    } catch (error) {
-      console.error('Error marking task as done:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
+    } catch (err) {
+      if (err.response?.status === 401) onLogout?.();
     }
   };
 
   const handleSubmit = async (task) => {
     try {
-      const headers = getAuthHeaders();
-      await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers });
+      await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers: getAuthHeaders() });
       await refreshTasks();
       setShowActionModal(false);
       setSelectedTask(null);
-    } catch (error) {
-      console.error('Error submitting task:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
+    } catch (err) {
+      if (err.response?.status === 401) onLogout?.();
     }
   };
 
   const handleDelete = async () => {
     try {
-      const headers = getAuthHeaders();
-      await axios.delete(`${API_BASE_URL}/${selectedTask._id}/gp`, { headers });
+      await axios.delete(`${API_BASE_URL}/${selectedTask._id}/gp`, { headers: getAuthHeaders() });
       await refreshTasks();
       setShowActionModal(false);
       setSelectedTask(null);
-    } catch (error) {
-      console.error('Error deleting task:', error.response?.data || error.message);
-      if (error.response?.status === 401) onLogout?.();
+    } catch (err) {
+      if (err.response?.status === 401) onLogout?.();
     }
   };
 
   const handleAction = (action) => {
     if (action === 'complete') handleComplete(selectedTask);
     else if (action === 'submit') handleSubmit(selectedTask);
-    else if (action === 'edit') {
-      setShowActionModal(false);
-      setShowModal(true);
-    } else if (action === 'delete') handleDelete();
+    else if (action === 'edit') { setShowActionModal(false); setShowModal(true); }
+    else if (action === 'delete') handleDelete();
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans">
-      <div className="flex-1 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex flex-col">
-          {/* Header */}
-          <header className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <ListChecks className="w-6 h-6 sm:w-7 h-7 text-blue-600 dark:text-blue-400" />
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Pending Tasks</h1>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
-                  {sortedPendingTasks.length} active task{sortedPendingTasks.length !== 1 && 's'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => { setSelectedTask(null); setShowModal(true); }}
-              className="bg-blue-600 dark:bg-blue-700 text-white px-4 sm:px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors text-sm font-medium shadow-sm"
-            >
-              <Plus className="w-4 h-4 sm:w-5 h-5" /> Add Task
-            </button>
-          </header>
+    <div className="space-y-5 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ backgroundColor: 'var(--brand-light)' }}
+          >
+            <ListChecks className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Pending Tasks</h1>
+            <p className="text-sm font-medium" style={{ color: 'var(--brand-primary)' }}>
+              {sortedPendingTasks.length} active task{sortedPendingTasks.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => { setSelectedTask(null); setShowModal(true); }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+          style={{ backgroundColor: 'var(--brand-primary)' }}
+        >
+          <Plus className="w-4 h-4" /> Add Task
+        </button>
+      </div>
 
-          {/* Sort & Search */}
-          <div className="px-5 sm:px-6 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <Filter className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-sm font-medium text-blue-800 dark:text-blue-200 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="priority">By Priority</option>
-              </select>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search pending tasks..."
-                className="flex-1 border border-blue-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white text-gray-800 placeholder-gray-500 text-sm"
-              />
-            </div>
+      {/* Filter bar */}
+      <div
+        className="rounded-xl border p-4"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-color)',
+        }}
+      >
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search pending tasks…"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--input-bg)',
+                borderColor: 'var(--input-border)',
+                color: 'var(--text-primary)',
+              }}
+            />
           </div>
 
-          {/* Task List */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
-            {sortedPendingTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">All caught up!</h3>
-                <p className="text-sm text-blue-600 dark:text-blue-400">No pending tasks.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {sortedPendingTasks.map((task) => (
-                  <div
-                    key={task._id || task.id}
-                    className="group relative bg-gray-50 dark:bg-gray-700 rounded-xl p-4 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md transition-all duration-200 cursor-pointer"
-                    onClick={() => { setSelectedTask(task); setShowActionModal(true); }}
-                  >
-                    <TaskItem
-                      task={task}
-                      showCompleteCheckbox
-                      onRefresh={refreshTasks}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Sort */}
+          <div className="relative">
+            <Filter
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }}
+            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="pl-9 pr-8 py-2.5 rounded-lg border text-sm focus:outline-none appearance-none cursor-pointer transition-colors"
+              style={{
+                backgroundColor: 'var(--input-bg)',
+                borderColor: 'var(--input-border)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="priority">By Priority</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Action Modal */}
-      <TaskActionModal
-        isOpen={showActionModal}
-        onClose={() => setShowActionModal(false)}
-        onAction={handleAction}
-        task={selectedTask}
-      />
+      {/* Task list */}
+      {tasksLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : sortedPendingTasks.length === 0 ? (
+        <div
+          className="rounded-xl border py-16 text-center"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-color)',
+          }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ backgroundColor: 'var(--brand-light)' }}
+          >
+            <Clock className="w-7 h-7" style={{ color: 'var(--brand-primary)' }} />
+          </div>
+          <h3 className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>All caught up!</h3>
+          <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>No pending tasks right now.</p>
+          <button
+            onClick={() => { setSelectedTask(null); setShowModal(true); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-all"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            <Plus className="w-4 h-4" /> Add Task
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sortedPendingTasks.map((task, idx) => (
+            <motion.div
+              key={task._id || task.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.03 }}
+              onClick={() => { setSelectedTask(task); setShowActionModal(true); }}
+              className="cursor-pointer"
+            >
+              <TaskItem
+                task={task}
+                showCompleteCheckbox
+                onRefresh={refreshTasks}
+                onLogout={onLogout}
+              />
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-      {/* Edit Modal - with onSave */}
+      <AnimatePresence>
+        {showActionModal && (
+          <TaskActionModal
+            isOpen={showActionModal}
+            onClose={() => setShowActionModal(false)}
+            onAction={handleAction}
+            task={selectedTask}
+          />
+        )}
+      </AnimatePresence>
+
       <TaskModal
         isOpen={showModal}
         onClose={() => { setShowModal(false); setSelectedTask(null); refreshTasks?.(); }}
@@ -283,15 +383,6 @@ const PendingPage = () => {
         onSave={handleTaskSave}
         onLogout={onLogout}
       />
-
-      {/* Regular style tag (works in Vite) */}
-      <style>
-        {`
-          .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: #93C5FD; border-radius: 2px; }
-        `}
-      </style>
     </div>
   );
 };

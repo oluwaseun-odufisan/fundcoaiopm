@@ -213,7 +213,7 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full py-6 bg-blue-600 text-white rounded-3xl text-xl font-semibold flex items-center justify-center gap-4 hover:scale-105 transition-all shadow-xl"
+        className="w-full py-6 bg-[var(--brand-primary)] text-white rounded-3xl text-xl font-semibold flex items-center justify-center gap-4 hover:scale-105 transition-all shadow-xl"
       >
         <Zap className="w-7 h-7" />
         Generate Report with AI
@@ -231,14 +231,14 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
               initial={{ scale: 0.95 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
-              className="bg-white dark:bg-gray-900 w-full max-w-4xl max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+              className="bg-[var(--bg-surface)] w-full max-w-4xl max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-[var(--border-color)]"
             >
-              <div className="px-8 py-6 border-b flex items-center justify-between bg-blue-50 dark:bg-gray-800">
+              <div className="px-8 py-6 border-b flex items-center justify-between bg-[var(--bg-subtle)]">
                 <div className="flex items-center gap-3">
-                  <Zap className="w-8 h-8 text-blue-600" />
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">AI Report Generator</h3>
+                  <Zap className="w-8 h-8 text-[var(--brand-primary)]" />
+                  <h3 className="text-2xl font-bold text-[var(--text-primary)]">AI Report Generator</h3>
                 </div>
-                <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-red-500">
+                <button onClick={() => setIsOpen(false)} className="text-[var(--text-secondary)] hover:text-red-500">
                   <X className="w-8 h-8" />
                 </button>
               </div>
@@ -246,11 +246,11 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
               <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Report Type</label>
+                    <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Report Type</label>
                     <select
                       value={reportType}
                       onChange={(e) => setReportType(e.target.value)}
-                      className="w-full p-4 rounded-2xl border border-blue-200 dark:border-gray-600"
+                      className="w-full p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
                     >
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -259,21 +259,21 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">From</label>
+                      <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">From</label>
                       <input
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full p-4 rounded-2xl border border-blue-200 dark:border-gray-600"
+                        className="w-full p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2">To</label>
+                      <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">To</label>
                       <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-full p-4 rounded-2xl border border-blue-200 dark:border-gray-600"
+                        className="w-full p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
                       />
                     </div>
                   </div>
@@ -283,34 +283,34 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder="Any special instructions? (optional)"
-                  className="w-full h-28 p-5 rounded-3xl border border-blue-200 dark:border-gray-600 resize-y"
+                  className="w-full h-28 p-5 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] resize-y"
                 />
 
                 <div>
-                  <h4 className="font-semibold mb-4 flex items-center gap-2">
+                  <h4 className="font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]">
                     <Calendar className="w-5 h-5" />
                     Select Tasks to Include ({selectedTaskIds.size} selected)
                   </h4>
-                  <div className="max-h-80 overflow-y-auto border border-blue-200 dark:border-gray-600 rounded-3xl p-4 space-y-3">
+                  <div className="max-h-80 overflow-y-auto border border-[var(--border-color)] rounded-3xl p-4 space-y-3 bg-[var(--bg-surface)]">
                     {filteredTasks.length === 0 ? (
-                      <p className="text-center py-12 text-gray-400">No tasks found in this period</p>
+                      <p className="text-center py-12 text-[var(--text-muted)]">No tasks found in this period</p>
                     ) : (
                       filteredTasks.map((task) => (
                         <div
                           key={task._id}
                           onClick={() => toggleTask(task._id)}
-                          className="flex items-center gap-4 p-4 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-2xl cursor-pointer transition-all"
+                          className="flex items-center gap-4 p-4 hover:bg-[var(--bg-hover)] rounded-3xl cursor-pointer transition-all"
                         >
                           {selectedTaskIds.has(task._id) ? (
-                            <CheckSquare className="w-6 h-6 text-blue-600" />
+                            <CheckSquare className="w-6 h-6 text-[var(--brand-primary)]" />
                           ) : (
-                            <Square className="w-6 h-6 text-gray-400" />
+                            <Square className="w-6 h-6 text-[var(--text-muted)]" />
                           )}
                           <div className="flex-1">
-                            <p className="font-medium text-gray-900 dark:text-white">{task.title}</p>
-                            {task.description && <p className="text-sm text-gray-500 line-clamp-2">{task.description}</p>}
+                            <p className="font-medium text-[var(--text-primary)]">{task.title}</p>
+                            {task.description && <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{task.description}</p>}
                             {task.checklist?.length > 0 && (
-                              <p className="text-xs text-blue-600 mt-1">
+                              <p className="text-xs text-[var(--brand-primary)] mt-1">
                                 Checklist: {task.checklist.filter(c => c.completed).length}/{task.checklist.length} done
                               </p>
                             )}
@@ -322,17 +322,17 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
                 </div>
 
                 {generatedContent && (
-                  <div className="prose dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-800 p-6 rounded-3xl">
+                  <div className="prose dark:prose-invert max-w-none bg-[var(--bg-subtle)] p-6 rounded-3xl text-[var(--text-primary)]">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{generatedContent}</ReactMarkdown>
                   </div>
                 )}
               </div>
 
-              <div className="px-8 py-6 border-t flex gap-4 bg-white dark:bg-gray-900">
+              <div className="px-8 py-6 border-t flex gap-4 bg-[var(--bg-surface)]">
                 <button
                   onClick={generateReport}
                   disabled={isGenerating || selectedTaskIds.size === 0}
-                  className="flex-1 py-5 bg-blue-600 text-white font-semibold rounded-3xl flex items-center justify-center gap-3 disabled:opacity-60"
+                  className="flex-1 py-5 bg-[var(--brand-primary)] text-white font-semibold rounded-3xl flex items-center justify-center gap-3 disabled:opacity-60"
                 >
                   {isGenerating ? (
                     <>
@@ -358,7 +358,7 @@ Tasks:\n${JSON.stringify(selectedTasks.map(t => ({
                     </button>
                     <button
                       onClick={exportGeneratedPDF}
-                      className="px-8 py-5 bg-blue-600 text-white font-semibold rounded-3xl flex items-center gap-2 hover:bg-blue-700 transition-all"
+                      className="px-8 py-5 bg-[var(--brand-primary)] text-white font-semibold rounded-3xl flex items-center gap-2 hover:bg-[var(--brand-primary)]/90 transition-all"
                     >
                       <Download className="w-5 h-5" />
                       Export PDF

@@ -154,19 +154,19 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 border border-blue-100 dark:border-gray-700 relative"
+      className="max-w-4xl mx-auto bg-[var(--bg-surface)] rounded-3xl shadow-xl p-8 border border-[var(--border-color)] relative"
     >
       {/* Close button when editing */}
       {initialReport && onClose && (
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 text-gray-400 hover:text-red-500 transition-colors"
+          className="absolute top-6 right-6 text-[var(--text-secondary)] hover:text-red-500 transition-colors"
         >
           <XCircle className="w-8 h-8" />
         </button>
       )}
 
-      <h2 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-6 flex items-center gap-3">
+      <h2 className="text-2xl font-bold text-[var(--brand-primary)] mb-6 flex items-center gap-3">
         <FileText className="w-7 h-7" />
         {initialReport ? 'Edit Report' : 'Manual Report Editor'}
       </h2>
@@ -176,14 +176,14 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Report Title (e.g. Weekly Progress Report)"
-        className="w-full text-2xl font-semibold bg-transparent border-b border-blue-200 dark:border-gray-600 focus:border-blue-500 outline-none pb-3 mb-8"
+        className="w-full text-2xl font-semibold bg-transparent border-b border-[var(--border-color)] focus:border-[var(--brand-primary)] outline-none pb-3 mb-8 text-[var(--text-primary)]"
       />
 
       <div className="grid grid-cols-3 gap-4 mb-8">
         <select
           value={reportType}
           onChange={(e) => setReportType(e.target.value)}
-          className="p-4 rounded-2xl border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
         >
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
@@ -193,13 +193,13 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="p-4 rounded-2xl border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+          className="p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
         />
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="p-4 rounded-2xl border border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-700"
+          className="p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)]"
         />
       </div>
 
@@ -207,14 +207,14 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Write your honest report here... Be detailed about what you completed and what is still pending."
-        className="w-full h-96 p-6 text-lg resize-y border border-blue-200 dark:border-gray-600 rounded-3xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        className="w-full h-96 p-6 text-lg resize-y border border-[var(--border-color)] rounded-3xl focus:ring-2 focus:ring-[var(--brand-primary)] outline-none bg-[var(--bg-surface)] text-[var(--text-primary)]"
       />
 
       <div className="flex gap-4 mt-10">
         <button
           onClick={handleSaveDraft}
           disabled={isSaving}
-          className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-2xl font-semibold flex items-center justify-center gap-3 transition-all"
+          className="flex-1 py-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 disabled:bg-[var(--text-muted)] text-white rounded-3xl font-semibold flex items-center justify-center gap-3 transition-all"
         >
           {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
           {isSaving ? 'Saving...' : initialReport ? 'Save Changes' : 'Save as Draft'}
@@ -223,7 +223,7 @@ const ReportEditor = ({ user, tasks, initialReport, onClose, onSaved }) => {
         <button
           onClick={handleExportPDF}
           disabled={isExporting}
-          className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-2xl font-semibold flex items-center justify-center gap-3 transition-all"
+          className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-[var(--text-muted)] text-white rounded-3xl font-semibold flex items-center justify-center gap-3 transition-all"
         >
           {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
           {isExporting ? 'Exporting PDF...' : 'Export as PDF'}

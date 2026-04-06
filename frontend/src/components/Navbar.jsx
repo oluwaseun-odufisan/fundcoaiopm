@@ -1,174 +1,238 @@
 // src/components/Navbar.jsx
 import React, { useEffect, useRef, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, ChevronDown, Settings, LogOut, Mail, Menu, X, Sun, Moon } from 'lucide-react';
+import { Settings, LogOut, Mail, Menu, X, Sun, Moon, ChevronDown, ExternalLink } from 'lucide-react';
 import { ThemeContext } from '../context/ThemeContext';
 
 const Navbar = ({ user = {}, onLogout }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const menuRef = useRef(null);
-  const desktopMenuRef = useRef(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [emailMenuOpen, setEmailMenuOpen] = useState(false);
+  const dropdownRef  = useRef(null);
+  const mobileRef    = useRef(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileOpen,   setMobileOpen]   = useState(false);
+  const [emailOpen,    setEmailOpen]     = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        (menuRef.current && !menuRef.current.contains(event.target)) &&
-        (desktopMenuRef.current && !desktopMenuRef.current.contains(event.target))
-      ) {
-        setMenuOpen(false);
-        setEmailMenuOpen(false);
-      }
+    const fn = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
+      if (mobileRef.current   && !mobileRef.current.contains(e.target))   setMobileOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
   }, []);
 
-  const handleMenuToggle = () => setMenuOpen((prev) => !prev);
-  const handleEmailMenuToggle = () => setEmailMenuOpen((prev) => !prev);
-
-  const handleLogout = () => {
-    setMenuOpen(false);
-    setEmailMenuOpen(false);
-    onLogout();
-  };
+  const handleLogout = () => { setDropdownOpen(false); setMobileOpen(false); onLogout(); };
 
   const emailLinks = [
-    { name: 'Outlook', href: 'https://outlook.live.com', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-900/50', ring: 'ring-blue-200 dark:ring-blue-700' },
-    { name: 'Gmail', href: 'https://mail.google.com', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/50', ring: 'ring-red-200 dark:ring-red-700' },
-    { name: 'Yahoo', href: 'https://mail.yahoo.com', color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-50 dark:bg-purple-900/50', ring: 'ring-purple-200 dark:ring-purple-700' },
+    { name: 'Outlook',    href: 'https://outlook.live.com', color: '#0078d4' },
+    { name: 'Gmail',      href: 'https://mail.google.com',  color: '#ea4335' },
+    { name: 'Yahoo Mail', href: 'https://mail.yahoo.com',   color: '#6001d2' },
   ];
 
   const fullName = user?.fullName || user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
-  const initial = (user?.firstName || user?.name || 'U').charAt(0).toUpperCase();
+  const initial  = (user?.firstName || user?.name || 'U').charAt(0).toUpperCase();
+
+  /* ── Shared hover handlers ─────────────────────────────────────────────── */
+  const hoverIn  = (e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.10)'; };
+  const hoverOut = (e) => { e.currentTarget.style.backgroundColor = 'transparent'; };
+  const menuHoverIn  = (e) => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; };
+  const menuHoverOut = (e) => { e.currentTarget.style.backgroundColor = 'transparent'; };
+
+  /* ── Reusable dropdown shell ───────────────────────────────────────────── */
+  const DropdownShell = ({ children }) => (
+    <div
+      className="absolute top-11 right-0 w-52 rounded-xl shadow-xl overflow-hidden z-50 border"
+      style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+    >
+      {children}
+    </div>
+  );
 
   return (
-    <header className="fixed top-0 left-0 w-full z-[60] bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700 shadow-md font-sans">
-      <div className="flex items-center justify-between px-4 md:px-6 lg:pl-4 lg:pr-8 h-16 max-w-screen-2xl mx-auto">
+    <header
+      className="fixed top-0 left-0 w-full z-[60] border-b"
+      style={{ backgroundColor: 'var(--navbar-bg)', borderColor: 'rgba(255,255,255,0.08)' }}
+    >
+      <div className="flex items-center justify-between px-4 sm:px-6 h-14 max-w-screen-2xl mx-auto">
 
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/')} aria-label="Go to FundCo Dashboard">
-          <img src="/Fundco.svg" alt="FundCo Logo" className="h-10 w-auto object-contain transition-all duration-200 group-hover:scale-105" />
-          <div className="hidden sm:flex flex-col justify-center">
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-semibold tracking-wide">CAPITAL MANAGERS</p>
-          </div>
-        </div>
+        {/* Logo */}
+        <button onClick={() => navigate('/')} className="flex items-center gap-3 flex-shrink-0 group" aria-label="Dashboard">
+          <img src="/Fundco.svg" alt="FundCo" className="h-8 w-auto object-contain brightness-0 invert opacity-90 group-hover:opacity-100 transition-opacity" />
+          <span className="hidden sm:block text-xs font-semibold tracking-widest uppercase" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            Capital Managers
+          </span>
+        </button>
 
-        <div ref={menuRef} className="relative">
-          <button className="md:hidden p-2.5 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/50 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-110 transition-all duration-200 shadow-sm" onClick={handleMenuToggle} aria-label="Toggle Menu">
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+        {/* ── Desktop ── */}
+        <div className="hidden md:flex items-center gap-1.5">
 
-          {menuOpen && (
-            <div className="absolute top-14 right-4 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden md:hidden">
-              <div className="py-3">
-                <div className="px-4 py-2.5">
-                  <button onClick={handleEmailMenuToggle} className="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg px-2 py-1.5 transition">
-                    <div className="flex items-center gap-2.5">
-                      <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      Email Services
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform duration-200 ${emailMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {emailMenuOpen && (
-                    <ul className="mt-2 space-y-1.5 pl-8">
-                      {emailLinks.map((link) => (
-                        <li key={link.name}>
-                          <a href={link.href} target="_blank" rel="noopener noreferrer" className={`block px-3 py-1.5 text-sm font-medium rounded-md ${link.color} hover:${link.bgColor} hover:ring-2 hover:${link.ring} transition-all`} onClick={() => setMenuOpen(false)}>
-                            {link.name}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <button onClick={() => { setMenuOpen(false); navigate('/profile'); }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 transition rounded-lg">
-                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  Profile Settings
-                </button>
-
-                <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                  <div className="relative">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt="User Avatar" className="w-10 h-10 rounded-full shadow-md ring-2 ring-white dark:ring-gray-800" />
-                    ) : (
-                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-white font-bold text-sm shadow-md ring-2 ring-white dark:ring-gray-800">
-                        {initial}
-                      </div>
-                    )}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{fullName}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{user.email}</p>
-                  </div>
-                </div>
-
-                <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 transition rounded-lg border-t border-gray-200 dark:border-gray-700">
-                  <LogOut className="w-5 h-5" />
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div ref={desktopMenuRef} className="hidden md:flex items-center gap-6">
-          {emailLinks.map((link) => (
-            <a key={link.name} href={link.href} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1.5 group" title={link.name}>
-              <div className={`p-2.5 ${link.bgColor} ${link.color} rounded-full hover:scale-110 hover:ring-4 hover:${link.ring} transition-all duration-200 shadow-md group-hover:shadow-lg`}>
-                <Mail className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{link.name}</span>
-            </a>
-          ))}
-
-          <button onClick={toggleTheme} className="p-2.5 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/50 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-110 hover:ring-4 hover:ring-blue-200 dark:hover:ring-blue-700 transition-all duration-200 shadow-md" aria-label="Toggle theme">
-            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </button>
-
-          <button className="p-2.5 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/50 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800/50 hover:scale-110 hover:ring-4 hover:ring-blue-200 dark:hover:ring-blue-700 transition-all duration-200 shadow-md" onClick={() => navigate('/profile')} aria-label="Profile Settings">
-            <Settings className="w-5 h-5" />
-          </button>
-
+          {/* Email */}
           <div className="relative">
-            <button onClick={handleMenuToggle} className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 dark:from-gray-800 dark:to-gray-700 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-blue-300 hover:border-blue-400 dark:border-gray-700 dark:hover:border-gray-600 transition-all duration-200 shadow-md hover:shadow-lg">
-              <div className="relative">
-                {user.avatar ? (
-                  <img src={user.avatar} alt="User Avatar" className="w-9 h-9 rounded-full shadow-sm ring-2 ring-white dark:ring-gray-800" />
-                ) : (
-                  <div className="w-9 h-9 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-white font-bold text-sm shadow-md ring-2 ring-white dark:ring-gray-800">
-                    {initial}
-                  </div>
-                )}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate max-w-[140px]">{fullName}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[140px]">{user.email}</p>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-blue-700 dark:text-blue-300 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`} />
+            <button
+              onClick={() => setEmailOpen((p) => !p)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium"
+              style={{ color: 'rgba(255,255,255,0.65)' }}
+              onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+            >
+              <Mail className="w-4 h-4" />
+              Email
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${emailOpen ? 'rotate-180' : ''}`} />
             </button>
-
-            {menuOpen && (
-              <ul className="absolute top-16 right-0 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden mt-2">
-                <li>
-                  <button onClick={() => { setMenuOpen(false); navigate('/profile'); }} className="w-full px-5 py-3.5 text-left text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/50 transition flex items-center gap-3 rounded-t-2xl">
-                    <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    Profile Settings
-                  </button>
-                </li>
-                <li>
-                  <button onClick={handleLogout} className="w-full px-5 py-3.5 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 transition flex items-center gap-3 rounded-b-2xl">
-                    <LogOut className="w-5 h-5" />
-                    Logout
-                  </button>
-                </li>
-              </ul>
+            {emailOpen && (
+              <div className="absolute top-10 right-0 w-44 rounded-xl shadow-xl py-1.5 z-50 border"
+                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+                {emailLinks.map((l) => (
+                  <a key={l.name} href={l.href} target="_blank" rel="noopener noreferrer"
+                    onClick={() => setEmailOpen(false)}
+                    className="flex items-center justify-between px-4 py-2.5 text-sm font-medium"
+                    style={{ color: l.color }}
+                    onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                    {l.name} <ExternalLink className="w-3 h-3 opacity-60" />
+                  </a>
+                ))}
+              </div>
             )}
           </div>
+
+          {/* Theme */}
+          <button onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}
+            className="p-2 rounded-lg" style={{ color: 'rgba(255,255,255,0.65)' }}
+            onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Toggle theme">
+            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          </button>
+
+          {/* Settings */}
+          <button onClick={() => navigate('/profile')} className="p-2 rounded-lg"
+            style={{ color: 'rgba(255,255,255,0.65)' }}
+            onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Settings">
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* User */}
+          <div ref={dropdownRef} className="relative ml-1">
+            <button onClick={() => setDropdownOpen((p) => !p)}
+              className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg"
+              style={{ color: 'rgba(255,255,255,0.9)' }}
+              onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
+              {user.avatar
+                ? <img src={user.avatar} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/20" />
+                : <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-white/20 flex-shrink-0"
+                    style={{ backgroundColor: 'var(--brand-accent)', color: '#fff' }}>{initial}</div>
+              }
+              <div className="text-left hidden lg:block">
+                <p className="text-xs font-semibold leading-tight truncate max-w-[120px]">{fullName}</p>
+                <p className="text-xs truncate max-w-[120px]" style={{ color: 'rgba(255,255,255,0.45)' }}>{user.email}</p>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+                style={{ color: 'rgba(255,255,255,0.45)' }} />
+            </button>
+
+            {dropdownOpen && (
+              <DropdownShell>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                  <p className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{fullName}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{user.email}</p>
+                </div>
+                <button onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm"
+                  style={{ color: 'var(--text-primary)' }}
+                  onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                  <Settings className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                  Profile Settings
+                </button>
+                <button onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 border-t"
+                  style={{ borderColor: 'var(--border-color)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.07)'}
+                  onMouseLeave={menuHoverOut}>
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </DropdownShell>
+            )}
+          </div>
+        </div>
+
+        {/* ── Mobile ── */}
+        <div ref={mobileRef} className="md:hidden relative">
+          <button onClick={() => setMobileOpen((p) => !p)} className="p-2 rounded-lg"
+            style={{ color: 'rgba(255,255,255,0.8)' }}
+            onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Menu">
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+
+          {mobileOpen && (
+            <div className="absolute top-11 right-0 w-72 rounded-xl shadow-xl overflow-hidden z-50 border"
+              style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+
+              <div className="flex items-center gap-3 px-4 py-4 border-b"
+                style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'var(--border-color)' }}>
+                {user.avatar
+                  ? <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  : <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0"
+                      style={{ backgroundColor: 'var(--brand-primary)' }}>{initial}</div>
+                }
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{fullName}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{user.email}</p>
+                </div>
+              </div>
+
+              {/* Email sub-section */}
+              <div className="border-b" style={{ borderColor: 'var(--border-color)' }}>
+                <button onClick={() => setEmailOpen((p) => !p)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm"
+                  style={{ color: 'var(--text-primary)' }}
+                  onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                    <span className="font-medium">Email Services</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${emailOpen ? 'rotate-180' : ''}`}
+                    style={{ color: 'var(--text-muted)' }} />
+                </button>
+                {emailOpen && (
+                  <div className="px-4 pb-3 space-y-1">
+                    {emailLinks.map((l) => (
+                      <a key={l.name} href={l.href} target="_blank" rel="noopener noreferrer"
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium"
+                        style={{ color: l.color }}
+                        onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                        {l.name} <ExternalLink className="w-3 h-3 opacity-60" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={toggleTheme} className="w-full flex items-center gap-3 px-4 py-3 text-sm"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                {theme === 'light'
+                  ? <Moon className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                  : <Sun  className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
+                <span className="font-medium">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+              </button>
+
+              <button onClick={() => { setMobileOpen(false); navigate('/profile'); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={menuHoverIn} onMouseLeave={menuHoverOut}>
+                <Settings className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                <span className="font-medium">Profile Settings</span>
+              </button>
+
+              <button onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 border-t"
+                style={{ borderColor: 'var(--border-color)' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.07)'}
+                onMouseLeave={menuHoverOut}>
+                <LogOut className="w-4 h-4" />
+                <span className="font-medium">Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
