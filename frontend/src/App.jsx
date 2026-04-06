@@ -15,7 +15,6 @@ import TeamChat from './pages/TeamChat';
 import UrlShortener from './pages/UrlShortener';
 import FileStorage from './pages/FileStorage';
 import PerformanceAnalytics from './pages/PerformanceAnalytics';
-import GenerateReport from './pages/GenerateReport';
 import PerformanceDashboard from './pages/PerformanceDashboard';
 import SocialFeed from './pages/SocialFeed';
 import AiTools from './pages/AiTools';
@@ -101,7 +100,6 @@ const App = () => {
           <Route path="/url-shortener"      element={<UrlShortener />} />
           <Route path="/file-storage"       element={<FileStorage />} />
           <Route path="/analytics"          element={<PerformanceAnalytics />} />
-          <Route path="/generate-report"    element={<GenerateReport />} />
           <Route path="/performance"        element={<PerformanceDashboard />} />
           <Route path="/social-feed"        element={<SocialFeed />} />
           <Route path="/ai-tools"           element={<AiTools />} />
