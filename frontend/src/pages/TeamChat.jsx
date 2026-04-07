@@ -181,13 +181,14 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
 
     return (
         <motion.div
-            ref={menuRef}
-            style={combinedStyle}
+             ref={menuRef}
+            style={style}
             initial={{ opacity: 0, scale: 0.92, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: -4 }}
-            className="rounded-2xl shadow-2xl py-1.5 w-52 overflow-hidden border"
-        >
+            transition={{ duration: 0.12 }}
+            className="bg-white dark:bg-[#2A2D33] rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-1.5 w-52 overflow-hidden">
+
             {!msg.isDeleted && <Item icon={<CornerUpLeft className="w-4 h-4" />} label="Reply" onClick={onReply} />}
             {!msg.isDeleted && msg.content && (
                 <Item icon={
