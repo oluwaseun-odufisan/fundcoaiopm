@@ -5,16 +5,24 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 
-  // ← THIS FIXES THE ./txml ERROR
   resolve: {
     alias: {
       './txml': 'txml'
     }
   },
 
+  optimizeDeps: {
+    include: ['txml']
+  },
+
   build: {
     sourcemap: false,
     chunkSizeWarningLimit: 4000,
+
+    // ← THIS IS THE KEY FIX for the new error
+    commonjsOptions: {
+      transformMixedEsModules: true
+    },
 
     rollupOptions: {
       output: {

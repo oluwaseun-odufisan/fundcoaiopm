@@ -413,96 +413,21 @@ const SheetViewer = ({ url, ext }) => {
   );
 };
 
-// ── PPTX viewer (pptx2html or Google Docs iframe fallback) ────────────────────
-const SlideViewer = ({ url, ext }) => {
-  const [slides,  setSlides]  = useState([]);   // array of HTML strings
-  const [current, setCurrent] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
 
-  useEffect(() => {
-    if (ext === 'pptx') {
-      // Try pptx2html; if not installed fall through to Google Viewer
-      import('pptx2html').then(async mod => {
-        try {
-          const r    = await fetch(url);
-          const buf  = await r.arrayBuffer();
-          // pptx2html default export is a function
-          const fn   = mod.default || mod;
-          const html = await fn(buf);
-          // html is a single string; we split by slide divs
-          const parser = new DOMParser();
-          const doc    = parser.parseFromString(html, 'text/html');
-          const divs   = Array.from(doc.querySelectorAll('.slide'));
-          if (divs.length) {
-            setSlides(divs.map(d => d.outerHTML));
-          } else {
-            setSlides([html]);
-          }
-        } catch { setError('pptx2html parse failed — using fallback'); }
-        finally { setLoading(false); }
-      }).catch(() => { setError('pptx2html not installed — using Google Viewer'); setLoading(false); });
-    } else {
-      setLoading(false); // .ppt uses iframe only
-    }
-  }, [url, ext]);
-
-  // If error or .ppt, use Google Docs viewer
-  if (ext === 'ppt' || (error && !slides.length)) return (
-    <div className="space-y-2">
-      {error && <p className="text-xs" style={{ color:'var(--text-muted)' }}>{error}</p>}
-      <iframe
-        src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}
-        className="w-full rounded-xl border"
-        style={{ height:'60vh', borderColor:'var(--border-color)' }}
-        title="Presentation preview" />
-    </div>
-  );
-  if (loading) return <div className="h-48 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color:'var(--brand-primary)' }} /></div>;
-  if (!slides.length) return <FallbackViewer url={url} message="No slides found" />;
-
-  return (
-    <div className="space-y-3">
-      {/* Slide content */}
-      <div className="rounded-xl border overflow-hidden"
-        style={{ borderColor:'var(--border-color)', backgroundColor:'#fff', minHeight:360 }}>
-        <div className="p-4 overflow-auto max-h-[55vh]"
-          dangerouslySetInnerHTML={{ __html: slides[current] }} />
-      </div>
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button onClick={() => setCurrent(c => Math.max(c - 1, 0))} disabled={current === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-40"
-          style={{ borderColor:'var(--border-color)', color:'var(--text-secondary)' }}>
-          <ChevronLeft className="w-3.5 h-3.5" /> Prev
-        </button>
-        <span className="text-xs" style={{ color:'var(--text-muted)' }}>
-          Slide {current + 1} of {slides.length}
-        </span>
-        <button onClick={() => setCurrent(c => Math.min(c + 1, slides.length - 1))} disabled={current === slides.length - 1}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-40"
-          style={{ borderColor:'var(--border-color)', color:'var(--text-secondary)' }}>
-          Next <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      {/* Slide strip */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {slides.map((s, i) => (
-          <button key={i} onClick={() => setCurrent(i)}
-            className="flex-shrink-0 w-24 h-16 rounded-lg border overflow-hidden text-[8px] transition-all"
-            style={{
-              borderColor: current === i ? 'var(--brand-primary)' : 'var(--border-color)',
-              backgroundColor:'#fff', transform: current === i ? 'scale(1.05)' : 'scale(1)',
-            }}>
-            <div className="w-full h-full overflow-hidden pointer-events-none scale-[0.25] origin-top-left"
-              style={{ width:'400%', height:'400%' }}
-              dangerouslySetInnerHTML={{ __html: s }} />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
+// ── PPT/PPTX Viewer — Simple & Reliable (Google Docs Viewer) ─────────────────
+const SlideViewer = ({ url, ext }) => (
+  <div className="space-y-2">
+    <iframe
+      src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}
+      className="w-full rounded-xl border"
+      style={{ height: '60vh', borderColor: 'var(--border-color)' }}
+      title="Presentation preview"
+    />
+    <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
+      Previewing {ext?.toUpperCase()} file • If the preview is blank, use the Download button
+    </p>
+  </div>
+);
 
 // ── Plain text / CSV viewer ───────────────────────────────────────────────────
 const TextViewer = ({ url, ext }) => {
