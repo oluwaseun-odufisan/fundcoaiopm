@@ -5,21 +5,25 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 
+  // ← THIS FIXES THE ./txml ERROR
+  resolve: {
+    alias: {
+      './txml': 'txml'
+    }
+  },
+
   build: {
-    sourcemap: false,           // saves memory
+    sourcemap: false,
     chunkSizeWarningLimit: 4000,
 
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // Force each heavy library into its own tiny chunk
             if (id.includes('xlsx')) return 'xlsx'
             if (id.includes('jspdf')) return 'jspdf'
             if (id.includes('pptxgenjs')) return 'pptxgenjs'
             if (id.includes('jszip')) return 'jszip'
-
-            // Everything else in a normal vendor chunk
             return 'vendor'
           }
         }
