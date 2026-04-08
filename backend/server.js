@@ -66,7 +66,7 @@ const io = new Server(httpServer, {
             process.env.FRONTEND_URL,
             process.env.ADMIN_FRONTEND_URL,
         ].filter(Boolean),
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],   
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true,
     },
@@ -91,7 +91,7 @@ app.use(cors({
         process.env.FRONTEND_URL,
         process.env.ADMIN_FRONTEND_URL,
     ].filter(Boolean),
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],   
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
 }));

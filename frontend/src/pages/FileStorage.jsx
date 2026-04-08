@@ -11,7 +11,7 @@ import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import {
-  HardDrive, Upload, FolderPlus, Grid3X3, List, Search, Star, Trash2,
+  HardDrive, ArrowLeftRight, Upload, FolderPlus, Grid3X3, List, Search, Star, Trash2,
   ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Plus, Download,
   Share2, Tag, Link2, Info, Folder, FolderOpen, FileText, Image, Film,
   File as FileIcon, RefreshCw, Check, Copy, Edit2, Move, Loader2,
@@ -1280,7 +1280,7 @@ const FileStorage = () => {
             style={{ color:'var(--text-muted)' }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>
-            <Menu className="w-4 h-4" />
+            <ArrowLeftRight className="w-4 h-4" />
           </button>
 
           {/* Breadcrumbs */}
