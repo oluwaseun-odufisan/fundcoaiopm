@@ -301,7 +301,7 @@ const DeckPrep = () => {
     setUploading(true); setError('');
     try{
       const fd=new FormData(); fd.append('files',f);
-      const up=await axios.post(`${API}/api/files/pinFileToIPFS`,fd,{headers:{'Content-Type':'multipart/form-data',...headers()}});
+      const up=await axios.post(`${API}/api/files/upload`,fd,{headers: headers(),});
       const fid=up.data.files[0]._id;
       const cr=await axios.post(`${API}/api/documents`,{fileId:fid},{headers:headers()});
       setDocId(cr.data.document._id);
