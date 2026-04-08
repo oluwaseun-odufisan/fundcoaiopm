@@ -440,7 +440,6 @@ const DeckPrep = () => {
       <Toaster position="top-right" />
       <div className="relative">
         <Loader2 className="w-12 h-12 animate-spin" style={{ color: 'var(--brand-primary)' }} />
-        <Sparkles className="w-5 h-5 absolute -top-1 -right-1" style={{ color: 'var(--brand-accent)' }} />
       </div>
       <div className="text-center">
         <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{loadingMsg || 'Processing…'}</p>
@@ -591,7 +590,7 @@ const DeckPrep = () => {
       <button onClick={handleQuickConvert} disabled={!file && !docId}
         className="w-full py-4 rounded-xl text-base font-black text-white flex items-center justify-center gap-3 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ backgroundColor: 'var(--brand-primary)' }}>
-        <Sparkles className="w-5 h-5" /> Generate Presentation
+         Generate Presentation
       </button>
     </div>
   );
@@ -672,7 +671,7 @@ const DeckPrep = () => {
               </button>
             </div>}
             {step === 4 && <div className="rounded-2xl border p-8 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><Sparkles className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />Structure Content</h2>
+              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>Structure Content</h2>
               <div><label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Extraction Prompt</label>
                 <textarea value={extractPrompt} onChange={e => setExtractPrompt(e.target.value)} rows={5}
                   className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none resize-y"
