@@ -366,7 +366,7 @@ export const getDocument = async (req, res) => {
   }
 };
 
-// ── DELETE DOCUMENT ────────────────────────────────────────────────────────────
+// ── DELETE DOCUMENT ───────────────────────────────────────────────────────────
 export const deleteDocument = async (req, res) => {
   try {
     const doc = await Document.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
