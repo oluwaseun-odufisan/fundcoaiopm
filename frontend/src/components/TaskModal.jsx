@@ -50,6 +50,10 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout, isReadOnly =
       setError('Task title is required.');
       return;
     }
+    if (checklist.length === 0) {
+      setError('Please add at least one checklist item. A process breakdown is required before the task can be created.');
+      return;
+    }
     if (taskData.dueDate && taskData.dueDate < today && !taskData.id) {
       setError('Due date cannot be in the past for new tasks.');
       return;
@@ -251,9 +255,8 @@ const TaskModal = ({ isOpen, onClose, taskToEdit, onSave, onLogout, isReadOnly =
                           setChecklist(n);
                         }}
                         disabled={locked}
-                        className={`flex-1 text-sm bg-transparent focus:outline-none ${
-                          item.completed ? 'line-through' : ''
-                        }`}
+                        className={`flex-1 text-sm bg-transparent focus:outline-none ${item.completed ? 'line-through' : ''
+                          }`}
                         style={{ color: item.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}
                       />
                       {!locked && (

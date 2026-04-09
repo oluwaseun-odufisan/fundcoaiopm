@@ -15,16 +15,16 @@ const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
 const USER_API_URL = import.meta.env.VITE_USER_API_URL || 'http://localhost:4001';
 
 const FILTER_LABELS = {
-  all:'All', today:'Today', week:'Week', month:'Month',
-  high:'High', medium:'Medium', low:'Low',
-  done:'Done', undone:'Undone', overdue:'Overdue',
-  approved:'Approved', rejected:'Rejected',
+  all: 'All', today: 'Today', week: 'Week', month: 'Month',
+  high: 'High', medium: 'Medium', low: 'Low',
+  done: 'Done', undone: 'Undone', overdue: 'Overdue',
+  approved: 'Approved', rejected: 'Rejected',
 };
 const FILTER_OPTIONS = Object.keys(FILTER_LABELS);
-const SORT_OPTIONS   = [
-  { value: 'dueDate',   label: 'Due Date'  },
-  { value: 'priority',  label: 'Priority'  },
-  { value: 'title',     label: 'Title'     },
+const SORT_OPTIONS = [
+  { value: 'dueDate', label: 'Due Date' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'title', label: 'Title' },
 ];
 
 /* ── Skeleton ──────────────────────────────────────────────────────────────── */
@@ -36,7 +36,7 @@ const SkeletonCard = () => (
       <div className="flex-1 space-y-2.5">
         <div className="h-3.5 rounded w-3/4" style={{ backgroundColor: 'var(--bg-hover)' }} />
         <div className="h-2.5 rounded w-1/3" style={{ backgroundColor: 'var(--bg-subtle)' }} />
-        <div className="h-2 rounded w-full"  style={{ backgroundColor: 'var(--bg-subtle)' }} />
+        <div className="h-2 rounded w-full" style={{ backgroundColor: 'var(--bg-subtle)' }} />
       </div>
     </div>
   </div>
@@ -151,20 +151,23 @@ const StatCard = ({ label, value, icon: Icon, bg, color }) => (
 /* ── Dashboard ────────────────────────────────────────────────────────────── */
 const Dashboard = () => {
   const { user, tasks, tasksLoading, fetchTasks: refreshTasks, onLogout } = useOutletContext();
-  const [showModal,         setShowModal]         = useState(false);
-  const [selectedTask,      setSelectedTask]      = useState(null);
-  const [showActionModal,   setShowActionModal]   = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showActionModal, setShowActionModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [filter,  setFilter]  = useState('all');
-  const [search,  setSearch]  = useState('');
-  const [sort,    setSort]    = useState('dueDate');
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('dueDate');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [localTasks,  setLocalTasks]  = useState(tasks);
+  const [localTasks, setLocalTasks] = useState(tasks);
+
+  // NEW: Error modal state
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   useEffect(() => {
     const socket = io(USER_API_URL, { auth: { token: localStorage.getItem('token') } });
-    socket.on('newTask',    (t)   => { if (t.owner?._id === user?.id) setLocalTasks((p) => [...p, t]); });
-    socket.on('updateTask', (t)   => { if (t.owner?._id === user?.id) setLocalTasks((p) => p.map((x) => x._id === t._id ? t : x)); });
+    socket.on('newTask', (t) => { if (t.owner?._id === user?.id) setLocalTasks((p) => [...p, t]); });
+    socket.on('updateTask', (t) => { if (t.owner?._id === user?.id) setLocalTasks((p) => p.map((x) => x._id === t._id ? t : x)); });
     socket.on('deleteTask', (tid) => setLocalTasks((p) => p.filter((x) => x._id !== tid)));
     return () => socket.disconnect();
   }, [user?.id]);
@@ -175,41 +178,41 @@ const Dashboard = () => {
   const isComp = (t) => t.completed === true || t.completed === 1 || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'yes');
 
   const stats = useMemo(() => ({
-    total:     localTasks.length,
+    total: localTasks.length,
     completed: localTasks.filter(isComp).length,
-    undone:    localTasks.filter((t) => !isComp(t)).length,
-    highPri:   localTasks.filter((t) => t.priority?.toLowerCase() === 'high').length,
-    overdue:   localTasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && !isComp(t)).length,
-    approved:  localTasks.filter((t) => t.submissionStatus === 'approved').length,
+    undone: localTasks.filter((t) => !isComp(t)).length,
+    highPri: localTasks.filter((t) => t.priority?.toLowerCase() === 'high').length,
+    overdue: localTasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && !isComp(t)).length,
+    approved: localTasks.filter((t) => t.submissionStatus === 'approved').length,
   }), [localTasks]);
 
   const filteredTasks = useMemo(() => {
     const now = new Date();
-    const nw  = new Date(now); nw.setDate(now.getDate() + 7);
-    const nm  = new Date(now); nm.setMonth(now.getMonth() + 1);
-    const sl  = search.toLowerCase();
+    const nw = new Date(now); nw.setDate(now.getDate() + 7);
+    const nm = new Date(now); nm.setMonth(now.getMonth() + 1);
+    const sl = search.toLowerCase();
     return localTasks
       .filter((task) => {
         if (!task?.title) return false;
         const ms = task.title.toLowerCase().includes(sl) || (task.description || '').toLowerCase().includes(sl);
         const due = task.dueDate ? new Date(task.dueDate) : null;
         switch (filter) {
-          case 'today':   return due && due.toDateString() === now.toDateString() && ms;
-          case 'week':    return due && due >= now && due <= nw  && ms;
-          case 'month':   return due && due >= now && due <= nm  && ms;
+          case 'today': return due && due.toDateString() === now.toDateString() && ms;
+          case 'week': return due && due >= now && due <= nw && ms;
+          case 'month': return due && due >= now && due <= nm && ms;
           case 'high': case 'medium': case 'low': return task.priority?.toLowerCase() === filter && ms;
-          case 'done':    return isComp(task) && ms;
-          case 'undone':  return !isComp(task) && ms;
+          case 'done': return isComp(task) && ms;
+          case 'undone': return !isComp(task) && ms;
           case 'overdue': return due && due < now && !isComp(task) && ms;
-          case 'approved':return task.submissionStatus === 'approved' && ms;
-          case 'rejected':return task.submissionStatus === 'rejected' && ms;
-          default:        return ms;
+          case 'approved': return task.submissionStatus === 'approved' && ms;
+          case 'rejected': return task.submissionStatus === 'rejected' && ms;
+          default: return ms;
         }
       })
       .sort((a, b) => {
-        if (sort === 'dueDate')  return (a.dueDate ? new Date(a.dueDate) : Infinity) - (b.dueDate ? new Date(b.dueDate) : Infinity);
-        if (sort === 'priority') { const o = { high:3, medium:2, low:1 }; return (o[b.priority?.toLowerCase()]||0) - (o[a.priority?.toLowerCase()]||0); }
-        if (sort === 'title')    return a.title.localeCompare(b.title);
+        if (sort === 'dueDate') return (a.dueDate ? new Date(a.dueDate) : Infinity) - (b.dueDate ? new Date(b.dueDate) : Infinity);
+        if (sort === 'priority') { const o = { high: 3, medium: 2, low: 1 }; return (o[b.priority?.toLowerCase()] || 0) - (o[a.priority?.toLowerCase()] || 0); }
+        if (sort === 'title') return a.title.localeCompare(b.title);
         return 0;
       });
   }, [localTasks, filter, search, sort]);
@@ -217,6 +220,10 @@ const Dashboard = () => {
   const getAuth = () => { const t = localStorage.getItem('token'); if (!t) throw new Error('No token'); return { Authorization: `Bearer ${t}` }; };
 
   const handleComplete = async (task) => {
+    if (!task.checklist || task.checklist.length === 0) {
+      setShowErrorModal(true);
+      return;
+    }
     try {
       const payload = task.checklist?.length
         ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) }
@@ -227,6 +234,10 @@ const Dashboard = () => {
   };
 
   const handleSubmit = async (task) => {
+    if (!task.checklist || task.checklist.length === 0) {
+      setShowErrorModal(true);
+      return;
+    }
     try {
       await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers: getAuth() });
       await refreshTasks(); setShowActionModal(false); setSelectedTask(null);
@@ -244,12 +255,12 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token');
-      const payload = { title: taskData.title?.trim()||'', description: taskData.description||'', priority: taskData.priority||'Low', dueDate: taskData.dueDate||undefined, checklist: taskData.checklist||[] };
+      const payload = { title: taskData.title?.trim() || '', description: taskData.description || '', priority: taskData.priority || 'Low', dueDate: taskData.dueDate || undefined, checklist: taskData.checklist || [] };
       if (!payload.title) return;
       if (taskData._id) {
         await axios.put(`${API_BASE_URL}/${taskData._id}/gp`, payload, { headers: { Authorization: `Bearer ${token}` } });
       } else {
-        await axios.post(`${API_BASE_URL}/gp`, { ...payload, userId: user?.id||null }, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.post(`${API_BASE_URL}/gp`, { ...payload, userId: user?.id || null }, { headers: { Authorization: `Bearer ${token}` } });
       }
       await refreshTasks(); setShowModal(false); setSelectedTask(null);
     } catch (err) { if (err.response?.status === 401) onLogout?.(); }
@@ -263,12 +274,12 @@ const Dashboard = () => {
   };
 
   const STAT_CARDS = [
-    { label: 'Total Tasks',   value: stats.total,     icon: Layers,      bg: 'var(--brand-light)',      color: 'var(--brand-primary)' },
-    { label: 'Completed',     value: stats.completed,  icon: CircleCheck, bg: '#f0fdf4', color: '#16a34a' },
-    { label: 'Pending',       value: stats.undone,     icon: Clock,       bg: '#fff7ed', color: '#ea580c' },
-    { label: 'High Priority', value: stats.highPri,    icon: Flag,        bg: '#fef2f2', color: '#dc2626' },
-    { label: 'Overdue',       value: stats.overdue,    icon: Clock,       bg: '#fefce8', color: '#ca8a04' },
-    { label: 'Approved',      value: stats.approved,   icon: CheckSquare, bg: '#f0fdf4', color: '#15803d' },
+    { label: 'Total Tasks', value: stats.total, icon: Layers, bg: 'var(--brand-light)', color: 'var(--brand-primary)' },
+    { label: 'Completed', value: stats.completed, icon: CircleCheck, bg: '#f0fdf4', color: '#16a34a' },
+    { label: 'Pending', value: stats.undone, icon: Clock, bg: '#fff7ed', color: '#ea580c' },
+    { label: 'High Priority', value: stats.highPri, icon: Flag, bg: '#fef2f2', color: '#dc2626' },
+    { label: 'Overdue', value: stats.overdue, icon: Clock, bg: '#fefce8', color: '#ca8a04' },
+    { label: 'Approved', value: stats.approved, icon: CheckSquare, bg: '#f0fdf4', color: '#15803d' },
   ];
 
   return (
@@ -309,7 +320,7 @@ const Dashboard = () => {
               className="w-full pl-9 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none transition-colors"
               style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' }}
               onFocus={(e) => e.target.style.borderColor = 'var(--brand-accent)'}
-              onBlur={(e)  => e.target.style.borderColor = 'var(--input-border)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--input-border)'}
             />
           </div>
           {/* Sort */}
@@ -371,13 +382,48 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* FAB */}
-
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedTask(null); }} taskToEdit={selectedTask} onSave={handleTaskSave} onLogout={onLogout} />
       <AnimatePresence>
         {showActionModal && <TaskActionModal isOpen task={selectedTask} onClose={() => { setShowActionModal(false); setSelectedTask(null); }} onAction={handleAction} />}
       </AnimatePresence>
       <DeleteModal isOpen={showDeleteConfirm} onConfirm={handleDelete} onCancel={() => setShowDeleteConfirm(false)} />
+
+      {/* CHECKLIST ERROR POPUP MODAL */}
+      {showErrorModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[1300] p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.55)' }}
+          onClick={() => setShowErrorModal(false)}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 text-center">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl">
+                ⚠️
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+                Checklist Required
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Please add a checklist first.<br />
+                A checklist is required as it shows the process breakdown of how the task will be achieved.
+              </p>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

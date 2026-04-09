@@ -1,6 +1,7 @@
 // src/pages/DeckPrep.jsx
 // Ultimate AI-Powered PDF → PowerPoint Builder
 // Two modes: Quick Convert + AI-Guided | Full slide editor | Real PPTX export
+// NEW: Delete button appears on hover for every history card (Recent + full History view)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -104,28 +105,23 @@ const exportToPPTX = async (pptJson, theme) => {
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_16x9';
   pptx.title = pptJson.title || 'Presentation';
-
   for (const slide of pptJson.slides) {
     const s = pptx.addSlide();
     s.background = { color: t.bg };
-
     if (slide.type === 'title') {
       s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 2.8, fill: { color: t.accent }, line: { color: t.accent } });
       s.addText(slide.title || '', { x: 0.6, y: 0.5, w: 8.8, h: 1.6, color: t.titleText, fontSize: 36, bold: true, align: 'center', valign: 'middle', margin: 0 });
       if (slide.subtitle) s.addText(slide.subtitle, { x: 1, y: 3.2, w: 8, h: 1.2, color: t.subtext, fontSize: 18, align: 'center', margin: 0 });
-
     } else if (slide.type === 'section') {
       s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 0.18, h: 5.625, fill: { color: t.accent }, line: { color: t.accent } });
       s.addText('SECTION', { x: 0.5, y: 1.4, w: 9, h: 0.4, color: t.subtext, fontSize: 11, bold: true, charSpacing: 6, margin: 0 });
       s.addText(slide.title || '', { x: 0.5, y: 1.9, w: 9, h: 2, color: t.text, fontSize: 32, bold: true, margin: 0 });
       if (slide.subtitle) s.addText(slide.subtitle, { x: 0.5, y: 4.1, w: 9, h: 0.9, color: t.subtext, fontSize: 16, margin: 0 });
-
     } else if (slide.type === 'quote') {
       s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
       s.addText('\u201C', { x: 0.5, y: 0.3, w: 1.5, h: 1.5, color: t.accent, fontSize: 80, bold: true, margin: 0 });
       s.addText(slide.quote || slide.title || '', { x: 0.8, y: 1.2, w: 8.4, h: 2.8, color: t.text, fontSize: 20, italic: true, align: 'center', valign: 'middle', margin: 0 });
       if (slide.attribution) s.addText(`— ${slide.attribution}`, { x: 0.8, y: 4.5, w: 8.4, h: 0.6, color: t.subtext, fontSize: 13, align: 'center', margin: 0 });
-
     } else if (slide.type === 'two-column') {
       s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
       s.addText(slide.title || '', { x: 0.5, y: 0.2, w: 9, h: 0.8, color: t.text, fontSize: 20, bold: true, margin: 0 });
@@ -133,7 +129,6 @@ const exportToPPTX = async (pptJson, theme) => {
       s.addText(slide.leftContent || '', { x: 0.6, y: 1.35, w: 3.8, h: 3.5, color: t.subtext, fontSize: 14, valign: 'top', margin: 0 });
       s.addShape(pptx.shapes.RECTANGLE, { x: 5.4, y: 1.2, w: 4.2, h: 3.8, fill: { color: t.sectionBg }, line: { color: t.accent, pt: 1 } });
       s.addText(slide.rightContent || '', { x: 5.6, y: 1.35, w: 3.8, h: 3.5, color: t.subtext, fontSize: 14, valign: 'top', margin: 0 });
-
     } else if (slide.type === 'closing') {
       s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
       s.addText('KEY TAKEAWAYS', { x: 0.5, y: 0.3, w: 9, h: 0.4, color: t.subtext, fontSize: 11, bold: true, charSpacing: 6, margin: 0 });
@@ -266,7 +261,7 @@ const SlideEditor = ({ slide, onUpdate, onRegenerate, onDelete, onAddSlide, isRe
   );
 };
 
-// ── MAIN ──────────────────────────────────────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 const DeckPrep = () => {
   const { user } = useOutletContext();
   const [mode, setMode] = useState('home');
@@ -296,8 +291,35 @@ const DeckPrep = () => {
   const done = () => { setLoading(false); setLoadingMsg(''); };
 
   const fetchHistory = useCallback(async () => {
-    try { const r = await axios.get(`${API}/api/documents/history`, { headers: headers() }); setHistory(r.data.histories || []); } catch { }
+    try {
+      const r = await axios.get(`${API}/api/documents/history`, { headers: headers() });
+      setHistory(r.data.histories || []);
+    } catch (e) {
+      console.error('Failed to fetch history');
+    }
   }, []);
+
+  // ── NEW: Delete a document from history (called on hover button click) ─────
+  const handleDelete = useCallback(async (documentId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this presentation and all its data? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/api/documents/${documentId}`, { headers: headers() });
+      toast.success('Presentation deleted');
+      fetchHistory();
+      // If the deleted document was currently loaded, reset the editor
+      if (docId === documentId) {
+        setDocId(null);
+        setPptJson(null);
+        setMode('home');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete presentation');
+    }
+  }, [docId, fetchHistory]);
+
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const triggerAutoSave = useCallback((json) => {
@@ -305,7 +327,9 @@ const DeckPrep = () => {
     clearTimeout(autoSaveRef.current);
     autoSaveRef.current = setTimeout(async () => {
       setAutoSaving(true);
-      try { await axios.post(`${API}/api/documents/save-ppt`, { documentId: docId, pptJson: json }, { headers: headers() }); } catch { }
+      try {
+        await axios.post(`${API}/api/documents/save-ppt`, { documentId: docId, pptJson: json }, { headers: headers() });
+      } catch {}
       finally { setAutoSaving(false); }
     }, 1500);
   }, [docId]);
@@ -317,14 +341,9 @@ const DeckPrep = () => {
     try {
       const fd = new FormData();
       fd.append('files', f);
-
-      const up = await axios.post(`${API}/api/files/upload`, fd, {
-        headers: headers(),
-      });
-
+      const up = await axios.post(`${API}/api/files/upload`, fd, { headers: headers() });
       const fid = up.data.files[0]._id;
       const cr = await axios.post(`${API}/api/documents`, { fileId: fid }, { headers: headers() });
-
       setDocId(cr.data.document._id);
       toast.success('PDF ready!');
       return cr.data.document._id;
@@ -426,7 +445,6 @@ const DeckPrep = () => {
   const inp = { backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--input-border)' };
   const inpFocus = (e) => { e.target.style.borderColor = 'var(--brand-accent)'; };
   const inpBlur = (e) => { e.target.style.borderColor = 'var(--input-border)'; };
-
   const SectionLabel = ({ children }) => (
     <div className="flex items-center gap-2 mb-4">
       <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>{children}</h2>
@@ -434,7 +452,7 @@ const DeckPrep = () => {
     </div>
   );
 
-  // Loading
+  // Loading screen
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-32 space-y-5">
       <Toaster position="top-right" />
@@ -474,6 +492,7 @@ const DeckPrep = () => {
           <HistoryIcon className="w-4 h-4" /> History ({history.length})
         </button>}
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
           { key: 'quick', icon: Zap, title: 'Quick Convert', desc: 'Upload a PDF and get a complete polished presentation in one click. AI reads, structures, and designs everything.', tags: ['PDF Upload', 'AI Extraction', 'Auto Slides', 'PPTX Export'], color: 'var(--brand-primary)', bg: 'var(--brand-light)' },
@@ -499,23 +518,43 @@ const DeckPrep = () => {
           </motion.div>
         ))}
       </div>
+
+      {/* Recent Presentations – now with hover delete button */}
       {history.length > 0 && <>
         <SectionLabel>Recent Presentations</SectionLabel>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {history.slice(0, 6).map(h => (
-            <motion.div key={h._id} whileHover={{ y: -1 }} onClick={() => loadFromHistory(h)}
-              className="rounded-xl border p-4 cursor-pointer transition-all flex items-center gap-3"
+            <motion.div
+              key={h._id}
+              whileHover={{ y: -1 }}
+              onClick={() => loadFromHistory(h)}
+              className="rounded-xl border p-4 cursor-pointer transition-all flex items-center gap-3 group relative"
               style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--brand-primary)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}>
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+            >
               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ backgroundColor: h.pptJson ? 'var(--brand-light)' : 'var(--bg-subtle)' }}>
                 <FileText className="w-5 h-5" style={{ color: h.pptJson ? 'var(--brand-primary)' : 'var(--text-muted)' }} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{h.originalFileId?.fileName || 'Untitled'}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{h.pptJson ? `${h.pptJson.slides?.length || 0} slides` : 'No slides'} · {new Date(h.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {h.pptJson ? `${h.pptJson.slides?.length || 0} slides` : 'No slides'} · {new Date(h.createdAt).toLocaleDateString()}
+                </p>
               </div>
+
+              {/* Hover-only delete button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(h._id);
+                }}
+                className="absolute top-3 right-3 p-2 rounded-xl bg-white shadow-sm border border-transparent hover:border-red-200 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                title="Delete presentation"
+              >
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </button>
             </motion.div>
           ))}
         </div>
@@ -844,11 +883,15 @@ const DeckPrep = () => {
       <div className="space-y-3">
         {history.length === 0 ? <p className="text-center py-12" style={{ color: 'var(--text-muted)' }}>No history yet</p>
           : history.map(h => (
-            <motion.div key={h._id} whileHover={{ y: -1 }} onClick={() => loadFromHistory(h)}
-              className="rounded-xl border p-4 cursor-pointer transition-all flex items-center gap-4"
+            <motion.div
+              key={h._id}
+              whileHover={{ y: -1 }}
+              onClick={() => loadFromHistory(h)}
+              className="rounded-xl border p-4 cursor-pointer transition-all flex items-center gap-4 group relative"
               style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--brand-primary)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}>
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+            >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ backgroundColor: h.pptJson ? 'var(--brand-light)' : 'var(--bg-subtle)' }}>
                 <FileText className="w-5 h-5" style={{ color: h.pptJson ? 'var(--brand-primary)' : 'var(--text-muted)' }} />
@@ -857,8 +900,22 @@ const DeckPrep = () => {
                 <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{h.originalFileId?.fileName || 'Untitled'}</p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {h.pptJson ? `${h.pptJson.slides?.length || 0} slides` : 'No slides'} · {new Date(h.createdAt).toLocaleDateString()}
-                  {h.pptJson?.title ? ` · "${h.pptJson.title}"` : ''}</p>
+                  {h.pptJson?.title ? ` · "${h.pptJson.title}"` : ''}
+                </p>
               </div>
+
+              {/* Hover-only delete button – appears exactly when mouse hovers the card */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(h._id);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl bg-white shadow-sm border border-transparent hover:border-red-200 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                title="Delete presentation"
+              >
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </button>
+
               <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
             </motion.div>
           ))}

@@ -32,6 +32,9 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
   );
   const [showHover, setShowHover] = useState(false);
 
+  // NEW: Popup modal for checklist error
+  const [showErrorModal, setShowErrorModal] = useState(false);
+
   useEffect(() => {
     setIsCompleted(
       [true, 1, 'yes'].includes(
@@ -44,7 +47,6 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
   const progress = task.checklist?.length
     ? Math.round((task.checklist.filter((i) => i.completed).length / task.checklist.length) * 100)
     : isCompleted ? 100 : 0;
-
   const subLabel = SUBMISSION_LABELS[task.submissionStatus];
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isCompleted;
 
@@ -57,6 +59,12 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
   const handleComplete = async (e) => {
     e.stopPropagation();
     const newVal = !isCompleted;
+
+    if (newVal && (!task.checklist || task.checklist.length === 0)) {
+      setShowErrorModal(true);
+      return;
+    }
+
     try {
       const payload = newVal
         ? (task.checklist?.length ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) } : { completed: 'Yes' })
@@ -72,6 +80,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
   const handleAction = async (action, e) => {
     e.stopPropagation();
     setShowMenu(false);
+
     if (action === 'delete') {
       try {
         await axios.delete(`${API_BASE}/${task._id}/gp`, { headers: getAuthHeaders() });
@@ -80,7 +89,12 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
         if (err.response?.status === 401) onLogout?.();
       }
     }
+
     if (action === 'submit') {
+      if (!task.checklist || task.checklist.length === 0) {
+        setShowErrorModal(true);
+        return;
+      }
       try {
         await axios.post(`${API_BASE}/${task._id}/submit`, {}, { headers: getAuthHeaders() });
         onRefresh?.();
@@ -127,9 +141,7 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
             <div className="flex items-start justify-between gap-2">
               <h3
                 className={`text-sm font-semibold leading-snug truncate ${
-                  isCompleted
-                    ? 'line-through'
-                    : ''
+                  isCompleted ? 'line-through' : ''
                 }`}
                 style={{ color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)' }}
               >
@@ -280,7 +292,6 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
               {task.priority}
             </span>
           </div>
-
           {task.description && (
             <div className="mb-4">
               <p className="text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>
@@ -291,7 +302,6 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
               </p>
             </div>
           )}
-
           {task.checklist?.length > 0 && (
             <div>
               <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -316,13 +326,52 @@ const TaskItem = ({ task, onRefresh, showCompleteCheckbox = true, onLogout }) =>
               </ul>
             </div>
           )}
-
           <div
             className="flex items-center justify-between text-xs mt-4 pt-3 border-t"
             style={{ borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
           >
             <span>Created {task.createdAt ? format(new Date(task.createdAt), 'MMM dd, yyyy') : '—'}</span>
             <span>Due {task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* CHECKLIST ERROR POPUP MODAL */}
+      {showErrorModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[1200] p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.55)' }}
+          onClick={() => setShowErrorModal(false)}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border"
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              borderColor: 'var(--border-color)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 text-center">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl">
+                ⚠️
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+                Checklist Required
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Please add a checklist first.<br />
+                A checklist is required as it shows the process breakdown of how the task will be achieved.
+              </p>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                Got it
+              </button>
+            </div>
           </div>
         </div>
       )}

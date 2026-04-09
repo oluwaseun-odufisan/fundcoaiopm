@@ -135,6 +135,9 @@ const PendingPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
 
+  // NEW: Error modal state
+  const [showErrorModal, setShowErrorModal] = useState(false);
+
   const sortedPendingTasks = useMemo(() => {
     return tasks
       .filter((t) => !t.completed || (typeof t.completed === 'string' && t.completed.toLowerCase() === 'no'))
@@ -190,6 +193,10 @@ const PendingPage = () => {
   }, [refreshTasks, user, onLogout]);
 
   const handleComplete = async (task) => {
+    if (!task.checklist || task.checklist.length === 0) {
+      setShowErrorModal(true);
+      return;
+    }
     try {
       const payload = task.checklist?.length > 0
         ? { checklist: task.checklist.map((i) => ({ ...i, completed: true })) }
@@ -204,6 +211,10 @@ const PendingPage = () => {
   };
 
   const handleSubmit = async (task) => {
+    if (!task.checklist || task.checklist.length === 0) {
+      setShowErrorModal(true);
+      return;
+    }
     try {
       await axios.post(`${API_BASE_URL}/${task._id}/submit`, {}, { headers: getAuthHeaders() });
       await refreshTasks();
@@ -383,6 +394,43 @@ const PendingPage = () => {
         onSave={handleTaskSave}
         onLogout={onLogout}
       />
+
+      {/* CHECKLIST ERROR POPUP MODAL */}
+      {showErrorModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[1300] p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.55)' }}
+          onClick={() => setShowErrorModal(false)}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 text-center">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl">
+                ⚠️
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+                Checklist Required
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Please add a checklist first.<br />
+                A checklist is required as it shows the process breakdown of how the task will be achieved.
+              </p>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setShowErrorModal(false)}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
