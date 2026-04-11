@@ -14,11 +14,9 @@ import EmojiPicker from 'emoji-picker-react';
 import toast, { Toaster } from 'react-hot-toast';
 import moment from 'moment-timezone';
 import { debounce } from 'lodash';
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const SOCKET_URL = API_BASE_URL;
 const TZ = 'Africa/Lagos';
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const getFullName = (user) => {
     if (!user) return 'Unknown';
@@ -27,7 +25,6 @@ const getFullName = (user) => {
         return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
     return user.name?.trim() || 'Unknown';
 };
-
 const getInitials = (user) => {
     if (!user) return '?';
     const fullName = getFullName(user);
@@ -37,7 +34,6 @@ const getInitials = (user) => {
     if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 };
-
 const formatChatTime = (ts) => {
     if (!ts) return '';
     const m = moment(ts).tz(TZ);
@@ -49,13 +45,11 @@ const formatChatTime = (ts) => {
     if (diffDays < 7) return m.format('ddd');
     return m.format('DD/MM/YY');
 };
-
 const formatMsgTime = (ts) => {
     if (!ts) return '';
     const m = moment(ts).tz(TZ);
     return m.isValid() ? m.format('h:mm A') : '';
 };
-
 const formatDateSep = (ts) => {
     if (!ts) return '';
     const m = moment(ts).tz(TZ);
@@ -66,7 +60,6 @@ const formatDateSep = (ts) => {
     if (diffDays < 7) return m.format('dddd');
     return m.format('MMMM D, YYYY');
 };
-
 const formatLastSeen = (ts) => {
     if (!ts) return 'last seen a long time ago';
     const m = moment(ts).tz(TZ);
@@ -79,7 +72,6 @@ const formatLastSeen = (ts) => {
     if (diffHours < 48) return `last seen yesterday at ${m.format('h:mm A')}`;
     return `last seen ${m.format('DD/MM/YY')}`;
 };
-
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 const Avatar = ({ user, size = 10, showOnline = false }) => {
     const sz = `w-${size} h-${size}`;
@@ -102,7 +94,6 @@ const Avatar = ({ user, size = 10, showOnline = false }) => {
         </div>
     );
 };
-
 // ─── Date separator ───────────────────────────────────────────────────────────
 const DateSeparator = ({ date }) => (
     <div className="flex items-center gap-3 my-4">
@@ -116,7 +107,6 @@ const DateSeparator = ({ date }) => (
         <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-color)' }} />
     </div>
 );
-
 // ─── Typing bubble ────────────────────────────────────────────────────────────
 const TypingBubble = ({ name }) => (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -135,7 +125,6 @@ const TypingBubble = ({ name }) => (
         <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{name}</span>
     </motion.div>
 );
-
 // ─── WhatsApp-style Message Context Menu ─────────────────────────────────────
 const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onReply, onForward, onPin, onEdit, onCopy, onDeleteForMe, onDeleteForEveryone }) => {
     const menuRef = useRef(null);
@@ -151,7 +140,6 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
             document.removeEventListener('keydown', handleKey);
         };
     }, [onClose]);
-
     const style = useMemo(() => {
         const menuW = 192, menuH = 280;
         let { x, y } = position;
@@ -161,7 +149,6 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
         if (y < 8) y = 8;
         return { position: 'fixed', top: y, left: x, zIndex: 60 };
     }, [position]);
-
     const Item = ({ icon, label, onClick, danger = false }) => (
         <button
             onClick={() => { onClick(); onClose(); }}
@@ -175,10 +162,8 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
             {label}
         </button>
     );
-
     const canEdit = isSender && !msg.isDeleted &&
         (new Date() - new Date(msg.createdAt)) < 5 * 60 * 1000;
-
     return (
         <motion.div
              ref={menuRef}
@@ -188,7 +173,6 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
             exit={{ opacity: 0, scale: 0.92, y: -4 }}
             transition={{ duration: 0.12 }}
             className="bg-white dark:bg-[#2A2D33] rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 py-1.5 w-52 overflow-hidden">
-
             {!msg.isDeleted && <Item icon={<CornerUpLeft className="w-4 h-4" />} label="Reply" onClick={onReply} />}
             {!msg.isDeleted && msg.content && (
                 <Item icon={
@@ -207,7 +191,6 @@ const MessageContextMenu = ({ msg, isSender, isPinned, position, onClose, onRepl
         </motion.div>
     );
 };
-
 // ─── Delete confirmation modal ────────────────────────────────────────────────
 const DeleteConfirmModal = ({ msg, isSender, onDeleteForMe, onDeleteForEveryone, onCancel }) => (
     <motion.div
@@ -261,14 +244,11 @@ const DeleteConfirmModal = ({ msg, isSender, onDeleteForMe, onDeleteForEveryone,
         </motion.div>
     </motion.div>
 );
-
 // ─── Forward Message Modal ─────────────────────────────────────────────────────
 const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onForward, onClose }) => {
     const [selected, setSelected] = useState([]);
     const [search, setSearch] = useState('');
-
     const toggle = (id) => setSelected((p) => p.includes(id) ? p.filter((x) => x !== id) : p.length < 5 ? [...p, id] : p);
-
     const chats = useMemo(() => {
         const list = [];
         allUsers.forEach((u) => {
@@ -279,11 +259,9 @@ const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onFor
         const q = search.trim().toLowerCase();
         return q ? list.filter((c) => c.name.toLowerCase().includes(q)) : list;
     }, [allUsers, groups, userChatMap, search]);
-
     const preview = msg.isDeleted ? '🚫 Deleted'
         : msg.content ? msg.content.slice(0, 80) + (msg.content.length > 80 ? '…' : '')
         : msg.fileUrl ? '📎 Attachment' : '';
-
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 flex items-center justify-center z-50 p-4"
@@ -307,11 +285,9 @@ const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onFor
                         <X className="w-4 h-4" />
                     </button>
                 </div>
-
                 <div className="mx-5 mt-4 px-3 py-2.5 rounded-xl border-l-4" style={{ backgroundColor: 'var(--bg-subtle)', borderColor: '#16a34a' }}>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{preview}</p>
                 </div>
-
                 <div className="px-5 pt-3 pb-2">
                     <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
                         <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
@@ -326,7 +302,6 @@ const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onFor
                         {search && <button onClick={() => setSearch('')}><X className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>}
                     </div>
                 </div>
-
                 <div className="flex-1 overflow-y-auto px-5 pb-2">
                     {chats.length === 0 ? (
                         <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No chats found</p>
@@ -358,7 +333,6 @@ const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onFor
                         })
                     )}
                 </div>
-
                 <div className="px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{selected.length}/5 selected</p>
                     <button
@@ -376,7 +350,6 @@ const ForwardModal = ({ msg, allUsers, groups, userChatMap, currentUserId, onFor
         </motion.div>
     );
 };
-
 // ─── Group Modal ──────────────────────────────────────────────────────────────
 const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, onAddMembers }) => {
     const [groupName, setGroupName] = useState('');
@@ -384,14 +357,11 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
     const [modalSearch, setModalSearch] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const searchRef = useRef(null);
-
     useEffect(() => { setTimeout(() => searchRef.current?.focus(), 80); }, []);
-
     const existingMemberIds = useMemo(() => {
         if (isAddMode && selectedChat?.members) return new Set(selectedChat.members.map((m) => m._id));
         return new Set();
     }, [isAddMode, selectedChat]);
-
     const filteredUsers = useMemo(() => {
         const q = modalSearch.trim().toLowerCase();
         return users
@@ -399,10 +369,8 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
             .filter((u) => !q || getFullName(u).toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
             .sort((a, b) => getFullName(a).localeCompare(getFullName(b)));
     }, [users, existingMemberIds, modalSearch]);
-
     const toggleUser = (id) =>
         setSelectedUsers((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-
     const handleSubmit = async () => {
         if (!selectedUsers.length) { toast.error('Select at least one member.'); return; }
         setIsSubmitting(true);
@@ -414,9 +382,7 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
             toast.error(err.response?.data?.message || err.message || 'Operation failed.');
         } finally { setIsSubmitting(false); }
     };
-
     const selectedNames = useMemo(() => users.filter((u) => selectedUsers.includes(u._id)), [users, selectedUsers]);
-
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 flex items-center justify-center z-50 p-4"
@@ -439,7 +405,6 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
                         <X className="w-4 h-4" />
                     </button>
                 </div>
-
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                     {!isAddMode && (
                         <input
@@ -456,7 +421,6 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
                             }}
                         />
                     )}
-
                     {selectedNames.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                             {selectedNames.map((u) => (
@@ -471,7 +435,6 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
                             ))}
                         </div>
                     )}
-
                     <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
                         <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                         <input
@@ -485,7 +448,6 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
                         />
                         {modalSearch && <button onClick={() => setModalSearch('')}><X className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>}
                     </div>
-
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
                             {filteredUsers.length} available
@@ -525,7 +487,6 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
                         )}
                     </div>
                 </div>
-
                 <div className="px-5 py-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{selectedUsers.length} selected</p>
                     <div className="flex gap-2">
@@ -553,14 +514,12 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
         </motion.div>
     );
 };
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const TeamChat = () => {
     const { user, onLogout } = useOutletContext();
     const navigate = useNavigate();
-
     const [chatMode, setChatMode] = useState(localStorage.getItem('chatMode') || 'individual');
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -589,18 +548,15 @@ const TeamChat = () => {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState(new Set());
     const [now, setNow] = useState(Date.now());
-
     // New feature state
     const [forwardModal, setForwardModal] = useState(null);
     const [pinnedMessages, setPinnedMessages] = useState([]);
     const [showPinnedPanel, setShowPinnedPanel] = useState(false);
     const [highlightedMsgId, setHighlightedMsgId] = useState(null);
     const highlightTimerRef = useRef(null);
-
     const [contextMenu, setContextMenu] = useState(null);
     const [deleteModal, setDeleteModal] = useState(null);
     const [longPressTimer, setLongPressTimer] = useState(null);
-
     const socket = useRef(null);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
@@ -613,19 +569,15 @@ const TeamChat = () => {
     const savedScrollRef = useRef(null);
     const msgRefsMap = useRef({});
     const isAtBottomRef = useRef(true);
-
     useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
     useEffect(() => { localStorage.setItem('chatMode', chatMode); }, [chatMode]);
-
     useEffect(() => {
         const id = setInterval(() => setNow(Date.now()), 60000);
         return () => clearInterval(id);
     }, []);
-
     useEffect(() => {
         if (users.length) setOnlineUsers(new Set(users.filter((u) => u.online).map((u) => u._id)));
     }, [users]);
-
     const scrollToBottom = useCallback((behavior = 'smooth') => {
         const container = messagesContainerRef.current;
         if (!container) return;
@@ -633,13 +585,11 @@ const TeamChat = () => {
         else container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
         setShowScrollButton(false);
     }, []);
-
     const handleScroll = useCallback(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
         setShowScrollButton(c.scrollHeight - c.scrollTop - c.clientHeight > 200);
     }, []);
-
     const getAuthHeaders = useCallback(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -649,14 +599,12 @@ const TeamChat = () => {
         }
         return { Authorization: `Bearer ${token}` };
     }, [onLogout, navigate]);
-
     const fetchUnreadCounts = useCallback(async () => {
         try {
             const res = await axios.get(`${API_BASE_URL}/api/chats/unread-counts`, { headers: getAuthHeaders() });
             if (res.data.success) setUnreadCounts(res.data.counts || {});
         } catch {}
     }, [getAuthHeaders]);
-
     const markChatAsRead = useCallback(async (chatId) => {
         if (!chatId) return;
         setUnreadCounts((prev) => {
@@ -668,7 +616,6 @@ const TeamChat = () => {
             await axios.post(`${API_BASE_URL}/api/chats/${chatId}/read`, {}, { headers: getAuthHeaders() });
         } catch { fetchUnreadCounts(); }
     }, [getAuthHeaders, fetchUnreadCounts]);
-
     const fetchInitialChats = useCallback(async () => {
         try {
             setIsInitLoading(true);
@@ -677,17 +624,14 @@ const TeamChat = () => {
                 users: rawUsers = [], groups: rawGroups = [], userChatMap: map = {},
                 lastMessages: lastMsgs = {}, timestamps = {}, unreadCounts: serverUnread = {},
             } = res.data;
-
             setUsers(rawUsers.filter((u) => u._id && u.firstName && u._id !== user?._id));
             setGroups(rawGroups.filter((g) => g._id && g.members?.length > 0));
             setUserChatMap(map);
-
             const normTs = {};
             Object.entries(timestamps).forEach(([k, v]) => {
                 normTs[k] = v instanceof Date ? v.toISOString() : String(v);
             });
             setChatTimestamps(normTs);
-
             const normMsgs = {};
             Object.entries(lastMsgs).forEach(([k, v]) => {
                 normMsgs[k] = v
@@ -695,7 +639,6 @@ const TeamChat = () => {
                     : null;
             });
             setLastMessages(normMsgs);
-
             setUnreadCounts((prev) => ({ ...serverUnread, ...prev }));
         } catch (error) {
             toast.error('Failed to load chats.');
@@ -704,7 +647,6 @@ const TeamChat = () => {
             setIsInitLoading(false);
         }
     }, [user, getAuthHeaders, onLogout]);
-
     const fetchPinnedMessages = useCallback(async (chatId) => {
         if (!chatId) return;
         try {
@@ -714,10 +656,8 @@ const TeamChat = () => {
             setPinnedMessages([]);
         }
     }, [getAuthHeaders]);
-
     const fetchPinnedRef = useRef(fetchPinnedMessages);
     useEffect(() => { fetchPinnedRef.current = fetchPinnedMessages; }, [fetchPinnedMessages]);
-
     const scrollToMessage = useCallback((messageId) => {
         const el = msgRefsMap.current[messageId];
         if (el) {
@@ -727,11 +667,9 @@ const TeamChat = () => {
             highlightTimerRef.current = setTimeout(() => setHighlightedMsgId(null), 1500);
         }
     }, []);
-
     // ─── Socket ───────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!user) return;
-
         socket.current = io(SOCKET_URL, {
             auth: { token: localStorage.getItem('token') },
             transports: ['websocket', 'polling'],
@@ -740,38 +678,30 @@ const TeamChat = () => {
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
         });
-
         socket.current.on('connect', () => {
             reconnectAttempts.current = 0;
             socket.current.emit('joinChat', `user:${user._id}`);
             if (selectedChatRef.current?._id) socket.current.emit('joinChat', selectedChatRef.current._id);
         });
-
         socket.current.on('message', (message) => {
             if (!message?._id || !message?.chatId) return;
             const msg = { ...message, createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt };
             const ts = msg.createdAt || new Date().toISOString();
-
             setLastMessages((prev) => ({ ...prev, [msg.chatId]: msg }));
             setChatTimestamps((prev) => ({ ...prev, [msg.chatId]: ts }));
-
             if (msg.chatId === selectedChatRef.current?._id) {
                 const container = messagesContainerRef.current;
                 const nearBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight < 100) : true;
-
                 setMessages((prev) => {
                     if (msg.chatId !== selectedChatRef.current?._id) return prev;
                     if (prev.some((m) => m._id === msg._id)) return prev;
                     return [...prev, msg];
                 });
-
                 if (nearBottom) requestAnimationFrame(() => setTimeout(() => scrollToBottom('smooth'), 8));
                 else setShowScrollButton(true);
-
                 markChatAsRead(msg.chatId);
             }
         });
-
         socket.current.on('unreadUpdate', ({ chatId, count, message }) => {
             if (selectedChatRef.current?._id === chatId) return;
             setUnreadCounts((prev) => ({ ...prev, [chatId]: count }));
@@ -804,24 +734,20 @@ const TeamChat = () => {
                 ), { duration: 4500, position: 'top-right' });
             }
         });
-
         socket.current.on('messageUpdated', (message) => {
             const msg = { ...message, createdAt: message.createdAt instanceof Date ? message.createdAt.toISOString() : message.createdAt };
             if (msg.chatId === selectedChatRef.current?._id)
                 setMessages((prev) => prev.map((m) => m._id === msg._id ? msg : m));
             setLastMessages((prev) => (prev[msg.chatId]?._id === msg._id ? { ...prev, [msg.chatId]: msg } : prev));
         });
-
         socket.current.on('messageDeleted', (message) => {
             if (message.chatId === selectedChatRef.current?._id)
                 setMessages((prev) => prev.map((m) => m._id === message._id ? { ...m, isDeleted: true, content: 'This message was deleted', fileUrl: null, fileName: null } : m));
         });
-
         socket.current.on('typing', ({ chatId, userId, isTyping }) => {
             if (chatId && userId && userId !== user?._id)
                 setTypingUsers((prev) => ({ ...prev, [chatId]: isTyping ? { id: userId, isTyping: true } : null }));
         });
-
         socket.current.on('userOnline', ({ userId }) => setOnlineUsers((prev) => new Set([...prev, userId])));
         socket.current.on('userOffline', ({ userId, lastActive }) => {
             setOnlineUsers((prev) => {
@@ -832,14 +758,12 @@ const TeamChat = () => {
             if (lastActive && selectedChatRef.current?.recipient?._id === userId)
                 setSelectedChat((prev) => prev ? { ...prev, recipient: { ...prev.recipient, lastActive, online: false } } : prev);
         });
-
         socket.current.on('groupCreated', ({ success, group }) => {
             if (success && group?._id) {
                 setGroups((prev) => prev.some((g) => g._id === group._id) ? prev : [...prev, group]);
                 socket.current.emit('joinChat', group._id);
             }
         });
-
         socket.current.on('groupUpdated', ({ success, group }) => {
             if (success && group?._id) {
                 setGroups((prev) => prev.map((g) => g._id === group._id ? group : g));
@@ -847,27 +771,22 @@ const TeamChat = () => {
                     setSelectedChat((prev) => ({ ...prev, ...group, type: 'group' }));
             }
         });
-
         socket.current.on('messagePinned', ({ chatId }) => {
             if (selectedChatRef.current?._id === chatId) fetchPinnedRef.current(chatId);
         });
-
         socket.current.on('messageUnpinned', ({ chatId, messageId }) => {
             if (selectedChatRef.current?._id === chatId)
                 setPinnedMessages((prev) => prev.filter((m) => m._id !== messageId));
         });
-
         socket.current.on('connect_error', () => {
             reconnectAttempts.current = Math.min(reconnectAttempts.current + 1, maxReconnectAttempts);
         });
-
         return () => {
             socket.current?.emit('leaveChat', selectedChatRef.current?._id);
             socket.current?.emit('leaveChat', `user:${user._id}`);
             socket.current?.disconnect();
         };
     }, [user, scrollToBottom, markChatAsRead]);
-
     useEffect(() => {
         if (!user) {
             navigate('/login');
@@ -875,7 +794,6 @@ const TeamChat = () => {
         }
         fetchInitialChats();
     }, [user, fetchInitialChats]);
-
     useEffect(() => {
         const h = (e) => {
             if (showEmojiPicker && emojiButtonRef.current && !emojiButtonRef.current.contains(e.target) && !e.target.closest('.EmojiPickerReact'))
@@ -884,7 +802,6 @@ const TeamChat = () => {
         document.addEventListener('mousedown', h);
         return () => document.removeEventListener('mousedown', h);
     }, [showEmojiPicker]);
-
     useEffect(() => {
         const el = messagesContainerRef.current;
         if (!el || !contextMenu) return;
@@ -892,31 +809,25 @@ const TeamChat = () => {
         el.addEventListener('scroll', handler, { passive: true });
         return () => el.removeEventListener('scroll', handler);
     }, [contextMenu]);
-
     const selectIndividualChat = useCallback(async (recipient) => {
         if (!recipient?._id) return;
         if (selectedChatRef.current?.recipient?._id === recipient._id) return;
-
         setMessages([]);
         setCurrentPage(1);
         isAtBottomRef.current = true;
-
         const knownChatId = userChatMap[recipient._id];
         if (knownChatId) setSelectedChat({ _id: knownChatId, type: 'individual', recipient: { ...recipient, online: onlineUsers.has(recipient._id) }, members: [], _pending: true });
-
         try {
             setIsMsgLoading(true);
             const res = await axios.post(`${API_BASE_URL}/api/chats/individual`, { recipientId: recipient._id }, { headers: getAuthHeaders() });
             const chat = res.data.chat;
             if (!chat?._id) throw new Error('Invalid chat');
-
             const recipientMember = chat.members.find((m) => m._id !== user._id);
             setSelectedChat({ ...chat, type: 'individual', recipient: { ...recipientMember, online: onlineUsers.has(recipientMember?._id) } });
             setUserChatMap((prev) => ({ ...prev, [recipient._id]: chat._id }));
             await markChatAsRead(chat._id);
             socket.current?.emit('joinChat', chat._id);
             fetchPinnedMessages(chat._id);
-
             if (window.innerWidth < 1024) window.scrollTo(0, 0);
         } catch (error) {
             setSelectedChat(null);
@@ -926,7 +837,6 @@ const TeamChat = () => {
             setIsMsgLoading(false);
         }
     }, [getAuthHeaders, onLogout, user, markChatAsRead, onlineUsers, userChatMap, fetchPinnedMessages]);
-
     const selectGroupChat = useCallback((group) => {
         if (!group?._id || selectedChatRef.current?._id === group._id) return;
         setMessages([]);
@@ -939,12 +849,10 @@ const TeamChat = () => {
         fetchPinnedMessages(group._id);
         if (window.innerWidth < 1024) window.scrollTo(0, 0);
     }, [markChatAsRead, fetchPinnedMessages]);
-
     const fetchMessages = useCallback(async () => {
         if (!selectedChat?._id) return;
         const fetchingChatId = selectedChat._id;
         const fetchingPage = currentPage;
-
         try {
             setIsMsgLoading(true);
             const res = await axios.get(
@@ -953,14 +861,11 @@ const TeamChat = () => {
             );
             const { messages: newMsgs, pagination } = res.data;
             if (!Array.isArray(newMsgs)) return;
-
             if (selectedChatRef.current?._id !== fetchingChatId) return;
-
             const normed = newMsgs.map((m) => ({
                 ...m,
                 createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
             }));
-
             setMessages((prev) => {
                 if (fetchingPage === 1) return normed;
                 const el = messagesContainerRef.current;
@@ -968,9 +873,7 @@ const TeamChat = () => {
                 const existingIds = new Set(prev.map((m) => m._id));
                 return [...normed.filter((m) => !existingIds.has(m._id) && m.chatId === fetchingChatId), ...prev.filter((m) => m.chatId === fetchingChatId)];
             });
-
             setTotalPages(pagination.totalPages);
-
             if (fetchingPage === 1) setTimeout(() => scrollToBottom('instant'), 30);
             else if (savedScrollRef.current) {
                 requestAnimationFrame(() => {
@@ -981,7 +884,6 @@ const TeamChat = () => {
                     }
                 });
             }
-
             if (normed.length > 0) {
                 const newest = normed[normed.length - 1];
                 setChatTimestamps((prev) => ({ ...prev, [fetchingChatId]: newest.createdAt }));
@@ -994,26 +896,21 @@ const TeamChat = () => {
             setIsMsgLoading(false);
         }
     }, [selectedChat, currentPage, getAuthHeaders, scrollToBottom, onLogout]);
-
     useEffect(() => {
         if (selectedChat?._id) fetchMessages();
     }, [fetchMessages]);
-
     const debouncedTyping = useMemo(() => debounce((chatId, userId) => {
         socket.current?.emit('typing', { chatId, userId, isTyping: true });
     }, 400), []);
-
     useEffect(() => {
         if (!selectedChat || !newMessage) return;
         const t = setTimeout(() => socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false }), 3000);
         return () => clearTimeout(t);
     }, [newMessage, selectedChat, user]);
-
     useEffect(() => {
         if (!newMessage && selectedChat)
             socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false });
     }, [newMessage, selectedChat, user]);
-
     const uploadFile = async (f) => {
         setIsUploading(true);
         try {
@@ -1027,11 +924,9 @@ const TeamChat = () => {
             setIsUploading(false);
         }
     };
-
     const handleSendMessage = useCallback(async () => {
         const text = newMessage.trim();
         if (!text && !file && !editingMessage) return;
-
         let fileUrl = '', contentType = '', fileName = '';
         if (file) {
             try {
@@ -1042,7 +937,6 @@ const TeamChat = () => {
                 return;
             }
         }
-
         try {
             if (editingMessage) {
                 if (!text) return;
@@ -1067,12 +961,10 @@ const TeamChat = () => {
             if (error.response?.status === 401) onLogout?.();
         }
     }, [selectedChat, newMessage, file, editingMessage, replyTo, getAuthHeaders, onLogout, uploadFile]);
-
     const openDeleteModal = useCallback((msg) => {
         setContextMenu(null);
         setDeleteModal({ msg });
     }, []);
-
     const handleDeleteForMe = useCallback(async (msg) => {
         setDeleteModal(null);
         setContextMenu(null);
@@ -1084,7 +976,6 @@ const TeamChat = () => {
             toast.error('Failed to delete message.');
         }
     }, [getAuthHeaders]);
-
     const handleDeleteForEveryone = useCallback(async (msg) => {
         setDeleteModal(null);
         setContextMenu(null);
@@ -1096,7 +987,6 @@ const TeamChat = () => {
             toast.error('Failed to delete message.');
         }
     }, [getAuthHeaders]);
-
     const openContextMenu = useCallback((e, msg) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1104,7 +994,6 @@ const TeamChat = () => {
         const y = e.clientY ?? (e.touches?.[0]?.clientY ?? 0);
         setContextMenu({ msg, position: { x, y } });
     }, []);
-
     const handleTouchStart = useCallback((e, msg) => {
         const touch = e.touches[0];
         const timer = setTimeout(() => {
@@ -1112,14 +1001,12 @@ const TeamChat = () => {
         }, 500);
         setLongPressTimer(timer);
     }, []);
-
     const handleTouchEnd = useCallback(() => {
         if (longPressTimer) {
             clearTimeout(longPressTimer);
             setLongPressTimer(null);
         }
     }, [longPressTimer]);
-
     const handleCreateGroup = useCallback(async (name, memberIds) => {
         const validIds = memberIds.filter((id) => users.some((u) => u._id === id));
         if (!validIds.length) throw new Error('No valid members');
@@ -1130,14 +1017,12 @@ const TeamChat = () => {
             toast.success('Group created!');
         }
     }, [users, getAuthHeaders]);
-
     const handleAddMembers = useCallback(async (groupId, memberIds) => {
         const validIds = memberIds.filter((id) => users.some((u) => u._id === id));
         if (!validIds.length) throw new Error('No valid members');
         await axios.put(`${API_BASE_URL}/api/chats/groups/${groupId}/members`, { members: validIds }, { headers: getAuthHeaders() });
         toast.success('Members added!');
     }, [users, getAuthHeaders]);
-
     const handlePin = useCallback(async (msg) => {
         const isPinned = pinnedMessages.some((p) => p._id === msg._id);
         try {
@@ -1157,7 +1042,6 @@ const TeamChat = () => {
             toast.error(err.response?.data?.message || 'Failed');
         }
     }, [pinnedMessages, getAuthHeaders]);
-
     const handleForwardConfirm = useCallback(async (targetChatIds) => {
         const msg = forwardModal?.msg;
         if (!msg || !targetChatIds.length) return;
@@ -1169,7 +1053,6 @@ const TeamChat = () => {
             toast.error(err.response?.data?.message || 'Failed to forward');
         }
     }, [forwardModal, getAuthHeaders]);
-
     const handleCloseChat = () => {
         socket.current?.emit('leaveChat', selectedChat?._id);
         if (selectedChat) socket.current?.emit('typing', { chatId: selectedChat._id, userId: user?._id, isTyping: false });
@@ -1182,35 +1065,28 @@ const TeamChat = () => {
         setContextMenu(null);
         setDeleteModal(null);
     };
-
     const handleChatModeChange = (mode) => {
         if (mode === chatMode) return;
         setChatMode(mode);
         handleCloseChat();
         setSearchQuery('');
     };
-
     const startEdit = (msg) => {
         setEditingMessage({ id: msg._id, originalContent: msg.content });
         setNewMessage(msg.content || '');
         inputRef.current?.focus();
     };
-
     const startReply = (msg) => {
         setReplyTo(msg);
         setEditingMessage(null);
         inputRef.current?.focus();
     };
-
     const cancelEdit = () => {
         setEditingMessage(null);
         setNewMessage('');
     };
-
     const cancelReply = () => setReplyTo(null);
-
     const isSender = (msg) => msg.sender?._id === user?._id;
-
     const sortedUsers = useMemo(() => {
         void now;
         const q = searchQuery.trim().toLowerCase();
@@ -1226,7 +1102,6 @@ const TeamChat = () => {
                 return getFullName(a).localeCompare(getFullName(b));
             });
     }, [users, searchQuery, userChatMap, chatTimestamps, lastMessages, now]);
-
     const sortedGroups = useMemo(() => {
         void now;
         const q = searchQuery.trim().toLowerCase();
@@ -1241,14 +1116,12 @@ const TeamChat = () => {
                 return (a.name || '').localeCompare(b.name || '');
             });
     }, [groups, searchQuery, chatTimestamps, lastMessages, now]);
-
     const filteredMessages = useMemo(() => {
         const chatId = selectedChat?._id;
         return messages
             .filter((m) => !chatId || !m.chatId || m.chatId === chatId)
             .filter((m) => !messageSearch || m.content?.toLowerCase().includes(messageSearch.toLowerCase()));
     }, [messages, messageSearch, selectedChat]);
-
     const messagesWithSeparators = useMemo(() => {
         const items = [];
         let lastDateKey = null;
@@ -1262,7 +1135,6 @@ const TeamChat = () => {
         });
         return items;
     }, [filteredMessages]);
-
     const lastSeenText = useMemo(() => {
         void now;
         if (!selectedChat || selectedChat.type !== 'individual') return '';
@@ -1271,24 +1143,18 @@ const TeamChat = () => {
         if (onlineUsers.has(r._id) || r.online) return 'Online';
         return formatLastSeen(r._computedLastSeen || r.lastActive);
     }, [selectedChat, onlineUsers, now]);
-
     const totalUnread = useMemo(() => Object.values(unreadCounts).reduce((s, n) => s + n, 0), [unreadCounts]);
-
     useEffect(() => {
         document.title = totalUnread > 0 ? `(${totalUnread}) TeamChat` : 'TeamChat';
         return () => { document.title = 'TeamChat'; };
     }, [totalUnread]);
-
     useEffect(() => {
         window.dispatchEvent(new CustomEvent('chatUnreadUpdate', { detail: { total: totalUnread } }));
     }, [totalUnread]);
-
     if (!user) return <div className="h-screen flex items-center justify-center"><p className="text-gray-400">Please log in.</p></div>;
-
     return (
         <div className="flex h-screen h-[100dvh] overflow-hidden" style={{ backgroundColor: 'var(--bg-app)' }}>
             <Toaster toastOptions={{ className: 'text-sm' }} />
-
             {/* SIDEBAR */}
             <aside
                 className={`flex-shrink-0 flex flex-col border-r w-full lg:w-[320px] xl:w-[360px] ${selectedChat ? 'hidden lg:flex' : 'flex'}`}
@@ -1328,7 +1194,6 @@ const TeamChat = () => {
                         <ArrowLeft className="w-4 h-4" />
                     </button>
                 </div>
-
                 <div className="flex-shrink-0 flex px-4 pt-3 pb-2 gap-1.5">
                     {[['individual', 'Chats'], ['group', 'Groups']].map(([mode, label]) => (
                         <button
@@ -1344,7 +1209,6 @@ const TeamChat = () => {
                         </button>
                     ))}
                 </div>
-
                 {chatMode === 'group' && (
                     <div className="flex-shrink-0 px-4 pb-2">
                         <button
@@ -1356,7 +1220,6 @@ const TeamChat = () => {
                         </button>
                     </div>
                 )}
-
                 <div className="flex-shrink-0 px-4 pb-3">
                     <div
                         className="flex items-center gap-2 rounded-xl px-3 py-2.5 ring-1 ring-transparent focus-within:ring-[var(--brand-accent)]/30 focus-within:bg-[var(--bg-surface)] transition-all"
@@ -1378,7 +1241,6 @@ const TeamChat = () => {
                         )}
                     </div>
                 </div>
-
                 <div className="flex-1 overflow-y-auto">
                     {isInitLoading ? (
                         <div className="flex flex-col gap-2 px-4 pt-2">
@@ -1414,7 +1276,6 @@ const TeamChat = () => {
                         const unread = unreadCounts[chatId] || 0;
                         const isActive = isGroup ? selectedChat?._id === item._id : selectedChat?.recipient?._id === item._id;
                         const isItemOnline = !isGroup && (onlineUsers.has(item._id) || item.online);
-
                         let snippet = 'No messages yet';
                         if (lastMsg) {
                             if (lastMsg.isDeleted) snippet = '🚫 This message was deleted';
@@ -1427,7 +1288,6 @@ const TeamChat = () => {
                                 snippet = icons[lastMsg.contentType] || '📎 Attachment';
                             }
                         }
-
                         return (
                             <div
                                 key={item._id}
@@ -1493,7 +1353,6 @@ const TeamChat = () => {
                     })}
                 </div>
             </aside>
-
             {/* CHAT AREA */}
             <section
                 className={`flex-1 flex flex-col min-w-0 relative ${selectedChat ? 'flex' : 'hidden lg:flex'}`}
@@ -1516,7 +1375,6 @@ const TeamChat = () => {
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>
-
                             <div className="relative flex-shrink-0">
                                 <Avatar
                                     user={selectedChat.type === 'individual' ? selectedChat.recipient : selectedChat}
@@ -1527,7 +1385,6 @@ const TeamChat = () => {
                                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[var(--bg-surface)]" />
                                     )}
                             </div>
-
                             <div
                                 className="flex-1 min-w-0 cursor-pointer select-none"
                                 onClick={() => setShowMembersModal(true)}
@@ -1551,7 +1408,6 @@ const TeamChat = () => {
                                         : lastSeenText}
                                 </p>
                             </div>
-
                             <div className="flex items-center gap-1 flex-shrink-0">
                                 {/* Message search */}
                                 <div
@@ -1573,7 +1429,6 @@ const TeamChat = () => {
                                         </button>
                                     )}
                                 </div>
-
                                 {selectedChat.type === 'group' && (
                                     <button
                                         onClick={() => setGroupModalMode('add')}
@@ -1584,7 +1439,6 @@ const TeamChat = () => {
                                         <Plus className="w-4 h-4" />
                                     </button>
                                 )}
-
                                 <button
                                     onClick={() => setShowMembersModal(true)}
                                     title="Info"
@@ -1593,7 +1447,6 @@ const TeamChat = () => {
                                 >
                                     <Users className="w-4 h-4" />
                                 </button>
-
                                 <button
                                     onClick={handleCloseChat}
                                     title="Close"
@@ -1604,7 +1457,6 @@ const TeamChat = () => {
                                 </button>
                             </div>
                         </header>
-
                         {/* Pinned banner */}
                         <AnimatePresence>
                             {pinnedMessages.length > 0 && (
@@ -1643,7 +1495,6 @@ const TeamChat = () => {
                                 </motion.div>
                             )}
                         </AnimatePresence>
-
                         {/* Messages area */}
                         <div
                             ref={messagesContainerRef}
@@ -1671,7 +1522,6 @@ const TeamChat = () => {
                                     </button>
                                 </div>
                             )}
-
                             {isMsgLoading && messages.length === 0 && (
                                 <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
                                     <div className="w-7 h-7 border-2 border-[var(--brand-primary)]/30 border-t-[var(--brand-primary)] rounded-full animate-spin" />
@@ -1680,7 +1530,6 @@ const TeamChat = () => {
                                     </p>
                                 </div>
                             )}
-
                             {!isMsgLoading && messages.length === 0 && (
                                 <div className="flex flex-col items-center justify-center h-full gap-4 py-16 text-center">
                                     <div
@@ -1699,20 +1548,16 @@ const TeamChat = () => {
                                     </div>
                                 </div>
                             )}
-
                             {!isMsgLoading && filteredMessages.length === 0 && messageSearch && (
                                 <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>
                                     No messages match "{messageSearch}"
                                 </p>
                             )}
-
                             {messagesWithSeparators.map((item) => {
                                 if (item.type === 'separator')
                                     return <DateSeparator key={item.key} date={item.date} />;
-
                                 const msg = item.msg;
                                 const sender = isSender(msg);
-
                                 return (
                                     <motion.div
                                         key={item.key}
@@ -1733,7 +1578,6 @@ const TeamChat = () => {
                                                 <Avatar user={msg.sender} size={6} />
                                             </div>
                                         )}
-
                                         <div className="max-w-[72%] relative">
                                             {msg.forwardedFrom && (
                                                 <div
@@ -1744,7 +1588,6 @@ const TeamChat = () => {
                                                     Forwarded from {msg.forwardedFrom.senderName || 'Unknown'}
                                                 </div>
                                             )}
-
                                             {msg.replyTo && (
                                                 <button
                                                     onClick={() => msg.replyTo.messageId && scrollToMessage(msg.replyTo.messageId)}
@@ -1760,7 +1603,6 @@ const TeamChat = () => {
                                                     </p>
                                                 </button>
                                             )}
-
                                             <div
                                                 className={`px-3 pt-2 pb-1.5 shadow-sm select-text transition-all duration-300 ${
                                                     highlightedMsgId === msg._id
@@ -1777,7 +1619,6 @@ const TeamChat = () => {
                                                         {getFullName(msg.sender)}
                                                     </p>
                                                 )}
-
                                                 {msg.isDeleted ? (
                                                     <p className="text-xs italic flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
                                                         <span>🚫</span> This message was deleted
@@ -1834,7 +1675,6 @@ const TeamChat = () => {
                                                         )}
                                                     </>
                                                 )}
-
                                                 <div className="flex items-center justify-end gap-1 mt-1">
                                                     <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                                                         {formatMsgTime(msg.createdAt)}
@@ -1844,7 +1684,6 @@ const TeamChat = () => {
                                                     )}
                                                 </div>
                                             </div>
-
                                             {!msg.isDeleted && (
                                                 <button
                                                     className={`absolute top-1/2 -translate-y-1/2 ${sender ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full shadow-sm`}
@@ -1862,16 +1701,13 @@ const TeamChat = () => {
                                     </motion.div>
                                 );
                             })}
-
                             <AnimatePresence>
                                 {typingUsers[selectedChat._id]?.isTyping && (
                                     <TypingBubble name={getFullName(users.find((u) => u._id === typingUsers[selectedChat._id]?.id)) || 'Someone'} />
                                 )}
                             </AnimatePresence>
-
                             <div ref={messagesEndRef} className="h-2" />
                         </div>
-
                         {/* Scroll button */}
                         <AnimatePresence>
                             {showScrollButton && (
@@ -1894,7 +1730,6 @@ const TeamChat = () => {
                                 </motion.button>
                             )}
                         </AnimatePresence>
-
                         {/* Input area */}
                         <div
                             className="flex-shrink-0 border-t px-3 sm:px-4 py-3"
@@ -1933,7 +1768,6 @@ const TeamChat = () => {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-
                             <AnimatePresence>
                                 {editingMessage && (
                                     <motion.div
@@ -1964,7 +1798,6 @@ const TeamChat = () => {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-
                             <div className="flex items-end gap-2">
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                     <div className="relative">
@@ -1999,7 +1832,6 @@ const TeamChat = () => {
                                             )}
                                         </AnimatePresence>
                                     </div>
-
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
                                         className="p-2 rounded-xl transition-colors hover:bg-[var(--bg-hover)]"
@@ -2007,7 +1839,6 @@ const TeamChat = () => {
                                     >
                                         <Paperclip className="w-5 h-5" />
                                     </button>
-
                                     <input
                                         type="file"
                                         ref={fileInputRef}
@@ -2023,14 +1854,12 @@ const TeamChat = () => {
                                         }}
                                     />
                                 </div>
-
                                 <div
                                     className="flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-2 min-h-[44px] ring-1 ring-transparent focus-within:ring-[var(--brand-accent)]/30 focus-within:bg-[var(--bg-surface)] transition-all"
                                     style={{ backgroundColor: 'var(--bg-subtle)' }}
                                 >
-                                    <input
+                                    <textarea
                                         ref={inputRef}
-                                        type="text"
                                         value={newMessage}
                                         onChange={(e) => {
                                             setNewMessage(e.target.value);
@@ -2043,10 +1872,15 @@ const TeamChat = () => {
                                             }
                                         }}
                                         placeholder={editingMessage ? 'Edit your message…' : replyTo ? 'Reply…' : 'Type a message'}
-                                        className="flex-1 bg-transparent text-sm focus:outline-none placeholder-[var(--text-muted)] min-w-0"
-                                        style={{ color: 'var(--text-primary)' }}
+                                        className="flex-1 bg-transparent text-sm focus:outline-none placeholder-[var(--text-muted)] min-w-0 resize-none overflow-y-auto"
+                                        style={{ 
+                                            color: 'var(--text-primary)',
+                                            minHeight: '44px',
+                                            maxHeight: '160px',
+                                            lineHeight: '1.35'
+                                        }}
+                                        rows={1}
                                     />
-
                                     {file && (
                                         <div className="flex items-center gap-1 text-xs truncate max-w-[80px] flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
                                             <span className="truncate">{file.name}</span>
@@ -2055,10 +1889,8 @@ const TeamChat = () => {
                                             </button>
                                         </div>
                                     )}
-
                                     {isUploading && <Clock className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--text-muted)' }} />}
                                 </div>
-
                                 <motion.button
                                     onClick={handleSendMessage}
                                     disabled={!newMessage.trim() && !file}
@@ -2101,7 +1933,6 @@ const TeamChat = () => {
                     </div>
                 )}
             </section>
-
             {/* Context Menu */}
             <AnimatePresence>
                 {contextMenu && (
@@ -2143,7 +1974,6 @@ const TeamChat = () => {
                     />
                 )}
             </AnimatePresence>
-
             {/* Delete Modal */}
             <AnimatePresence>
                 {deleteModal && (
@@ -2156,7 +1986,6 @@ const TeamChat = () => {
                     />
                 )}
             </AnimatePresence>
-
             {/* Forward Modal */}
             <AnimatePresence>
                 {forwardModal && (
@@ -2171,7 +2000,6 @@ const TeamChat = () => {
                     />
                 )}
             </AnimatePresence>
-
             {/* Group Modal */}
             <AnimatePresence>
                 {groupModalMode && (
@@ -2185,7 +2013,6 @@ const TeamChat = () => {
                     />
                 )}
             </AnimatePresence>
-
             {/* Members Modal */}
             <AnimatePresence>
                 {showMembersModal && (
@@ -2222,7 +2049,6 @@ const TeamChat = () => {
                                     <X className="w-4 h-4" />
                                 </button>
                             </div>
-
                             <div className="space-y-2 max-h-72 overflow-y-auto px-5 pb-5">
                                 {(selectedChat?.members || (selectedChat?.recipient ? [selectedChat.recipient] : [])).map((m) => {
                                     const isOnline = onlineUsers.has(m._id) || m.online;
@@ -2254,7 +2080,6 @@ const TeamChat = () => {
                                     );
                                 })}
                             </div>
-
                             <button
                                 onClick={() => setShowMembersModal(false)}
                                 className="w-full py-2.5 text-sm font-medium transition-colors rounded-b-2xl"
@@ -2266,7 +2091,6 @@ const TeamChat = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
             {/* Media Viewer */}
             <AnimatePresence>
                 {mediaViewer && (
@@ -2302,7 +2126,6 @@ const TeamChat = () => {
                                     </button>
                                 </div>
                             </div>
-
                             <div className="flex-1 overflow-auto flex items-center justify-center rounded-xl bg-black/50">
                                 {mediaViewer.contentType === 'image' && (
                                     <img src={mediaViewer.fileUrl} alt="" className="max-w-full max-h-[80vh] rounded-xl object-contain" />
@@ -2325,7 +2148,6 @@ const TeamChat = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
             <style>{`
                 .scrollbar-thin::-webkit-scrollbar { width: 3px; }
                 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
@@ -2336,5 +2158,4 @@ const TeamChat = () => {
         </div>
     );
 };
-
 export default TeamChat;

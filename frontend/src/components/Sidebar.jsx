@@ -73,7 +73,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
   const menuItems = [
     { text: 'Dashboard',      path: '/',                   icon: LayoutDashboard },
     { text: 'Pending Tasks',  path: '/pending',            icon: List },
-    { text: 'Newly Assigned', path: '/assigned',           icon: AlertCircle },
+    { text: 'Assigned', path: '/assigned',           icon: AlertCircle },
     { text: 'Completed',      path: '/complete',           icon: CheckCircle },
     { text: 'Analytics',       path: '/analytics',           icon: Calendar },
     { text: 'Calendar',       path: '/calendar',           icon: Calendar },
