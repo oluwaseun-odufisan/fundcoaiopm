@@ -137,7 +137,7 @@ export const updateTask = async (req, res) => {
       delete data.ownerId;
     }
 
-    const updated = await Task.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+    const updated = await Task.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after', runValidators: true })
       .populate('owner', 'firstName lastName email avatar')
       .populate('assignedBy', 'firstName lastName email')
       .lean();

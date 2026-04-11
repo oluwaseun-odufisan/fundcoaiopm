@@ -91,7 +91,7 @@ export const updateProject = async (req, res) => {
     if (data.startDate) data.startDate = new Date(data.startDate);
     if (data.endDate) data.endDate = new Date(data.endDate);
 
-    const updated = await Project.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+    const updated = await Project.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after', runValidators: true })
       .populate('createdBy', 'firstName lastName email avatar')
       .populate('members', 'firstName lastName email avatar')
       .populate('tasks', 'title completed priority dueDate owner checklist')
@@ -120,7 +120,7 @@ export const updateProjectMembers = async (req, res) => {
   try {
     const { members } = req.body;
     const project = await Project.findByIdAndUpdate(
-      req.params.id, { members }, { new: true }
+      req.params.id, { members }, { returnDocument: 'after' }
     ).populate('members', 'firstName lastName email avatar').lean();
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
     res.json({ success: true, project });

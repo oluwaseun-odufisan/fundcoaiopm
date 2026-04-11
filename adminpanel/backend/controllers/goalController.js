@@ -76,7 +76,7 @@ export const updateGoal = async (req, res) => {
     if (data.startDate) data.startDate = new Date(data.startDate);
     if (data.endDate) data.endDate = new Date(data.endDate);
 
-    const updated = await Goal.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+    const updated = await Goal.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after', runValidators: true })
       .populate('owner', 'firstName lastName email avatar')
       .populate('adminComments.user', 'firstName lastName avatar')
       .lean();

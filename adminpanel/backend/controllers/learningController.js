@@ -50,7 +50,7 @@ export const updateCourse = async (req, res) => {
   try {
     const updated = await LearningCourse.findByIdAndUpdate(req.params.id, {
       ...req.body, updatedAt: new Date(),
-    }, { new: true, runValidators: true }).lean();
+    }, { returnDocument: 'after', runValidators: true }).lean();
     if (!updated) return res.status(404).json({ success: false, message: 'Course not found' });
     res.json({ success: true, course: updated });
   } catch (err) {
@@ -115,7 +115,7 @@ export const enrollUser = async (req, res) => {
     const progress = await UserProgress.findOneAndUpdate(
       { userId, courseId },
       { $setOnInsert: { userId, courseId, enrolledAt: new Date() } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
     res.json({ success: true, progress });
   } catch (err) {
