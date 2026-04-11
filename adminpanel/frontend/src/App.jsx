@@ -19,8 +19,9 @@ const Reminders = lazy(() => import('./pages/Reminders.jsx'));
 const Meetings = lazy(() => import('./pages/Meetings.jsx'));
 
 const Loader = () => (
-  <div className="flex items-center justify-center h-64">
-    <div className="w-8 h-8 rounded-full border-3 border-t-transparent animate-spin" style={{ borderColor: 'var(--brand-accent)', borderTopColor: 'transparent' }} />
+  <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 120px)' }}>
+    <div className="w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin"
+      style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} />
   </div>
 );
 
@@ -33,10 +34,19 @@ const ProtectedRoute = () => {
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-
   return (
     <>
-      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { fontSize: 14, borderRadius: 12 } }} />
+      <Toaster position="top-right" toastOptions={{
+        duration: 3000,
+        style: {
+          fontFamily: 'var(--font-sans)',
+          fontSize: 13,
+          fontWeight: 500,
+          borderRadius: 10,
+          padding: '10px 16px',
+          boxShadow: 'var(--shadow-md)',
+        },
+      }} />
       <Routes>
         <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
         <Route element={<ProtectedRoute />}>
@@ -59,10 +69,5 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <AuthProvider>
-    <AppRoutes />
-  </AuthProvider>
-);
-
+const App = () => <AuthProvider><AppRoutes /></AuthProvider>;
 export default App;

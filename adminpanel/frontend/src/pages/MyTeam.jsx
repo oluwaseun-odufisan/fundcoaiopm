@@ -2,58 +2,63 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
-import { UsersRound, Plus, X, Search, UserPlus, Trash2, Save } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { UsersRound, UserPlus, X, Search, Trash2, Check, Info, Mail, Briefcase } from 'lucide-react';
 
 const MyTeam = () => {
   const { user } = useAuth();
   const [team, setTeam] = useState({ members: [], name: 'My Team' });
   const [allUsers, setAllUsers] = useState([]);
   const [search, setSearch] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetch = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const [t, u] = await Promise.all([api.get('/team'), api.get('/team/available-users')]);
       setTeam(t.data.team || { members: [], name: 'My Team' });
       setAllUsers(u.data.users || []);
-    } catch { toast.error('Failed to load team'); }
+    } catch { toast.error('Failed to load team data'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); }, []);
-
-  const removeMember = async (userId) => {
-    try {
-      const { data } = await api.delete(`/team/member/${userId}`);
-      setTeam(data.team);
-      toast.success('Member removed');
-    } catch { toast.error('Failed to remove'); }
-  };
+  useEffect(() => { fetchData(); }, []);
 
   const addMember = async (userId) => {
     try {
       const { data } = await api.post('/team/member', { userId });
-      setTeam(data.team);
-      toast.success('Member added');
-    } catch { toast.error('Failed to add'); }
+      setTeam(data.team); toast.success('Member added to your team');
+    } catch { toast.error('Failed to add member'); }
+  };
+
+  const removeMember = async (userId) => {
+    try {
+      const { data } = await api.delete(`/team/member/${userId}`);
+      setTeam(data.team); toast.success('Member removed');
+    } catch { toast.error('Failed to remove member'); }
   };
 
   const memberIds = new Set((team.members || []).map(m => m._id || m));
-  const available = allUsers.filter(u => !memberIds.has(u._id) && u._id !== user?.id)
+  const available = allUsers
+    .filter(u => !memberIds.has(u._id) && u._id !== user?.id)
     .filter(u => !search || `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase()));
 
+  // Super Admin info
   if (user?.role === 'admin') {
     return (
-      <div className="space-y-5">
-        <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>My Team</h1>
-        <div className="rounded-xl border p-8 text-center" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-          <UsersRound className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-          <p className="font-bold" style={{ color: 'var(--text-primary)' }}>Super Admin Access</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            As Super Admin, you have access to all users across the organization. No team configuration needed.
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>My Team</h1>
+          <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>Team configuration</p>
+        </div>
+        <div className="card p-10 text-center">
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--c-accent-muted)' }}>
+            <UsersRound className="w-7 h-7" style={{ color: 'var(--c-accent)' }} />
+          </div>
+          <h2 className="text-[18px] font-bold mb-2" style={{ color: 'var(--c-text-0)' }}>Full Organization Access</h2>
+          <p className="text-[14px] max-w-md mx-auto" style={{ color: 'var(--c-text-2)' }}>
+            As Super Admin, you automatically have visibility into all users, tasks, goals, and reports across the entire organization. No team filtering is applied.
           </p>
         </div>
       </div>
@@ -61,104 +66,168 @@ const MyTeam = () => {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <UsersRound className="w-6 h-6" style={{ color: 'var(--brand-accent)' }} /> My Team
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Configure your team members. All data across the admin panel filters to these users.
+          <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>My Team</h1>
+          <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>
+            Select the team members you manage. All dashboard data filters to these users.
           </p>
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90"
-          style={{ backgroundColor: 'var(--brand-accent)' }}>
+        <button onClick={() => setShowPicker(true)} className="btn-primary">
           <UserPlus className="w-4 h-4" /> Add Members
         </button>
       </div>
 
-      {/* Current members */}
-      <div className="rounded-xl border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
-            Team Members ({(team.members || []).length})
+      {/* Info banner */}
+      <div className="card p-4 flex items-start gap-3" style={{ background: 'var(--c-info-bg)', borderColor: 'var(--c-accent)' }}>
+        <Info className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--c-accent)' }} />
+        <div>
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--c-accent-text)' }}>How team filtering works</p>
+          <p className="text-[13px] mt-1" style={{ color: 'var(--c-text-1)' }}>
+            Once you add members here, every page in the admin panel (Dashboard, Tasks, Goals, Reports, Performance, etc.) will automatically show only data belonging to your selected team members. This ensures you focus on your team's work.
           </p>
         </div>
-        {(team.members || []).length === 0 ? (
-          <div className="text-center py-12">
-            <UsersRound className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No team members yet. Add members to filter your dashboard.</p>
+      </div>
+
+      {/* Current members */}
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--c-border)' }}>
+          <div>
+            <p className="text-[15px] font-bold" style={{ color: 'var(--c-text-0)' }}>
+              Team Members
+            </p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--c-text-3)' }}>
+              {(team.members || []).length} member{(team.members || []).length !== 1 ? 's' : ''} selected
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 rounded-full border-[3px] border-t-transparent animate-spin" style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} />
+          </div>
+        ) : (team.members || []).length === 0 ? (
+          <div className="text-center py-16 px-6">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--c-surface-raised)' }}>
+              <UsersRound className="w-7 h-7" style={{ color: 'var(--c-text-3)' }} />
+            </div>
+            <p className="text-[14px] font-semibold mb-1" style={{ color: 'var(--c-text-1)' }}>No team members yet</p>
+            <p className="text-[13px] mb-5" style={{ color: 'var(--c-text-3)' }}>
+              Click "Add Members" above to select the users you want to manage.
+            </p>
+            <button onClick={() => setShowPicker(true)} className="btn-primary">
+              <UserPlus className="w-4 h-4" /> Select Team Members
+            </button>
           </div>
         ) : (
-          <div className="divide-y" style={{ divideColor: 'var(--border-color)' }}>
-            {(team.members || []).map((member, i) => (
-              <motion.div key={member._id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm"
-                    style={{ backgroundColor: 'var(--brand-accent)' }}>
-                    {(member.firstName || 'U').charAt(0).toUpperCase()}
+          <div>
+            {(team.members || []).map((m, i) => (
+              <motion.div key={m._id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="flex items-center justify-between px-6 py-4 table-row"
+                style={{ borderBottom: '1px solid var(--c-border-subtle)' }}>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-[14px]"
+                    style={{ background: 'var(--c-accent)' }}>
+                    {(m.firstName || 'U')[0].toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {member.firstName} {member.lastName}
+                    <p className="text-[14px] font-semibold" style={{ color: 'var(--c-text-0)' }}>
+                      {m.firstName} {m.lastName} {m.otherName || ''}
                     </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{member.email} · {member.position || member.role}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-[12px] flex items-center gap-1" style={{ color: 'var(--c-text-3)' }}>
+                        <Mail className="w-3 h-3" /> {m.email}
+                      </span>
+                      {m.position && (
+                        <span className="text-[12px] flex items-center gap-1" style={{ color: 'var(--c-text-3)' }}>
+                          <Briefcase className="w-3 h-3" /> {m.position}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button onClick={() => removeMember(member._id)}
-                  className="p-2 rounded-lg transition-colors" style={{ color: '#dc2626' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(220,38,38,.08)'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="badge" style={{ background: m.isActive ? 'var(--c-success-bg)' : 'var(--c-danger-bg)', color: m.isActive ? 'var(--c-success)' : 'var(--c-danger)' }}>
+                    {m.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                  <button onClick={() => removeMember(m._id)} className="btn-ghost p-2" style={{ color: 'var(--c-danger)' }}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Add members modal */}
-      {showAdd && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowAdd(false)} />
-          <motion.div initial={{ opacity: 0, scale: .95 }} animate={{ opacity: 1, scale: 1 }}
-            className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-2xl border shadow-2xl"
-            style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-              <h2 className="font-black text-sm" style={{ color: 'var(--text-primary)' }}>Add Team Members</h2>
-              <button onClick={() => setShowAdd(false)} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ borderColor: 'var(--border-color)' }}>
-                <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users…"
-                  className="flex-1 bg-transparent text-sm focus:outline-none" style={{ color: 'var(--text-primary)' }} />
+      {/* ── Add Members Picker Modal ──────────────────────── */}
+      <AnimatePresence>
+        {showPicker && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-50" onClick={() => { setShowPicker(false); setSearch(''); }} />
+            <motion.div initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.97 }} transition={{ duration: 0.2 }}
+              className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg rounded-2xl overflow-hidden"
+              style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--shadow-xl)' }}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
+                <h2 className="text-[16px] font-bold" style={{ color: 'var(--c-text-0)' }}>Add Team Members</h2>
+                <button onClick={() => { setShowPicker(false); setSearch(''); }} className="btn-ghost p-2">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-            <div className="max-h-80 overflow-y-auto divide-y" style={{ divideColor: 'var(--border-color)' }}>
-              {available.length === 0 && <p className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>No available users</p>}
-              {available.map(u => (
-                <div key={u._id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--bg-hover)] transition-colors">
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{u.firstName} {u.lastName}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{u.email}</p>
-                  </div>
-                  <button onClick={() => addMember(u._id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white hover:opacity-90"
-                    style={{ backgroundColor: 'var(--brand-accent)' }}>
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+              {/* Search */}
+              <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--c-border-subtle)' }}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by name or email…" className="input-base" style={{ paddingLeft: 36 }} autoFocus />
                 </div>
-              ))}
-            </div>
-          </motion.div>
-        </>
-      )}
+              </div>
+              {/* User list */}
+              <div className="max-h-[400px] overflow-y-auto">
+                {available.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-[13px]" style={{ color: 'var(--c-text-3)' }}>
+                      {search ? 'No matching users found' : 'All users are already in your team'}
+                    </p>
+                  </div>
+                ) : (
+                  available.map(u => (
+                    <div key={u._id}
+                      className="flex items-center justify-between px-6 py-3 transition-colors cursor-pointer"
+                      style={{ borderBottom: '1px solid var(--c-border-subtle)' }}
+                      onClick={() => addMember(u._id)}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--c-surface-raised)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[13px] font-bold"
+                          style={{ background: 'var(--c-ink-muted)' }}>
+                          {(u.firstName || 'U')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold" style={{ color: 'var(--c-text-0)' }}>
+                            {u.firstName} {u.lastName}
+                          </p>
+                          <p className="text-[12px]" style={{ color: 'var(--c-text-3)' }}>{u.email}</p>
+                        </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--c-accent-muted)' }}>
+                        <UserPlus className="w-4 h-4" style={{ color: 'var(--c-accent)' }} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
 export default MyTeam;
- 

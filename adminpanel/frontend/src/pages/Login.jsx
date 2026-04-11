@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Lock, Mail, Eye, EyeOff, Shield } from 'lucide-react';
-import { motion } from 'framer-motion';
-import toast from 'react-hot-toast';
+import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -13,72 +12,80 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handle = async (e) => {
     e.preventDefault();
     if (!email || !password) return toast.error('Enter email and password');
     setLoading(true);
     try {
       const data = await login(email, password);
-      if (data.success) { toast.success('Welcome back!'); navigate('/', { replace: true }); }
+      if (data.success) { toast.success('Welcome back'); navigate('/', { replace: true }); }
       else toast.error(data.message || 'Login failed');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed');
-    } finally { setLoading(false); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Login failed'); }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#0f172a' }}>
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-10 blur-3xl" style={{ background: 'radial-gradient(circle, #3b82f6, transparent)' }} />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-8 blur-3xl" style={{ background: 'radial-gradient(circle, #8b5cf6, transparent)' }} />
+    <div className="min-h-screen flex" style={{ background: 'var(--c-surface-sunken)' }}>
+      <Toaster position="top-center" />
+      {/* Left panel */}
+      <div className="hidden lg:flex w-[480px] flex-col justify-between p-12" style={{ background: '#0a0f1e' }}>
+        <div>
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-lg" style={{ background: '#2563eb' }}>F</div>
+            <span className="text-white font-bold text-xl tracking-tight">FundCo</span>
+          </div>
+          <h1 className="text-white text-[32px] font-extrabold leading-tight tracking-tight mb-4">
+            Admin<br />Control Center
+          </h1>
+          <p className="text-[15px] leading-relaxed" style={{ color: '#6b7494' }}>
+            Manage teams, review tasks, track performance, and oversee operations from one unified dashboard.
+          </p>
+        </div>
+        <p className="text-[12px]" style={{ color: '#3b4261' }}>FundCo Capital Managers © 2025</p>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-md">
-        <div className="rounded-2xl border p-8" style={{ backgroundColor: 'rgba(30, 41, 59, 0.8)', borderColor: 'rgba(51, 65, 85, 0.5)', backdropFilter: 'blur(20px)' }}>
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)' }}>
-              <Shield className="w-8 h-8" style={{ color: '#3b82f6' }} />
-            </div>
-            <h1 className="text-2xl font-black text-white">FundCo Admin</h1>
-            <p className="text-sm mt-1" style={{ color: '#94a3b8' }}>Sign in to your admin dashboard</p>
+      {/* Right panel */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-[400px]">
+          <div className="lg:hidden flex items-center gap-3 mb-10">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-black" style={{ background: '#2563eb' }}>F</div>
+            <span className="font-bold text-lg" style={{ color: 'var(--c-text-0)' }}>FundCo Admin</span>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <h2 className="text-[24px] font-extrabold tracking-tight mb-1" style={{ color: 'var(--c-text-0)' }}>Sign in</h2>
+          <p className="text-[14px] mb-8" style={{ color: 'var(--c-text-2)' }}>Enter your admin credentials to continue</p>
+
+          <form onSubmit={handle} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Email</label>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border" style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', borderColor: '#334155' }}>
-                <Mail className="w-4 h-4 flex-shrink-0" style={{ color: '#64748b' }} />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@fundco.ng" className="flex-1 text-sm bg-transparent focus:outline-none text-white placeholder:text-slate-600" />
+              <label className="label">Email address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="admin@fundco.ng" className="input-base" style={{ paddingLeft: 40 }} />
               </div>
             </div>
-
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94a3b8' }}>Password</label>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border" style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', borderColor: '#334155' }}>
-                <Lock className="w-4 h-4 flex-shrink-0" style={{ color: '#64748b' }} />
-                <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••" className="flex-1 text-sm bg-transparent focus:outline-none text-white placeholder:text-slate-600" />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="text-slate-500 hover:text-slate-300">
+              <label className="label">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+                <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••" className="input-base" style={{ paddingLeft: 40, paddingRight: 40 }} />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }}>
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-
-            <button type="submit" disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-              style={{ backgroundColor: '#3b82f6' }}>
-              {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Shield className="w-4 h-4" />}
-              {loading ? 'Signing in…' : 'Sign In'}
+            <button type="submit" disabled={loading} className="btn-primary w-full" style={{ height: 46 }}>
+              {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign in'}
             </button>
           </form>
 
-          <p className="text-center text-xs mt-6" style={{ color: '#475569' }}>
-            Admin access only · Team Lead · Executive · Super Admin
+          <p className="text-center text-[12px] mt-8" style={{ color: 'var(--c-text-3)' }}>
+            Team Lead · Executive · Super Admin access only
           </p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

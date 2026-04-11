@@ -4,16 +4,13 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-import {
-  ListTodo, Plus, Search, Filter, CheckCircle2, Clock, AlertTriangle,
-  X, Send, Eye, Trash2, Edit2, MessageSquare, ChevronDown, Loader2, Users,
-} from 'lucide-react';
+import { ListTodo, Plus, Search, X, Send, CheckCircle2, Clock, AlertTriangle, Users, Trash2, MessageSquare, Shield } from 'lucide-react';
 
-const PRIORITY_C = { High: '#dc2626', Medium: '#d97706', Low: '#2563eb' };
-const STATUS_C = { approved: '#16a34a', submitted: '#d97706', rejected: '#dc2626', not_submitted: '#94a3b8' };
+const PRI = { High: { c: '#dc2626', bg: '#fef2f2' }, Medium: { c: '#d97706', bg: '#fffbeb' }, Low: { c: '#6b7494', bg: '#f7f8fb' } };
+const SUB = { approved: { c: '#059669', bg: '#ecfdf5' }, submitted: { c: '#d97706', bg: '#fffbeb' }, rejected: { c: '#dc2626', bg: '#fef2f2' }, not_submitted: { c: '#6b7494', bg: '#f7f8fb' } };
 
 const Tasks = () => {
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,78 +23,73 @@ const Tasks = () => {
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { limit: 200 };
-      if (filter !== 'all') params.status = filter;
-      if (search) params.search = search;
-      const [t, s, u] = await Promise.all([
-        api.get('/tasks', { params }),
-        api.get('/tasks/stats'),
-        api.get('/team/available-users'),
-      ]);
-      setTasks(t.data.tasks || []);
-      setStats(s.data.stats || {});
-      setUsers(u.data.users || []);
-    } catch (err) { toast.error('Failed to load tasks'); }
-    finally { setLoading(false); }
+      const p = { limit: 200 }; if (filter !== 'all') p.status = filter; if (search) p.search = search;
+      const [t, s, u] = await Promise.all([api.get('/tasks', { params: p }), api.get('/tasks/stats'), api.get('/team/available-users')]);
+      setTasks(t.data.tasks || []); setStats(s.data.stats || {}); setUsers(u.data.users || []);
+    } catch { toast.error('Failed to load tasks'); } finally { setLoading(false); }
   }, [filter, search]);
-
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const handleReview = async (taskId, action) => {
-    try {
-      await api.post(`/tasks/${taskId}/review`, { action });
-      toast.success(`Task ${action}`);
-      fetchTasks();
-      setViewTask(null);
-    } catch (err) { toast.error(err.response?.data?.message || 'Review failed'); }
+  const handleReview = async (id, action) => {
+    try { await api.post(`/tasks/${id}/review`, { action }); toast.success(`Task ${action}`); fetchTasks(); setViewTask(null); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
   };
 
-  const handleDelete = async (taskId) => {
+  const handleDelete = async (id) => {
     if (!confirm('Delete this task?')) return;
-    try { await api.delete(`/tasks/${taskId}`); toast.success('Deleted'); fetchTasks(); setViewTask(null); }
-    catch { toast.error('Delete failed'); }
+    try { await api.delete(`/tasks/${id}`); toast.success('Deleted'); fetchTasks(); setViewTask(null); } catch { toast.error('Failed'); }
   };
 
   const FILTERS = [
-    { key: 'all', label: 'All', count: stats.total },
-    { key: 'pending', label: 'Pending', count: stats.pending },
-    { key: 'completed', label: 'Completed', count: stats.completed },
-    { key: 'submitted', label: 'Submitted', count: stats.submitted },
-    { key: 'overdue', label: 'Overdue', count: stats.overdue },
+    { key: 'all', label: 'All', n: stats.total },
+    { key: 'pending', label: 'Pending', n: stats.pending },
+    { key: 'completed', label: 'Done', n: stats.completed },
+    { key: 'submitted', label: 'In Review', n: stats.submitted },
+    { key: 'overdue', label: 'Overdue', n: stats.overdue },
   ];
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <ListTodo className="w-6 h-6" style={{ color: 'var(--brand-accent)' }} /> Tasks
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Manage and review team tasks</p>
+          <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>Tasks</h1>
+          <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>Manage and review team tasks</p>
         </div>
         {hasRole('team-lead', 'admin') && (
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90"
-            style={{ backgroundColor: 'var(--brand-accent)' }}>
-            <Plus className="w-4 h-4" /> Assign Task
-          </button>
+          <button onClick={() => setShowCreate(true)} className="btn-primary"><Plus className="w-4 h-4" /> Assign Task</button>
         )}
       </div>
 
-      {/* Filter bar */}
+      {/* Stats bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {[
+          { l: 'Total', v: stats.total || 0, c: 'var(--c-accent)' },
+          { l: 'Completed', v: stats.completed || 0, c: '#059669' },
+          { l: 'Pending', v: stats.pending || 0, c: '#d97706' },
+          { l: 'In Review', v: stats.submitted || 0, c: '#7c3aed' },
+          { l: 'Overdue', v: stats.overdue || 0, c: '#dc2626' },
+        ].map(s => (
+          <div key={s.l} className="card p-4">
+            <p className="stat-value text-[20px]" style={{ color: s.c }}>{s.v}</p>
+            <p className="text-[11px] font-medium mt-1" style={{ color: 'var(--c-text-3)' }}>{s.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-          <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…"
-            className="flex-1 bg-transparent text-sm focus:outline-none" style={{ color: 'var(--text-primary)' }} />
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…" className="input-base" style={{ paddingLeft: 38 }} />
         </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+        <div className="flex gap-1.5">
           {FILTERS.map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-              style={filter === f.key ? { backgroundColor: 'var(--brand-accent)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
-              {f.label} {f.count != null && <span className="ml-1 opacity-70">({f.count})</span>}
+              className="px-3 py-2 rounded-lg text-[12px] font-semibold transition-colors"
+              style={filter === f.key
+                ? { background: 'var(--c-accent)', color: 'white' }
+                : { background: 'var(--c-surface)', color: 'var(--c-text-2)', border: '1px solid var(--c-border)' }}>
+              {f.label} {f.n != null && <span className="ml-1 opacity-70">·{f.n}</span>}
             </button>
           ))}
         </div>
@@ -105,280 +97,205 @@ const Tasks = () => {
 
       {/* Task list */}
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--brand-accent)' }} /></div>
-      ) : tasks.length === 0 ? (
-        <div className="text-center py-16 rounded-xl border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-          <ListTodo className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-          <p className="font-bold" style={{ color: 'var(--text-secondary)' }}>No tasks found</p>
+        <div className="flex justify-center py-20">
+          <div className="w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin" style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} />
         </div>
+      ) : tasks.length === 0 ? (
+        <div className="card text-center py-20"><ListTodo className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--c-text-3)' }} />
+          <p className="text-[15px] font-semibold" style={{ color: 'var(--c-text-1)' }}>No tasks found</p></div>
       ) : (
-        <div className="space-y-2">
+        <div className="card overflow-hidden">
           {tasks.map((task, i) => {
-            const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
-            const ownerName = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'Unassigned';
+            const overdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
+            const pri = PRI[task.priority] || PRI.Low;
+            const sub = SUB[task.submissionStatus] || SUB.not_submitted;
+            const owner = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'Unassigned';
+            const progress = task.checklist?.length ? Math.round((task.checklist.filter(c => c.completed).length / task.checklist.length) * 100) : task.completed ? 100 : 0;
+
             return (
-              <motion.div key={task._id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * .02 }}
+              <motion.div key={task._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
                 onClick={() => setViewTask(task)}
-                className="rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', borderLeftWidth: 3, borderLeftColor: PRIORITY_C[task.priority] || '#94a3b8' }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`text-sm font-bold truncate ${task.completed ? 'line-through' : ''}`}
-                        style={{ color: task.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}>{task.title}</p>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                        style={{ backgroundColor: `${PRIORITY_C[task.priority]}15`, color: PRIORITY_C[task.priority] }}>{task.priority}</span>
-                      {task.submissionStatus !== 'not_submitted' && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold capitalize"
-                          style={{ backgroundColor: `${STATUS_C[task.submissionStatus]}15`, color: STATUS_C[task.submissionStatus] }}>
-                          {task.submissionStatus}
-                        </span>
-                      )}
-                      {isOverdue && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-50 text-red-600">Overdue</span>}
-                      {task.createdByAdmin && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand-accent)' }}>Admin Assigned</span>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{ownerName}</span>
-                      {task.dueDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>}
-                      {task.checklist?.length > 0 && (
-                        <span>{task.checklist.filter(c => c.completed).length}/{task.checklist.length} checklist</span>
-                      )}
-                    </div>
+                className="flex items-center gap-4 px-6 py-4 cursor-pointer transition-colors table-row"
+                style={{ borderBottom: '1px solid var(--c-border-subtle)' }}>
+                {/* Status */}
+                <div className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ background: task.completed ? '#059669' : overdue ? '#dc2626' : 'var(--c-border)' }} />
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] font-semibold ${task.completed ? 'line-through' : ''}`}
+                    style={{ color: task.completed ? 'var(--c-text-3)' : 'var(--c-text-0)' }}>{task.title}</p>
+                  <div className="flex items-center gap-3 mt-1 text-[11px]" style={{ color: 'var(--c-text-3)' }}>
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{owner}</span>
+                    {task.dueDate && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(task.dueDate), 'MMM d')}</span>}
+                    {task.adminComments?.length > 0 && <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{task.adminComments.length}</span>}
+                    {task.createdByAdmin && <span className="flex items-center gap-1"><Shield className="w-3 h-3" />Admin</span>}
                   </div>
-                  {task.submissionStatus === 'submitted' && (
-                    <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => handleReview(task._id, 'approved')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: '#16a34a' }}>Approve</button>
-                      <button onClick={() => handleReview(task._id, 'rejected')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: '#dc2626' }}>Reject</button>
-                    </div>
-                  )}
                 </div>
+                {/* Badges */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
+                  {task.submissionStatus !== 'not_submitted' && <span className="badge capitalize" style={{ background: sub.bg, color: sub.c }}>{task.submissionStatus.replace('_', ' ')}</span>}
+                  {overdue && <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Overdue</span>}
+                </div>
+                {/* Progress */}
+                <div className="w-12 text-right flex-shrink-0">
+                  <span className="text-[12px] font-bold" style={{ color: progress === 100 ? '#059669' : 'var(--c-text-2)' }}>{progress}%</span>
+                </div>
+                {/* Review buttons */}
+                {task.submissionStatus === 'submitted' && (
+                  <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => handleReview(task._id, 'approved')} className="btn-ghost p-1.5" style={{ color: '#059669', background: '#ecfdf5' }}>
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleReview(task._id, 'rejected')} className="btn-ghost p-1.5" style={{ color: '#dc2626', background: '#fef2f2' }}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             );
           })}
         </div>
       )}
 
-      {/* Create Task Modal */}
-      <CreateTaskModal isOpen={showCreate} onClose={() => setShowCreate(false)} users={users} onCreated={fetchTasks} />
-
-      {/* View Task Modal */}
-      <TaskDetailModal task={viewTask} onClose={() => setViewTask(null)} onReview={handleReview}
-        onDelete={handleDelete} onRefresh={fetchTasks} canEdit={hasRole('team-lead', 'admin')} />
+      {/* Create modal */}
+      <AnimatePresence>{showCreate && <CreateTaskModal users={users} onClose={() => setShowCreate(false)} onCreated={fetchTasks} />}</AnimatePresence>
+      {/* Detail modal */}
+      <AnimatePresence>{viewTask && <TaskDetail task={viewTask} onClose={() => setViewTask(null)} onReview={handleReview} onDelete={handleDelete} onRefresh={fetchTasks} />}</AnimatePresence>
     </div>
   );
 };
 
-// ── Create Task Modal ─────────────────────────────────────────────────────────
-const CreateTaskModal = ({ isOpen, onClose, users, onCreated }) => {
-  const [form, setForm] = useState({ title: '', description: '', priority: 'Low', dueDate: '', ownerId: '', checklist: [] });
-  const [newItem, setNewItem] = useState('');
-  const [saving, setSaving] = useState(false);
+const CreateTaskModal = ({ users, onClose, onCreated }) => {
+  const [f, setF] = useState({ title: '', description: '', priority: 'Medium', dueDate: '', ownerId: '', checklist: [] });
+  const [ni, setNi] = useState(''); const [saving, setSaving] = useState(false);
+  const add = () => { if (ni.trim()) { setF(p => ({ ...p, checklist: [...p.checklist, { text: ni.trim(), completed: false }] })); setNi(''); } };
 
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.title.trim() || !form.ownerId) return toast.error('Title and assignee required');
+  const handle = async (e) => {
+    e.preventDefault(); if (!f.title.trim() || !f.ownerId) return toast.error('Title and assignee required');
     setSaving(true);
-    try {
-      await api.post('/tasks', { ...form, checklist: form.checklist.filter(i => i.text.trim()) });
-      toast.success('Task created and assigned!');
-      onCreated();
-      onClose();
-      setForm({ title: '', description: '', priority: 'Low', dueDate: '', ownerId: '', checklist: [] });
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
-    finally { setSaving(false); }
-  };
-
-  const addItem = () => {
-    if (!newItem.trim()) return;
-    setForm(f => ({ ...f, checklist: [...f.checklist, { text: newItem.trim(), completed: false }] }));
-    setNewItem('');
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <motion.div initial={{ scale: .95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        className="rounded-2xl border w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="font-black" style={{ color: 'var(--text-primary)' }}>Assign New Task</h2>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Assign To *</label>
-            <select value={form.ownerId} onChange={e => setForm(f => ({ ...f, ownerId: e.target.value }))}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm" style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }}>
-              <option value="">Select a user…</option>
-              {users.map(u => <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.email})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Title *</label>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm" style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Description</label>
-            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm resize-none" style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Priority</label>
-              <div className="flex gap-2">
-                {['Low', 'Medium', 'High'].map(p => (
-                  <button key={p} type="button" onClick={() => setForm(f => ({ ...f, priority: p }))}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold border-2"
-                    style={form.priority === p ? { borderColor: PRIORITY_C[p], backgroundColor: PRIORITY_C[p], color: '#fff' } : { borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Due Date</label>
-              <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm" style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-            </div>
-          </div>
-          {/* Checklist */}
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: 'var(--text-muted)' }}>Checklist ({form.checklist.length})</label>
-            {form.checklist.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                <span className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{item.text}</span>
-                <button type="button" onClick={() => setForm(f => ({ ...f, checklist: f.checklist.filter((_, idx) => idx !== i) }))} style={{ color: '#dc2626' }}><X className="w-3.5 h-3.5" /></button>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <input value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addItem())}
-                placeholder="Add checklist item…" className="flex-1 px-3 py-2.5 rounded-xl border text-sm"
-                style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-              <button type="button" onClick={addItem} className="px-4 py-2.5 rounded-xl text-sm font-bold text-white"
-                style={{ backgroundColor: 'var(--brand-accent)' }}>Add</button>
-            </div>
-          </div>
-          <button type="submit" disabled={saving}
-            className="w-full py-3 rounded-xl text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-accent)' }}>
-            {saving ? 'Creating…' : 'Create & Assign Task'}
-          </button>
-        </form>
-      </motion.div>
-    </div>
-  );
-};
-
-// ── Task Detail Modal ─────────────────────────────────────────────────────────
-const TaskDetailModal = ({ task, onClose, onReview, onDelete, onRefresh, canEdit }) => {
-  const [comment, setComment] = useState('');
-  const [posting, setPosting] = useState(false);
-  if (!task) return null;
-
-  const ownerName = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'N/A';
-  const progress = task.checklist?.length ? Math.round((task.checklist.filter(c => c.completed).length / task.checklist.length) * 100) : (task.completed ? 100 : 0);
-
-  const addComment = async () => {
-    if (!comment.trim()) return;
-    setPosting(true);
-    try {
-      await api.post(`/tasks/${task._id}/comment`, { content: comment.trim() });
-      toast.success('Comment added');
-      setComment('');
-      onRefresh();
-      onClose();
-    } catch { toast.error('Failed to add comment'); }
-    finally { setPosting(false); }
+    try { await api.post('/tasks', { ...f, checklist: f.checklist.filter(c => c.text.trim()) }); toast.success('Task assigned!'); onCreated(); onClose(); }
+    catch (e) { toast.error(e.response?.data?.message || 'Failed'); } finally { setSaving(false); }
   };
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <motion.div initial={{ scale: .95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl"
-        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <h2 className="font-black text-sm" style={{ color: 'var(--text-primary)' }}>Task Details</h2>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--shadow-xl)' }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
+          <h2 className="text-[16px] font-bold" style={{ color: 'var(--c-text-0)' }}>Assign New Task</h2>
+          <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
         </div>
-        <div className="p-6 space-y-4">
+        <form onSubmit={handle} className="p-6 space-y-4">
+          <div><label className="label">Assign To</label>
+            <select value={f.ownerId} onChange={e => setF(p => ({ ...p, ownerId: e.target.value }))} className="input-base">
+              <option value="">Select user…</option>{users.map(u => <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.email})</option>)}
+            </select></div>
+          <div><label className="label">Title</label><input value={f.title} onChange={e => setF(p => ({ ...p, title: e.target.value }))} className="input-base" placeholder="Task title" /></div>
+          <div><label className="label">Description</label><textarea value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} className="input-base" rows={3} style={{ resize: 'vertical' }} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Priority</label>
+              <div className="flex gap-2">{['Low', 'Medium', 'High'].map(p => (
+                <button key={p} type="button" onClick={() => setF(f => ({ ...f, priority: p }))} className="flex-1 py-2 rounded-lg text-[12px] font-bold"
+                  style={f.priority === p ? { background: PRI[p].c, color: 'white' } : { background: 'var(--c-surface-raised)', color: 'var(--c-text-2)', border: '1px solid var(--c-border)' }}>{p}</button>
+              ))}</div></div>
+            <div><label className="label">Due Date</label><input type="date" value={f.dueDate} onChange={e => setF(p => ({ ...p, dueDate: e.target.value }))} className="input-base" /></div>
+          </div>
+          <div><label className="label">Checklist</label>
+            {f.checklist.map((c, i) => (<div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5" style={{ background: 'var(--c-surface-raised)' }}>
+              <span className="flex-1 text-[13px]">{c.text}</span><button type="button" onClick={() => setF(p => ({ ...p, checklist: p.checklist.filter((_, j) => j !== i) }))} style={{ color: 'var(--c-danger)' }}><X className="w-3.5 h-3.5" /></button>
+            </div>))}
+            <div className="flex gap-2"><input value={ni} onChange={e => setNi(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} className="input-base" placeholder="Add item…" /><button type="button" onClick={add} className="btn-secondary flex-shrink-0">Add</button></div>
+          </div>
+          <button type="submit" disabled={saving} className="btn-primary w-full" style={{ height: 44 }}>{saving ? 'Creating…' : 'Create & Assign'}</button>
+        </form>
+      </motion.div>
+    </>
+  );
+};
+
+const TaskDetail = ({ task, onClose, onReview, onDelete, onRefresh }) => {
+  const [comment, setComment] = useState(''); const [posting, setPosting] = useState(false);
+  const owner = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'N/A';
+  const pri = PRI[task.priority] || PRI.Low;
+  const progress = task.checklist?.length ? Math.round((task.checklist.filter(c => c.completed).length / task.checklist.length) * 100) : task.completed ? 100 : 0;
+
+  const addComment = async () => {
+    if (!comment.trim()) return; setPosting(true);
+    try { await api.post(`/tasks/${task._id}/comment`, { content: comment.trim() }); toast.success('Comment added'); setComment(''); onRefresh(); onClose(); }
+    catch { toast.error('Failed'); } finally { setPosting(false); }
+  };
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-2xl"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--shadow-xl)' }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
+          <p className="section-title">Task Details</p>
+          <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-5">
           <div>
-            <h3 className="font-black text-base" style={{ color: 'var(--text-primary)' }}>{task.title}</h3>
+            <h2 className="text-[18px] font-bold" style={{ color: 'var(--c-text-0)' }}>{task.title}</h2>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: `${PRIORITY_C[task.priority]}15`, color: PRIORITY_C[task.priority] }}>{task.priority}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full font-bold capitalize" style={{ backgroundColor: `${STATUS_C[task.submissionStatus]}15`, color: STATUS_C[task.submissionStatus] }}>{task.submissionStatus?.replace('_', ' ')}</span>
-              {task.completed && <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-green-50 text-green-600">Completed</span>}
+              <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
+              {task.submissionStatus !== 'not_submitted' && <span className="badge capitalize" style={{ background: SUB[task.submissionStatus]?.bg, color: SUB[task.submissionStatus]?.c }}>{task.submissionStatus.replace('_', ' ')}</span>}
+              {task.completed && <span className="badge" style={{ background: '#ecfdf5', color: '#059669' }}>Completed</span>}
+              {task.createdByAdmin && <span className="badge" style={{ background: '#eff6ff', color: '#2563eb' }}>Admin Assigned</span>}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span style={{ color: 'var(--text-muted)' }}>Assigned to</span><p className="font-bold" style={{ color: 'var(--text-primary)' }}>{ownerName}</p></div>
-            <div><span style={{ color: 'var(--text-muted)' }}>Due</span><p className="font-bold" style={{ color: 'var(--text-primary)' }}>{task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None'}</p></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--c-text-3)' }}>ASSIGNED TO</p><p className="text-[14px] font-semibold" style={{ color: 'var(--c-text-0)' }}>{owner}</p></div>
+            <div><p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--c-text-3)' }}>DUE DATE</p><p className="text-[14px] font-semibold" style={{ color: 'var(--c-text-0)' }}>{task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None'}</p></div>
           </div>
-          {task.description && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{task.description}</p>}
+          {task.description && <div><p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--c-text-3)' }}>DESCRIPTION</p><p className="text-[14px]" style={{ color: 'var(--c-text-1)' }}>{task.description}</p></div>}
 
-          {/* Checklist */}
           {task.checklist?.length > 0 && (
             <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span style={{ color: 'var(--text-muted)' }}>Checklist ({task.checklist.filter(c => c.completed).length}/{task.checklist.length})</span>
-                <span className="font-bold" style={{ color: 'var(--brand-accent)' }}>{progress}%</span>
+              <div className="flex justify-between text-[11px] mb-2"><span style={{ color: 'var(--c-text-3)' }}>CHECKLIST</span><span className="font-bold" style={{ color: 'var(--c-accent)' }}>{progress}%</span></div>
+              <div className="h-[6px] rounded-full overflow-hidden mb-3" style={{ background: 'var(--c-surface-sunken)' }}>
+                <div className="h-full rounded-full" style={{ width: `${progress}%`, background: progress === 100 ? '#059669' : 'var(--c-accent)' }} />
               </div>
-              <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ backgroundColor: 'var(--bg-hover)' }}>
-                <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#16a34a' : 'var(--brand-accent)' }} />
-              </div>
-              <div className="space-y-1.5">
-                {task.checklist.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className={`w-4 h-4 ${item.completed ? 'text-green-500' : 'text-gray-300'}`} />
-                    <span className={item.completed ? 'line-through text-gray-400' : ''} style={{ color: item.completed ? 'var(--text-muted)' : 'var(--text-primary)' }}>{item.text}</span>
-                  </div>
-                ))}
-              </div>
+              <div className="space-y-1.5">{task.checklist.map((c, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-[13px]">
+                  <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${c.completed ? 'text-green-600' : ''}`} style={{ color: c.completed ? '#059669' : 'var(--c-border)' }} />
+                  <span className={c.completed ? 'line-through' : ''} style={{ color: c.completed ? 'var(--c-text-3)' : 'var(--c-text-0)' }}>{c.text}</span>
+                </div>
+              ))}</div>
             </div>
           )}
 
-          {/* Admin comments */}
-          {(task.adminComments?.length > 0) && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Admin Comments</p>
+          {task.adminComments?.length > 0 && (
+            <div><p className="text-[11px] font-semibold mb-2" style={{ color: 'var(--c-text-3)' }}>ADMIN NOTES</p>
               {task.adminComments.map((c, i) => (
-                <div key={i} className="p-3 rounded-xl mb-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                  <p className="text-xs font-bold" style={{ color: 'var(--brand-accent)' }}>{c.user?.firstName} {c.user?.lastName}</p>
-                  <p className="text-sm mt-1" style={{ color: 'var(--text-primary)' }}>{c.content}</p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{new Date(c.createdAt).toLocaleString()}</p>
+                <div key={i} className="p-3 rounded-xl mb-2" style={{ background: 'var(--c-surface-raised)' }}>
+                  <p className="text-[12px] font-semibold" style={{ color: 'var(--c-accent)' }}>{c.user?.firstName} {c.user?.lastName}</p>
+                  <p className="text-[13px] mt-1" style={{ color: 'var(--c-text-0)' }}>{c.content}</p>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--c-text-3)' }}>{c.createdAt ? format(new Date(c.createdAt), 'MMM d, h:mm a') : ''}</p>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Add comment */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Add Comment</p>
+          <div><p className="text-[11px] font-semibold mb-2" style={{ color: 'var(--c-text-3)' }}>ADD COMMENT</p>
             <div className="flex gap-2">
-              <input value={comment} onChange={e => setComment(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl border text-sm" placeholder="Write a comment…"
-                style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-              <button onClick={addComment} disabled={posting || !comment.trim()}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
-                style={{ backgroundColor: 'var(--brand-accent)' }}>
-                {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <input value={comment} onChange={e => setComment(e.target.value)} className="input-base" placeholder="Write a note…" />
+              <button onClick={addComment} disabled={posting || !comment.trim()} className="btn-primary flex-shrink-0 px-4">
+                {posting ? '…' : <Send className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-2 pt-2">
-            {task.submissionStatus === 'submitted' && (
-              <>
-                <button onClick={() => onReview(task._id, 'approved')} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: '#16a34a' }}>Approve</button>
-                <button onClick={() => onReview(task._id, 'rejected')} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: '#dc2626' }}>Reject</button>
-              </>
-            )}
-            {canEdit && <button onClick={() => onDelete(task._id)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ color: '#dc2626', backgroundColor: 'rgba(220,38,38,.08)' }}><Trash2 className="w-4 h-4" /></button>}
+            {task.submissionStatus === 'submitted' && <>
+              <button onClick={() => onReview(task._id, 'approved')} className="flex-1 btn-primary" style={{ background: '#059669' }}><CheckCircle2 className="w-4 h-4" /> Approve</button>
+              <button onClick={() => onReview(task._id, 'rejected')} className="flex-1 btn-danger"><X className="w-4 h-4" /> Reject</button>
+            </>}
+            <button onClick={() => onDelete(task._id)} className="btn-ghost" style={{ color: 'var(--c-danger)' }}><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
       </motion.div>

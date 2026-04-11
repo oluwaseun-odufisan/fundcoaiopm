@@ -5,228 +5,113 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { format } from 'date-fns';
-import {
-  FileText, Search, Eye, CheckCircle2, X, Send, Loader2,
-  ThumbsUp, ThumbsDown, MessageSquare, Download,
-} from 'lucide-react';
+import { FileText, Search, X, Send, CheckCircle2, ThumbsUp, ThumbsDown, Eye } from 'lucide-react';
 
-const STATUS_C = { submitted: { bg: 'rgba(217,119,6,.1)', c: '#d97706' }, approved: { bg: 'rgba(22,163,74,.1)', c: '#16a34a' }, rejected: { bg: 'rgba(220,38,38,.1)', c: '#dc2626' } };
+const ST = { submitted: { c: '#d97706', bg: '#fffbeb' }, approved: { c: '#059669', bg: '#ecfdf5' }, rejected: { c: '#dc2626', bg: '#fef2f2' } };
 
 const Reports = () => {
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [viewing, setViewing] = useState(null);
-  const [stats, setStats] = useState({});
+  const [reports, setReports] = useState([]); const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState(''); const [search, setSearch] = useState('');
+  const [viewing, setViewing] = useState(null); const [stats, setStats] = useState({});
 
-  const fetch = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
-    try {
-      const params = {};
-      if (filter) params.status = filter;
-      if (search) params.search = search;
-      const [r, s] = await Promise.all([api.get('/reports', { params }), api.get('/reports/stats')]);
-      setReports(r.data.reports || []);
-      setStats(s.data.stats || {});
-    } catch { toast.error('Failed to load'); }
-    finally { setLoading(false); }
+    try { const p = {}; if (filter) p.status = filter; if (search) p.search = search;
+      const [r, s] = await Promise.all([api.get('/reports', { params: p }), api.get('/reports/stats')]);
+      setReports(r.data.reports || []); setStats(s.data.stats || {}); } catch { toast.error('Failed'); } finally { setLoading(false); }
   }, [filter, search]);
-
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const review = async (id, action, feedback = '') => {
-    try {
-      await api.post(`/reports/${id}/review`, { action, feedback });
-      toast.success(`Report ${action}`);
-      fetch();
-      setViewing(null);
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    try { await api.post(`/reports/${id}/review`, { action, feedback }); toast.success(`Report ${action}`); fetchAll(); setViewing(null); }
+    catch(e) { toast.error(e.response?.data?.message || 'Failed'); }
+  };
+
+  const addNote = async (id, content) => {
+    try { await api.post(`/reports/${id}/note`, { content }); toast.success('Note added'); fetchAll(); setViewing(null); }
+    catch { toast.error('Failed'); }
   };
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-black flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-          <FileText className="w-6 h-6" style={{ color: 'var(--brand-accent)' }} /> Reports
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Review and manage submitted reports</p>
-      </div>
+    <div className="space-y-6">
+      <div><h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>Reports</h1>
+        <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>Review and manage submitted reports</p></div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { l: 'Pending Review', v: stats.submitted || 0, c: '#d97706' },
-          { l: 'Approved', v: stats.approved || 0, c: '#16a34a' },
-          { l: 'Rejected', v: stats.rejected || 0, c: '#dc2626' },
-          { l: 'Total', v: stats.total || 0, c: 'var(--brand-accent)' },
-        ].map(s => (
-          <div key={s.l} className="rounded-xl border p-3 text-center" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-            <p className="text-xl font-black" style={{ color: s.c }}>{s.v}</p>
-            <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.l}</p>
-          </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[{ l: 'Pending', v: stats.submitted||0, c: '#d97706' }, { l: 'Approved', v: stats.approved||0, c: '#059669' }, { l: 'Rejected', v: stats.rejected||0, c: '#dc2626' }, { l: 'Total', v: stats.total||0, c: 'var(--c-accent)' }].map(s => (
+          <div key={s.l} className="card p-4"><p className="stat-value text-[20px]" style={{ color: s.c }}>{s.v}</p><p className="text-[11px] font-medium mt-1" style={{ color: 'var(--c-text-3)' }}>{s.l}</p></div>
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-          <Search className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reports…"
-            className="flex-1 bg-transparent text-sm focus:outline-none" style={{ color: 'var(--text-primary)' }} />
-        </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-          {['', 'submitted', 'approved', 'rejected'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold" style={filter === f ? { backgroundColor: 'var(--brand-accent)', color: '#fff' } : { color: 'var(--text-secondary)' }}>
-              {f || 'All'}
-            </button>
-          ))}
-        </div>
+        <div className="relative flex-1"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reports…" className="input-base" style={{ paddingLeft: 38 }} /></div>
+        <div className="flex gap-1.5">{['', 'submitted', 'approved', 'rejected'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} className="px-3 py-2 rounded-lg text-[12px] font-semibold capitalize"
+            style={filter === f ? { background: 'var(--c-accent)', color: 'white' } : { background: 'var(--c-surface)', color: 'var(--c-text-2)', border: '1px solid var(--c-border)' }}>{f || 'All'}</button>
+        ))}</div>
       </div>
 
-      {/* List */}
-      {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--brand-accent)' }} /></div>
-      ) : reports.length === 0 ? (
-        <div className="text-center py-16 rounded-xl border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-          <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-          <p className="font-bold" style={{ color: 'var(--text-secondary)' }}>No reports found</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {reports.map((r, i) => {
-            const st = STATUS_C[r.status] || STATUS_C.submitted;
-            const userName = r.user ? `${r.user.firstName} ${r.user.lastName}` : 'Unknown';
-            return (
-              <motion.div key={r._id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * .02 }}
-                onClick={() => setViewing(r)}
-                className="rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all"
-                style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{r.title}</p>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold capitalize" style={{ backgroundColor: st.bg, color: st.c }}>{r.status}</span>
-                      {r.aiGenerated && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'rgba(59,130,246,.1)', color: '#3b82f6' }}>AI</span>}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      <span>{userName}</span>
-                      <span className="capitalize">{r.reportType}</span>
-                      <span>{r.submittedAt ? format(new Date(r.submittedAt), 'MMM dd, yyyy') : ''}</span>
-                    </div>
-                  </div>
-                  {r.status === 'submitted' && (
-                    <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => review(r._id, 'approved')} className="p-2 rounded-lg" style={{ color: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)' }}><ThumbsUp className="w-4 h-4" /></button>
-                      <button onClick={() => review(r._id, 'rejected')} className="p-2 rounded-lg" style={{ color: '#dc2626', backgroundColor: 'rgba(220,38,38,.08)' }}><ThumbsDown className="w-4 h-4" /></button>
-                    </div>
-                  )}
+      {loading ? <div className="flex justify-center py-20"><div className="w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin" style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} /></div>
+      : reports.length === 0 ? <div className="card text-center py-20"><FileText className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--c-text-3)' }} /><p className="text-[15px] font-semibold" style={{ color: 'var(--c-text-1)' }}>No reports found</p></div>
+      : <div className="card overflow-hidden">{reports.map((r, i) => {
+          const st = ST[r.status] || ST.submitted; const userName = r.user ? `${r.user.firstName} ${r.user.lastName}` : 'Unknown';
+          return (
+            <div key={r._id} onClick={() => setViewing(r)} className="flex items-center justify-between gap-4 px-6 py-4 cursor-pointer table-row" style={{ borderBottom: '1px solid var(--c-border-subtle)' }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--c-text-0)' }}>{r.title}</p>
+                  <span className="badge capitalize" style={{ background: st.bg, color: st.c }}>{r.status}</span>
+                  {r.aiGenerated && <span className="badge" style={{ background: '#eff6ff', color: '#2563eb' }}>AI</span>}
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
+                <div className="flex items-center gap-3 text-[11px]" style={{ color: 'var(--c-text-3)' }}><span>{userName}</span><span className="capitalize">{r.reportType}</span>
+                  {r.submittedAt && <span>{format(new Date(r.submittedAt), 'MMM d, yyyy')}</span>}</div>
+              </div>
+              {r.status === 'submitted' && <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                <button onClick={() => review(r._id, 'approved')} className="btn-ghost p-1.5" style={{ color: '#059669', background: '#ecfdf5' }}><ThumbsUp className="w-4 h-4" /></button>
+                <button onClick={() => review(r._id, 'rejected')} className="btn-ghost p-1.5" style={{ color: '#dc2626', background: '#fef2f2' }}><ThumbsDown className="w-4 h-4" /></button>
+              </div>}
+            </div>
+          );
+        })}</div>}
 
-      {/* View modal */}
-      <ReportViewModal report={viewing} onClose={() => setViewing(null)} onReview={review} onRefresh={fetch} />
+      <AnimatePresence>{viewing && <ReportView report={viewing} onClose={() => setViewing(null)} onReview={review} onAddNote={addNote} />}</AnimatePresence>
     </div>
   );
 };
 
-const ReportViewModal = ({ report, onClose, onReview, onRefresh }) => {
-  const [note, setNote] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [saving, setSaving] = useState(false);
-  if (!report) return null;
-
-  const addNote = async () => {
-    if (!note.trim()) return;
-    setSaving(true);
-    try {
-      await api.post(`/reports/${report._id}/note`, { content: note.trim() });
-      toast.success('Note added'); setNote(''); onRefresh(); onClose();
-    } catch { toast.error('Failed'); }
-    finally { setSaving(false); }
-  };
-
+const ReportView = ({ report, onClose, onReview, onAddNote }) => {
+  const [note, setNote] = useState(''); const [fb, setFb] = useState('');
   const userName = report.user ? `${report.user.firstName} ${report.user.lastName}` : 'Unknown';
-
-  return (
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }}
-        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-3xl max-h-[90vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-color)' }}>
-          <div className="min-w-0">
-            <h3 className="font-black truncate" style={{ color: 'var(--text-primary)' }}>{report.title}</h3>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>By {userName} · {report.reportType}</p>
+  return (<>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-50" onClick={onClose} />
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+      className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-3xl max-h-[88vh] rounded-2xl flex flex-col overflow-hidden"
+      style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--shadow-xl)' }}>
+      <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--c-border)' }}>
+        <div className="min-w-0"><h3 className="text-[16px] font-bold truncate" style={{ color: 'var(--c-text-0)' }}>{report.title}</h3>
+          <p className="text-[12px] mt-0.5" style={{ color: 'var(--c-text-3)' }}>By {userName} · {report.reportType}</p></div>
+        <button onClick={onClose} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="prose prose-sm max-w-none" style={{ color: 'var(--c-text-0)' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{report.content}</ReactMarkdown></div>
+        {report.feedback && <div className="p-4 rounded-xl" style={{ background: 'var(--c-warning-bg)', border: '1px solid #fbbf24' }}>
+          <p className="text-[13px] font-semibold mb-1" style={{ color: '#92400e' }}>Admin Feedback</p><p className="text-[13px]" style={{ color: 'var(--c-text-1)' }}>{report.feedback}</p></div>}
+        {report.adminNotes?.length > 0 && <div><p className="section-title mb-2">Admin Notes</p>{report.adminNotes.map((n, i) => (
+          <div key={i} className="p-3 rounded-xl mb-2" style={{ background: 'var(--c-surface-raised)' }}><p className="text-[12px] font-semibold" style={{ color: 'var(--c-accent)' }}>{n.user?.firstName} {n.user?.lastName}</p><p className="text-[13px] mt-1">{n.content}</p></div>
+        ))}</div>}
+        <div><p className="section-title mb-2">Add Note</p><div className="flex gap-2"><input value={note} onChange={e => setNote(e.target.value)} className="input-base" placeholder="Write a note…" />
+          <button onClick={() => { if (note.trim()) { onAddNote(report._id, note.trim()); setNote(''); } }} className="btn-primary flex-shrink-0 px-4"><Send className="w-4 h-4" /></button></div></div>
+        {report.status === 'submitted' && <div className="space-y-3 pt-2">
+          <textarea value={fb} onChange={e => setFb(e.target.value)} rows={2} placeholder="Optional feedback…" className="input-base" style={{ resize: 'vertical' }} />
+          <div className="flex gap-3">
+            <button onClick={() => onReview(report._id, 'approved', fb)} className="flex-1 btn-primary" style={{ background: '#059669' }}><CheckCircle2 className="w-4 h-4" /> Approve</button>
+            <button onClick={() => onReview(report._id, 'rejected', fb)} className="flex-1 btn-danger"><X className="w-4 h-4" /> Reject</button>
           </div>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div className="prose prose-sm max-w-none" style={{ color: 'var(--text-primary)' }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.content}</ReactMarkdown>
-          </div>
-
-          {report.feedback && (
-            <div className="p-4 rounded-xl border" style={{ backgroundColor: 'rgba(217,119,6,.05)', borderColor: 'rgba(217,119,6,.3)' }}>
-              <p className="text-sm font-bold mb-1" style={{ color: '#b45309' }}>Admin Feedback</p>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{report.feedback}</p>
-            </div>
-          )}
-
-          {/* Admin notes */}
-          {report.adminNotes?.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Notes</p>
-              {report.adminNotes.map((n, i) => (
-                <div key={i} className="p-3 rounded-xl mb-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                  <p className="text-xs font-bold" style={{ color: 'var(--brand-accent)' }}>{n.user?.firstName} {n.user?.lastName}</p>
-                  <p className="text-sm mt-1" style={{ color: 'var(--text-primary)' }}>{n.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add note */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Add Note</p>
-            <div className="flex gap-2">
-              <input value={note} onChange={e => setNote(e.target.value)} placeholder="Write a note…"
-                className="flex-1 px-3 py-2.5 rounded-xl border text-sm"
-                style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-              <button onClick={addNote} disabled={saving || !note.trim()} className="px-4 rounded-xl text-sm font-bold text-white disabled:opacity-40"
-                style={{ backgroundColor: 'var(--brand-accent)' }}><Send className="w-4 h-4" /></button>
-            </div>
-          </div>
-
-          {/* Review actions */}
-          {report.status === 'submitted' && (
-            <div className="space-y-3 pt-2">
-              <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={2} placeholder="Optional feedback for the user…"
-                className="w-full px-3 py-2.5 rounded-xl border text-sm resize-none"
-                style={{ backgroundColor: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text-primary)' }} />
-              <div className="flex gap-3">
-                <button onClick={() => onReview(report._id, 'approved', feedback)}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#16a34a' }}>
-                  <CheckCircle2 className="w-4 h-4" /> Approve
-                </button>
-                <button onClick={() => onReview(report._id, 'rejected', feedback)}
-                  className="flex-1 py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#dc2626' }}>
-                  <X className="w-4 h-4" /> Reject
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </>
-  );
+        </div>}
+      </div>
+    </motion.div>
+  </>);
 };
 
 export default Reports;
