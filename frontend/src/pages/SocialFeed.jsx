@@ -202,6 +202,9 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
   const [lightbox, setLightbox] = useState(false);
   const menuRef = useRef();
   const isOwn = post.user?._id?.toString() === (currentUser?._id || currentUser?.id)?.toString();
+  const isAnnouncement = post.isAnnouncement;
+  const authorRole = post.user?.position || '';
+  const isAdminAuthor = ['team-lead', 'executive', 'admin'].includes(post.user?.role);
 
   useEffect(() => {
     const h = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); };
@@ -212,31 +215,51 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl border overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderColor: isAnnouncement ? 'rgba(37,99,235,0.3)' : 'var(--border-color)',
+        borderWidth: isAnnouncement ? '2px' : '1px',
+      }}>
+
+      {/* NEW: Announcement banner */}
+      {isAnnouncement && (
+        <div className="px-5 py-2 flex items-center gap-2"
+          style={{ backgroundColor: 'rgba(37,99,235,0.06)', borderBottom: '1px solid rgba(37,99,235,0.15)' }}>
+          <Megaphone className="w-4 h-4" style={{ color: '#2563eb' }} />
+          <span className="text-xs font-bold" style={{ color: '#2563eb' }}>
+            {post.announcementScope === 'team' ? 'Team Announcement' : 'Organization Announcement'}
+          </span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-5 pb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Avatar user={post.user} size={10} />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0`}
+            style={{ backgroundColor: isAdminAuthor ? '#1e3a5f' : 'var(--brand-primary)', fontSize: 16 }}>
+            {(post.user?.firstName || 'U').charAt(0).toUpperCase()}
+          </div>
           <div className="min-w-0">
-            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{getFullName(post.user)}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{getFullName(post.user)}</p>
+              {/* NEW: Admin role badge */}
+              {isAdminAuthor && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(30,58,95,0.1)', color: '#1e3a5f' }}>
+                  <Shield className="w-2.5 h-2.5" />
+                  {post.user?.role === 'admin' ? 'Admin' : post.user?.role === 'executive' ? 'Exec' : 'Lead'}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
               <span>{moment(post.createdAt).fromNow()}</span>
               {post.edited && <span className="italic">· edited</span>}
-              {post.views > 0 && (
-                <span className="flex items-center gap-0.5">
-                  <Eye className="w-3 h-3" /> {post.views}
-                </span>
-              )}
+              {post.views > 0 && <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.views}</span>}
             </div>
           </div>
         </div>
         <div ref={menuRef} className="relative flex-shrink-0">
-          <button onClick={() => setShowMenu(p => !p)}
-            className="p-1.5 rounded-xl transition-colors"
-            style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+          <button onClick={() => setShowMenu(p => !p)} className="p-1.5 rounded-xl" style={{ color: 'var(--text-muted)' }}>
             <MoreHorizontal className="w-5 h-5" />
           </button>
           <AnimatePresence>
@@ -257,17 +280,11 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
                 {isOwn && <>
                   <div className="h-px mx-3" style={{ backgroundColor: 'var(--border-color)' }} />
                   <button onClick={() => { onEdit(post); setShowMenu(false); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors"
-                    style={{ color: 'var(--text-secondary)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <Edit2 className="w-4 h-4" /> Edit post
                   </button>
                   <button onClick={() => { onDelete(post._id); setShowMenu(false); }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors"
-                    style={{ color: '#dc2626' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(220,38,38,.06)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm" style={{ color: '#dc2626' }}>
                     <Trash2 className="w-4 h-4" /> Delete post
                   </button>
                 </>}
@@ -279,7 +296,8 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
 
       {/* Content */}
       {post.content && (
-        <p className="px-5 pb-4 text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
+        <p className="px-5 pb-4 text-sm leading-relaxed whitespace-pre-wrap"
+          style={{ color: 'var(--text-primary)', fontWeight: isAnnouncement ? 500 : 400 }}>
           {post.content}
         </p>
       )}
@@ -290,41 +308,30 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
           {post.contentType === 'image' && (
             <>
               <img src={post.fileUrl} alt="Post media" loading="lazy"
-                className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95"
                 onClick={() => setLightbox(true)} />
               <AnimatePresence>
                 {lightbox && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                    style={{ backgroundColor: 'rgba(0,0,0,.9)' }}
-                    onClick={() => setLightbox(false)}>
+                    style={{ backgroundColor: 'rgba(0,0,0,.9)' }} onClick={() => setLightbox(false)}>
                     <img src={post.fileUrl} alt="Full" className="max-w-full max-h-full rounded-xl object-contain" />
-                    <button className="absolute top-4 right-4 p-2 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,.15)', color: '#fff' }}>
-                      <X className="w-5 h-5" />
-                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </>
           )}
-          {post.contentType === 'video' && (
-            <video src={post.fileUrl} controls className="w-full max-h-96 bg-black" />
-          )}
+          {post.contentType === 'video' && <video src={post.fileUrl} controls className="w-full max-h-96 bg-black" />}
           {post.contentType === 'application' && (
             <div className="mx-5 mb-4 flex items-center gap-3 p-4 rounded-xl border"
               style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'var(--border-color)' }}>
               <FileText className="w-8 h-8 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                  Document attached
-                </p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Click to view</p>
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>Document attached</p>
               </div>
               <a href={post.fileUrl} target="_blank" rel="noreferrer"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white hover:opacity-90"
-                style={{ backgroundColor: 'var(--brand-primary)' }}>
-                Open
-              </a>
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+                style={{ backgroundColor: 'var(--brand-primary)' }}>Open</a>
             </div>
           )}
         </div>
@@ -348,13 +355,12 @@ const PostCard = ({ post, currentUser, onReact, onEdit, onDelete, onBookmark, on
       <div className="flex items-center gap-2 px-4 py-3">
         <ReactionBar post={post} onReact={(emoji) => onReact(post._id, emoji)} />
         <button onClick={() => setShowComments(p => !p)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold"
           style={{ backgroundColor: showComments ? 'var(--brand-light)' : 'var(--bg-subtle)', color: showComments ? 'var(--brand-primary)' : 'var(--text-secondary)' }}>
-          <MessageCircle className="w-4 h-4" />
-          Comment
+          <MessageCircle className="w-4 h-4" /> Comment
         </button>
         <button onClick={() => onBookmark(post._id)}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold"
           style={{ backgroundColor: post.isBookmarked ? 'var(--brand-light)' : 'var(--bg-subtle)', color: post.isBookmarked ? 'var(--brand-primary)' : 'var(--text-secondary)' }}>
           {post.isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
         </button>

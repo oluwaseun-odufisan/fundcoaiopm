@@ -1,81 +1,68 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
-import AppLayout       from './components/layout/AppLayout'
-import LoginPage       from './pages/LoginPage'
-import DashboardPage   from './pages/DashboardPage'
-import TasksPage       from './pages/TasksPage'
-import GoalsPage       from './pages/GoalsPage'
-import ReportsPage     from './pages/ReportsPage'
-import PerformancePage from './pages/PerformancePage'
-import UsersPage       from './pages/UsersPage'
-import LearningPage    from './pages/LearningPage'
-import PostsPage       from './pages/PostsPage'
-import RemindersPage   from './pages/RemindersPage'
-import RoomsPage       from './pages/RoomsPage'
-import AdminsPage      from './pages/AdminsPage'
-import SettingsPage    from './pages/SettingsPage'
-import ProjectsPage    from './pages/ProjectsPage'
-import MyTeamPage      from './pages/MyTeamPage'
-import { Spinner }     from './components/common'
+import React, { lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import Layout from './components/Layout.jsx';
+import Login from './pages/Login.jsx';
 
-function Guard({ children, roles }) {
-  const { admin, loading } = useAuth()
-  if (loading) return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg-app)' }}>
-      <Spinner size={28}/>
-    </div>
-  )
-  if (!admin) return <Navigate to="/login" replace/>
-  if (roles && !roles.includes(admin.role)) return <Navigate to="/" replace/>
-  return children
-}
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const Tasks = lazy(() => import('./pages/Tasks.jsx'));
+const Goals = lazy(() => import('./pages/Goals.jsx'));
+const Reports = lazy(() => import('./pages/Reports.jsx'));
+const Performance = lazy(() => import('./pages/Performance.jsx'));
+const Users = lazy(() => import('./pages/Users.jsx'));
+const MyTeam = lazy(() => import('./pages/MyTeam.jsx'));
+const Projects = lazy(() => import('./pages/Projects.jsx'));
+const Social = lazy(() => import('./pages/Social.jsx'));
+const Training = lazy(() => import('./pages/Training.jsx'));
+const Reminders = lazy(() => import('./pages/Reminders.jsx'));
+const Meetings = lazy(() => import('./pages/Meetings.jsx'));
 
-function AppRoutes() {
-  const { admin } = useAuth()
+const Loader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="w-8 h-8 rounded-full border-3 border-t-transparent animate-spin" style={{ borderColor: 'var(--brand-accent)', borderTopColor: 'transparent' }} />
+  </div>
+);
+
+const ProtectedRoute = () => {
+  const { user, loading } = useAuth();
+  if (loading) return <Loader />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Layout><Outlet /></Layout>;
+};
+
+const AppRoutes = () => {
+  const { user, loading } = useAuth();
+
   return (
-    <Routes>
-      <Route path="/login" element={admin?<Navigate to="/" replace/>:<LoginPage/>}/>
-      <Route element={<Guard><AppLayout/></Guard>}>
-        <Route index              element={<DashboardPage/>}/>
-        <Route path="tasks"       element={<TasksPage/>}/>
-        <Route path="goals"       element={<GoalsPage/>}/>
-        <Route path="reports"     element={<ReportsPage/>}/>
-        <Route path="performance" element={<PerformancePage/>}/>
-        <Route path="projects"    element={<ProjectsPage/>}/>
-        <Route path="my-team"     element={<MyTeamPage/>}/>
-        <Route path="users"       element={<UsersPage/>}/>
-        <Route path="learning"    element={<LearningPage/>}/>
-        <Route path="posts"       element={<PostsPage/>}/>
-        <Route path="reminders"   element={<RemindersPage/>}/>
-        <Route path="rooms"       element={<RoomsPage/>}/>
-        <Route path="admins"      element={<Guard roles={['super-admin']}><AdminsPage/></Guard>}/>
-        <Route path="settings"    element={<SettingsPage/>}/>
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace/>}/>
-    </Routes>
-  )
-}
+    <>
+      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { fontSize: 14, borderRadius: 12 } }} />
+      <Routes>
+        <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Suspense fallback={<Loader />}><Dashboard /></Suspense>} />
+          <Route path="/tasks" element={<Suspense fallback={<Loader />}><Tasks /></Suspense>} />
+          <Route path="/goals" element={<Suspense fallback={<Loader />}><Goals /></Suspense>} />
+          <Route path="/reports" element={<Suspense fallback={<Loader />}><Reports /></Suspense>} />
+          <Route path="/performance" element={<Suspense fallback={<Loader />}><Performance /></Suspense>} />
+          <Route path="/users" element={<Suspense fallback={<Loader />}><Users /></Suspense>} />
+          <Route path="/my-team" element={<Suspense fallback={<Loader />}><MyTeam /></Suspense>} />
+          <Route path="/projects" element={<Suspense fallback={<Loader />}><Projects /></Suspense>} />
+          <Route path="/social" element={<Suspense fallback={<Loader />}><Social /></Suspense>} />
+          <Route path="/training" element={<Suspense fallback={<Loader />}><Training /></Suspense>} />
+          <Route path="/reminders" element={<Suspense fallback={<Loader />}><Reminders /></Suspense>} />
+          <Route path="/meetings" element={<Suspense fallback={<Loader />}><Meetings /></Suspense>} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+};
 
-export default function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes/>
-          <Toaster position="top-right" toastOptions={{
-            duration:3500,
-            style:{
-              background:'var(--bg-surface)', color:'var(--text-primary)',
-              border:'1px solid var(--border)', borderRadius:'var(--radius-md)',
-              fontSize:'13px', fontFamily:'inherit', boxShadow:'var(--shadow)',
-            },
-            success:{ iconTheme:{ primary:'var(--success)', secondary:'#fff' } },
-            error:  { iconTheme:{ primary:'var(--danger)',  secondary:'#fff' } },
-          }}/>
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
-  )
-}
+const App = () => (
+  <AuthProvider>
+    <AppRoutes />
+  </AuthProvider>
+);
+
+export default App;

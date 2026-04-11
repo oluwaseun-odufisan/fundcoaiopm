@@ -1,24 +1,16 @@
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove, isExecutiveOrAbove } from '../middleware/rbac.js';
+import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
 import {
-    getLeaderboard,
-    getUserPerformance,
-    getPerformanceOverview,
-    awardBonus,
-    getTopPerformers,
+  getLeaderboard, getUserDetails, awardBonus, getDashboardAnalytics,
 } from '../controllers/performanceController.js';
 
-const performanceRouter = express.Router();
-performanceRouter.use(adminAuthMiddleware);
+const router = express.Router();
+router.use(authMiddleware, adminOnly, teamFilter);
 
-// Read: all roles
-performanceRouter.get('/leaderboard',          isTeamLeadOrAbove, getLeaderboard);
-performanceRouter.get('/overview',             isTeamLeadOrAbove, getPerformanceOverview);
-performanceRouter.get('/top-performers',       isTeamLeadOrAbove, getTopPerformers);
-performanceRouter.get('/user/:userId',         isTeamLeadOrAbove, getUserPerformance);
+router.get('/leaderboard', getLeaderboard);
+router.get('/analytics', getDashboardAnalytics);
+router.get('/user/:userId/details', getUserDetails);
+router.post('/award', awardBonus);
 
-// Award bonus: executive and above only
-performanceRouter.post('/award-bonus',         isExecutiveOrAbove, awardBonus);
-
-export default performanceRouter;
+export default router;

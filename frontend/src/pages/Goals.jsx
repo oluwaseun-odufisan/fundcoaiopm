@@ -300,29 +300,26 @@ const GoalDetailModal = ({ goal, onClose, onUpdate, onDelete, isLoading, tasks =
   const pct  = calcProgress(localSubGoals);
   const done = pct === 100;
   const tc   = TYPE_CONFIG[localGoal.type] || TYPE_CONFIG.personal;
+  const hasAdminComments = goal.adminComments?.length > 0;
 
-  // Reset local sub-goals when goal changes
   useEffect(() => {
     setLocalGoal({ ...goal });
     setLocalSubGoals(goal.subGoals || []);
     setHasChanges(false);
   }, [goal]);
 
-  // Check for changes
   useEffect(() => {
     const originalCompleted = goal.subGoals?.map(s => s.completed) || [];
     const currentCompleted = localSubGoals.map(s => s.completed);
     setHasChanges(JSON.stringify(originalCompleted) !== JSON.stringify(currentCompleted));
   }, [localSubGoals, goal.subGoals]);
 
-  // Toggle sub-goal locally (no auto-save)
   const toggleSubGoal = (index) => {
     const updated = [...localSubGoals];
     updated[index] = { ...updated[index], completed: !updated[index].completed };
     setLocalSubGoals(updated);
   };
 
-  // Save all changes at once
   const handleBatchUpdate = async () => {
     if (!hasChanges) return;
     const updatedGoal = { ...localGoal, subGoals: localSubGoals };
@@ -346,9 +343,7 @@ const GoalDetailModal = ({ goal, onClose, onUpdate, onDelete, isLoading, tasks =
       <div className="flex gap-3">
         <button onClick={() => setConfirmDelete(false)}
           className="flex-1 py-3 rounded-xl border text-sm font-semibold"
-          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
-          Cancel
-        </button>
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>Cancel</button>
         <button onClick={onDelete} disabled={isLoading}
           className="flex-1 py-3 rounded-xl text-sm font-bold text-white"
           style={{ backgroundColor: '#dc2626' }}>
@@ -402,7 +397,7 @@ const GoalDetailModal = ({ goal, onClose, onUpdate, onDelete, isLoading, tasks =
         </div>
       </div>
 
-      {/* Sub-goals – now batch editable */}
+      {/* Sub-goals */}
       {localSubGoals?.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -426,12 +421,43 @@ const GoalDetailModal = ({ goal, onClose, onUpdate, onDelete, isLoading, tasks =
         </div>
       )}
 
-      {/* Update button appears only when there are changes */}
+      {/* NEW: Admin Comments section */}
+      {hasAdminComments && (
+        <div className="pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5"
+            style={{ color: '#7c3aed' }}>
+            📋 Admin Feedback ({goal.adminComments.length})
+          </p>
+          <div className="space-y-2">
+            {goal.adminComments.map((c, i) => (
+              <div key={i} className="rounded-xl p-3"
+                style={{ backgroundColor: 'rgba(147,51,234,0.04)', border: '1px solid rgba(147,51,234,0.15)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[9px] font-bold"
+                    style={{ backgroundColor: '#7c3aed' }}>
+                    {(c.user?.firstName || 'A').charAt(0)}
+                  </div>
+                  <p className="text-xs font-bold" style={{ color: '#7c3aed' }}>
+                    {c.user?.firstName || 'Admin'} {c.user?.lastName || ''}
+                    {c.user?.role && c.user.role !== 'standard' && (
+                      <span className="ml-1 text-[10px] font-normal opacity-70">({c.user.role})</span>
+                    )}
+                  </p>
+                  <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>
+                    {c.createdAt ? moment(c.createdAt).fromNow() : ''}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{c.content}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Update button */}
       {hasChanges && (
-        <button
-          onClick={handleBatchUpdate}
-          disabled={isLoading}
-          className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+        <button onClick={handleBatchUpdate} disabled={isLoading}
+          className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90"
           style={{ backgroundColor: 'var(--brand-primary)' }}>
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Progress'}
         </button>
@@ -440,17 +466,13 @@ const GoalDetailModal = ({ goal, onClose, onUpdate, onDelete, isLoading, tasks =
       {/* Actions */}
       <div className="flex gap-3 pt-1">
         <button onClick={() => setEditing(true)}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold transition-colors"
-          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-semibold"
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
           <Edit2 className="w-4 h-4" /> Full Edit
         </button>
         <button onClick={() => setConfirmDelete(true)}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-          style={{ backgroundColor: 'rgba(220,38,38,.08)', color: '#dc2626' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(220,38,38,.15)'}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(220,38,38,.08)'}>
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
+          style={{ backgroundColor: 'rgba(220,38,38,.08)', color: '#dc2626' }}>
           <Trash2 className="w-4 h-4" /> Delete
         </button>
       </div>

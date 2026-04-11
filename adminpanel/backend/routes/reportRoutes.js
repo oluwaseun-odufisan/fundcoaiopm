@@ -1,26 +1,17 @@
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove, isExecutiveOrAbove } from '../middleware/rbac.js';
+import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
 import {
-    getAllReports,
-    getReportById,
-    reviewReport,
-    getPendingReports,
-    getReportStats,
-    exportReports,
+  getAllReports, getReportById, reviewReport, addReportNote, getReportStats,
 } from '../controllers/reportController.js';
 
-const reportRouter = express.Router();
-reportRouter.use(adminAuthMiddleware);
+const router = express.Router();
+router.use(authMiddleware, adminOnly, teamFilter);
 
-// All roles can read reports within their scope
-reportRouter.get ('/',                isTeamLeadOrAbove, getAllReports);
-reportRouter.get ('/stats',           isTeamLeadOrAbove, getReportStats);
-reportRouter.get ('/pending',         isTeamLeadOrAbove, getPendingReports);
-reportRouter.get ('/export',          isExecutiveOrAbove, exportReports);
-reportRouter.get ('/:id',             isTeamLeadOrAbove, getReportById);
+router.get('/', getAllReports);
+router.get('/stats', getReportStats);
+router.get('/:id', getReportById);
+router.post('/:id/review', reviewReport);
+router.post('/:id/note', addReportNote);
 
-// Team-leads and above can approve/reject reports in their scope
-reportRouter.post('/:id/review',      isTeamLeadOrAbove, reviewReport);
-
-export default reportRouter;
+export default router;

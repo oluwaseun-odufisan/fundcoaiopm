@@ -11,6 +11,7 @@ import LeaderboardTable    from '../components/LeaderboardTable';
 import UserPerformanceCard from '../components/UserPerformanceCard';
 import BonusAwardModal     from '../components/BonusAwardModal';
 import UserDetailModal     from '../components/UserDetailModal';
+import BonusHistorySection from '../components/BonusHistorySection';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -158,25 +159,49 @@ const PerformanceDashboard = () => {
   const [detailData,           setDetailData]           = useState(null);
   const [showDetailModal,      setShowDetailModal]      = useState(false);
   const [showPointsCalc,       setShowPointsCalc]       = useState(false);
+  const [myBonusHistory, setMyBonusHistory] = useState([]);
 
   const isAdmin = user?.role === 'admin';
 
   const fetchData = async () => {
+    const currentUserId = user?._id || user?.id;
+
+    // ← SAFEGUARD: prevent the "undefined" crash
+    if (!currentUserId) {
+      console.warn('⚠️ User ID not ready yet – skipping fetch');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const [lbRes, myRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/performance/leaderboard`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
-        axios.get(`${API_BASE}/api/performance/me`,          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }),
+      const [lbRes, myRes, detailsRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/performance/leaderboard`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }),
+        axios.get(`${API_BASE}/api/performance/me`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }),
+        axios.get(`${API_BASE}/api/performance/user/${currentUserId}/details`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }),
       ]);
+
       setLeaderboardData(lbRes.data.leaderboard);
       setMyPerformance(myRes.data.performance);
+      setMyBonusHistory(detailsRes.data.bonusHistory || []);   // ← this is what we need
       setAllUsers(lbRes.data.allUsers || []);
     } catch (err) {
+      console.error('Fetch data error:', err);
       if (err.response?.status === 401) onLogout?.();
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, [user?._id || user?.id]);
 
   const fetchUserDetails = async (userId) => {
     try {
@@ -304,6 +329,7 @@ const PerformanceDashboard = () => {
             user={{ ...user, fullName: getFullName(user) }}
             onClick={() => handleOpenDetails({ _id: user.id || user._id, ...user })}
           />
+          <BonusHistorySection bonusHistory={myBonusHistory} />
         </div>
       )}
 

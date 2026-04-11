@@ -1,24 +1,13 @@
-// routes/reminderRoutes.js
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove } from '../middleware/rbac.js';
-import {
-    getAllReminders,
-    getUserReminders,
-    createReminderForUser,
-    bulkCreateReminders,
-    deleteReminder,
-    getReminderStats,
-} from '../controllers/reminderController.js';
+import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
+import { getAllReminders, createReminderForUser, deleteReminder } from '../controllers/reminderController.js';
 
-const reminderRouter = express.Router();
-reminderRouter.use(adminAuthMiddleware);
+const router = express.Router();
+router.use(authMiddleware, adminOnly, teamFilter);
 
-reminderRouter.get ('/',                    isTeamLeadOrAbove, getAllReminders);
-reminderRouter.get ('/stats',               isTeamLeadOrAbove, getReminderStats);
-reminderRouter.get ('/user/:userId',         isTeamLeadOrAbove, getUserReminders);
-reminderRouter.post('/',                    isTeamLeadOrAbove, createReminderForUser);
-reminderRouter.post('/bulk',               isTeamLeadOrAbove, bulkCreateReminders);
-reminderRouter.delete('/:id',               isSuperAdmin,       deleteReminder);
+router.get('/', getAllReminders);
+router.post('/', createReminderForUser);
+router.delete('/:id', deleteReminder);
 
-export default reminderRouter;
+export default router;

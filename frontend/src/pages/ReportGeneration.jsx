@@ -549,11 +549,11 @@ const ReportHistory = ({ user, onEditReport }) => {
   });
 
   const STAT_FILTER = [
-    { key: '',          label: 'All' },
-    { key: 'draft',     label: 'Draft' },
+    { key: '', label: 'All' },
+    { key: 'draft', label: 'Draft' },
     { key: 'submitted', label: 'Submitted' },
-    { key: 'approved',  label: 'Approved' },
-    { key: 'rejected',  label: 'Rejected' },
+    { key: 'approved', label: 'Approved' },
+    { key: 'rejected', label: 'Rejected' },
   ];
 
   return (
@@ -583,9 +583,7 @@ const ReportHistory = ({ user, onEditReport }) => {
         </div>
         <button onClick={fetch}
           className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold"
-          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}>
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}>
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
@@ -606,12 +604,16 @@ const ReportHistory = ({ user, onEditReport }) => {
         <div className="space-y-3">
           {filtered.map(report => {
             const st = STATUS_STYLES[report.status] || STATUS_STYLES.draft;
+            const hasAdminNotes = report.adminNotes?.length > 0;
+            const reviewerName = report.reviewedBy
+              ? `${report.reviewedBy.firstName || ''} ${report.reviewedBy.lastName || ''}`.trim()
+              : null;
+
             return (
               <motion.div key={report._id} whileHover={{ y: -1 }}
                 className="rounded-xl border p-4 transition-all"
                 style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
                 <div className="flex items-start justify-between gap-4 flex-wrap">
-                  {/* Info */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{report.title}</p>
@@ -628,37 +630,48 @@ const ReportHistory = ({ user, onEditReport }) => {
                         {report.status.toUpperCase()}
                       </span>
                     </div>
+
+                    {/* NEW: Show reviewer info */}
+                    {reviewerName && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        Reviewed by <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{reviewerName}</span>
+                      </p>
+                    )}
+
+                    {/* NEW: Show feedback indicator */}
                     {report.feedback && (
-                      <p className="text-xs mt-1.5 italic" style={{ color: '#d97706' }}>
+                      <p className="text-xs mt-1 italic" style={{ color: '#d97706' }}>
                         💬 Admin feedback available
                       </p>
                     )}
+
+                    {/* NEW: Show admin notes count */}
+                    {hasAdminNotes && (
+                      <p className="text-xs mt-1" style={{ color: '#7c3aed' }}>
+                        📝 {report.adminNotes.length} admin note{report.adminNotes.length !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
+
                   {/* Actions */}
                   <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
                     <button onClick={() => setViewing(report)}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                      style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-subtle)'}>
+                      style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
                       <Eye className="w-3.5 h-3.5" /> View
                     </button>
 
                     {report.status === 'draft' && (
                       <button onClick={() => onEditReport(report)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                        style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-subtle)'}>
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
                         <Edit2 className="w-3.5 h-3.5" /> Edit
                       </button>
                     )}
 
                     <button onClick={() => doExport(report)} disabled={exporting === report._id}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                      style={{ backgroundColor: 'rgba(22,163,74,.1)', color: '#16a34a' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(22,163,74,.2)'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(22,163,74,.1)'}>
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(22,163,74,.1)', color: '#16a34a' }}>
                       {exporting === report._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                       PDF
                     </button>
@@ -666,15 +679,12 @@ const ReportHistory = ({ user, onEditReport }) => {
                     {report.status === 'draft' && (
                       <>
                         <button onClick={() => submit(report._id)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white hover:opacity-90 transition-opacity"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
                           style={{ backgroundColor: 'var(--brand-primary)' }}>
                           <Send className="w-3.5 h-3.5" /> Submit
                         </button>
                         <button onClick={() => setDeleteId(report._id)}
-                          className="p-1.5 rounded-lg transition-colors"
-                          style={{ color: '#dc2626' }}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(220,38,38,.08)'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                          className="p-1.5 rounded-lg" style={{ color: '#dc2626' }}>
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </>
@@ -687,7 +697,7 @@ const ReportHistory = ({ user, onEditReport }) => {
         </div>
       )}
 
-      {/* View modal */}
+      {/* View modal — UPDATED: shows admin notes and feedback */}
       <AnimatePresence>
         {viewing && (
           <>
@@ -705,6 +715,9 @@ const ReportHistory = ({ user, onEditReport }) => {
                   <h3 className="font-black truncate" style={{ color:'var(--text-primary)' }}>{viewing.title}</h3>
                   <p className="text-xs mt-0.5" style={{ color:'var(--text-muted)' }}>
                     {viewing.reportType} · {new Date(viewing.createdAt).toLocaleDateString()}
+                    {viewing.reviewedBy && (
+                      <span> · Reviewed by {viewing.reviewedBy.firstName} {viewing.reviewedBy.lastName}</span>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -714,23 +727,73 @@ const ReportHistory = ({ user, onEditReport }) => {
                     <Download className="w-3.5 h-3.5" /> PDF
                   </button>
                   <button onClick={() => setViewing(null)}
-                    className="p-1.5 rounded-lg" style={{ color:'var(--text-muted)' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>
+                    className="p-1.5 rounded-lg" style={{ color:'var(--text-muted)' }}>
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
+
               {/* Content */}
               <div className="flex-1 overflow-y-auto px-6 py-5">
+                {/* Report status banner */}
+                {viewing.status !== 'draft' && (
+                  <div className="mb-4 px-4 py-3 rounded-xl border flex items-center gap-3"
+                    style={{
+                      backgroundColor: viewing.status === 'approved' ? 'rgba(22,163,74,.06)' : viewing.status === 'rejected' ? 'rgba(220,38,38,.06)' : 'rgba(217,119,6,.06)',
+                      borderColor: viewing.status === 'approved' ? 'rgba(22,163,74,.3)' : viewing.status === 'rejected' ? 'rgba(220,38,38,.3)' : 'rgba(217,119,6,.3)',
+                    }}>
+                    <span className="text-sm font-bold capitalize"
+                      style={{ color: viewing.status === 'approved' ? '#16a34a' : viewing.status === 'rejected' ? '#dc2626' : '#d97706' }}>
+                      {viewing.status === 'approved' ? '✅ Approved' : viewing.status === 'rejected' ? '❌ Rejected' : '⏳ ' + viewing.status}
+                    </span>
+                  </div>
+                )}
+
                 <div className="prose prose-sm max-w-none" style={{ color:'var(--text-primary)' }}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewing.content}</ReactMarkdown>
                 </div>
+
+                {/* Admin feedback */}
                 {viewing.feedback && (
                   <div className="mt-6 p-4 rounded-xl border"
                     style={{ backgroundColor:'rgba(245,158,11,.06)', borderColor:'rgba(245,158,11,.3)' }}>
                     <p className="text-sm font-bold mb-2" style={{ color:'#b45309' }}>💬 Admin Feedback</p>
                     <p className="text-sm whitespace-pre-wrap" style={{ color:'var(--text-secondary)' }}>{viewing.feedback}</p>
+                  </div>
+                )}
+
+                {/* NEW: Admin Notes section */}
+                {viewing.adminNotes?.length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-xs font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5"
+                      style={{ color: '#7c3aed' }}>
+                      📝 Admin Notes ({viewing.adminNotes.length})
+                    </p>
+                    <div className="space-y-3">
+                      {viewing.adminNotes.map((note, i) => (
+                        <div key={i} className="p-4 rounded-xl border"
+                          style={{ backgroundColor: 'rgba(147,51,234,0.04)', borderColor: 'rgba(147,51,234,0.2)' }}>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-bold"
+                              style={{ backgroundColor: '#7c3aed' }}>
+                              {(note.user?.firstName || 'A').charAt(0)}
+                            </div>
+                            <p className="text-xs font-bold" style={{ color: '#7c3aed' }}>
+                              {note.user?.firstName || 'Admin'} {note.user?.lastName || ''}
+                              {note.user?.role && note.user.role !== 'standard' && (
+                                <span className="ml-1 text-[10px] font-normal opacity-70">({note.user.role})</span>
+                              )}
+                            </p>
+                            <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>
+                              {note.createdAt ? new Date(note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
+                            {note.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -755,14 +818,10 @@ const ReportHistory = ({ user, onEditReport }) => {
               <div className="flex gap-3">
                 <button onClick={() => setDeleteId(null)}
                   className="flex-1 py-2.5 rounded-xl border text-sm font-medium"
-                  style={{ borderColor:'var(--border-color)', color:'var(--text-secondary)' }}>
-                  Cancel
-                </button>
+                  style={{ borderColor:'var(--border-color)', color:'var(--text-secondary)' }}>Cancel</button>
                 <button onClick={doDelete}
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
-                  style={{ backgroundColor:'#dc2626' }}>
-                  Delete
-                </button>
+                  style={{ backgroundColor:'#dc2626' }}>Delete</button>
               </div>
             </motion.div>
           </>

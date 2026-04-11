@@ -1,46 +1,22 @@
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove, isExecutiveOrAbove } from '../middleware/rbac.js';
+import { authMiddleware, adminOnly, superAdminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
 import {
-    getAllTasks,
-    getTaskById,
-    createTask,
-    updateTask,
-    reviewTask,
-    reassignTask,
-    deleteTask,
-    bulkDeleteTasks,
-    getTaskReport,
-    getPendingApprovals,
+  getAllTasks, getTaskById, createTaskForUser, updateTask, deleteTask,
+  reviewTask, addTaskComment, bulkAction, getTaskStats,
 } from '../controllers/taskController.js';
 
 const router = express.Router();
+router.use(authMiddleware, adminOnly, teamFilter);
 
-// All routes require authentication
-router.use(adminAuthMiddleware);
-
-// ── READ (all admin roles) ────────────────────────────────────────────────────
-router.get('/',                     isTeamLeadOrAbove, getAllTasks);
-router.get('/report',               isTeamLeadOrAbove, getTaskReport);
-router.get('/pending-approvals',    isTeamLeadOrAbove, getPendingApprovals);
-router.get('/:id',                  isTeamLeadOrAbove, getTaskById);
-
-// ── CREATE (team-lead and above) ──────────────────────────────────────────────
-router.post('/', isTeamLeadOrAbove, createTask);
-
-// ── UPDATE (team-lead and above — executive is blocked inside handler) ─────────
-router.put('/:id', isTeamLeadOrAbove, updateTask);
-
-// ── REVIEW SUBMISSION (team-lead and above — executive is blocked inside) ──────
-router.post('/:id/review', isTeamLeadOrAbove, reviewTask);
-
-// ── REASSIGN (team-lead and above — executive is blocked inside) ───────────────
-router.put('/:id/reassign', isTeamLeadOrAbove, reassignTask);
-
-// ── DELETE (team-lead and above — executive is blocked inside) ─────────────────
-router.delete('/:id', isTeamLeadOrAbove, deleteTask);
-
-// ── BULK DELETE (super-admin only) ────────────────────────────────────────────
-router.delete('/bulk', isSuperAdmin, bulkDeleteTasks);
+router.get('/', getAllTasks);
+router.get('/stats', getTaskStats);
+router.get('/:id', getTaskById);
+router.post('/', createTaskForUser);
+router.put('/:id', updateTask);
+router.delete('/:id', deleteTask);
+router.post('/:id/review', reviewTask);
+router.post('/:id/comment', addTaskComment);
+router.post('/bulk', bulkAction);
 
 export default router;

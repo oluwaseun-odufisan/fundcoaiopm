@@ -1,7 +1,4 @@
 // socket/roomSignaling.js
-// WebRTC Signaling via Socket.IO namespace /room
-// FIX: chat now broadcasts to all including sender (roomNs.to not socket.to)
-// FIX: media state stored correctly for each peer
 import Room from '../models/roomModel.js';
 import User from '../models/userModel.js';
 import jwt from 'jsonwebtoken';

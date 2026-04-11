@@ -1,3 +1,4 @@
+// controllers/userController.js — UPDATED: accepts 'executive' role
 import User from '../models/userModel.js';
 import validator from 'validator';
 import bcrypt from 'bcryptjs';
@@ -5,9 +6,10 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 const TOKEN_EXPIRES = '24h';
-
-// Create JWT token
 const createToken = (userId) => jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRES });
+
+// UPDATED: valid roles now include 'executive'
+const VALID_ROLES = ['standard', 'team-lead', 'executive', 'admin'];
 
 // Register user - DISABLED: Admin creates accounts manually
 export async function registerUser(req, res) {
@@ -17,7 +19,7 @@ export async function registerUser(req, res) {
     });
 }
 
-// Login user - UPDATED response to include new fields
+// Login user
 export async function loginUser(req, res) {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -32,7 +34,6 @@ export async function loginUser(req, res) {
         if (!matched) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
-        // Update lastLogin and lastActive, add login activity log
         const now = new Date();
         user.lastLogin = now;
         user.lastActive = now;
@@ -43,16 +44,11 @@ export async function loginUser(req, res) {
         res.json({
             success: true,
             token,
-            user: { 
-                id: user._id, 
-                firstName: user.firstName,
-                lastName: user.lastName,
-                otherName: user.otherName,
-                fullName: user.fullName,
-                position: user.position,
-                unitSector: user.unitSector,
-                email: user.email, 
-                role: user.role 
+            user: {
+                id: user._id, firstName: user.firstName, lastName: user.lastName,
+                otherName: user.otherName, fullName: user.fullName,
+                position: user.position, unitSector: user.unitSector,
+                email: user.email, role: user.role
             },
         });
     } catch (err) {
@@ -61,7 +57,7 @@ export async function loginUser(req, res) {
     }
 }
 
-// Get current user - UPDATED to return new fields
+// Get current user
 export async function getCurrentUser(req, res) {
     try {
         const user = await User.findById(req.user.id).select('firstName lastName otherName position unitSector email role preferences pushToken fullName');
@@ -75,13 +71,13 @@ export async function getCurrentUser(req, res) {
     }
 }
 
-// Update user profile - UPDATED for all new fields
+// Update user profile
 export async function updateProfile(req, res) {
     const { firstName, lastName, otherName, position, unitSector, email, role } = req.body;
     if (!firstName || !lastName || !email || !validator.isEmail(email)) {
         return res.status(400).json({ success: false, message: 'Valid first name, last name and email required' });
     }
-    if (role && !['standard', 'team-lead', 'admin'].includes(role)) {
+    if (role && !VALID_ROLES.includes(role)) {
         return res.status(400).json({ success: false, message: 'Invalid role' });
     }
     try {
@@ -90,16 +86,13 @@ export async function updateProfile(req, res) {
             return res.status(409).json({ success: false, message: 'Email already in use by another account' });
         }
         const updateData = { firstName, lastName, otherName, position, unitSector, email };
-        if (role) {
-            updateData.role = role;
-        }
+        if (role) updateData.role = role;
+
         const user = await User.findByIdAndUpdate(
-            req.user.id,
-            updateData,
+            req.user.id, updateData,
             { new: true, runValidators: true }
         ).select('firstName lastName otherName position unitSector email role fullName');
 
-        // Log role change if applicable
         if (role && role !== req.user.role) {
             user.activityLogs.push({ action: 'role_change', details: `Role changed to ${role} from IP ${req.ip}` });
             await user.save();
@@ -111,44 +104,22 @@ export async function updateProfile(req, res) {
     }
 }
 
-// Update password - already fully functional (kept unchanged + improved error messaging)
+// Update password
 export async function updatePassword(req, res) {
     const { currentPassword, newPassword } = req.body;
-
     if (!currentPassword || !newPassword || newPassword.length < 8) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Current password and new password (min 8 characters) are required' 
-        });
+        return res.status(400).json({ success: false, message: 'Current password and new password (min 8 characters) are required' });
     }
-
     try {
         const user = await User.findById(req.user.id).select('password');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
         const match = await bcrypt.compare(currentPassword, user.password);
-        if (!match) {
-            return res.status(401).json({ success: false, message: 'Current password is incorrect' });
-        }
-
+        if (!match) return res.status(401).json({ success: false, message: 'Current password is incorrect' });
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        // Atomic update - no more undefined push issue
-        await User.findByIdAndUpdate(
-            req.user.id,
-            {
-                $set: { password: hashedPassword },
-                $push: {
-                    activityLogs: {
-                        action: 'password_change',
-                        details: `Password changed from IP ${req.ip}`
-                    }
-                }
-            }
-        );
-
+        await User.findByIdAndUpdate(req.user.id, {
+            $set: { password: hashedPassword },
+            $push: { activityLogs: { action: 'password_change', details: `Password changed from IP ${req.ip}` } }
+        });
         res.json({ success: true, message: 'Password changed successfully' });
     } catch (err) {
         console.error('Error updating password:', err.message);
@@ -156,17 +127,13 @@ export async function updatePassword(req, res) {
     }
 }
 
-// Update push token (unchanged)
+// Update push token
 export async function updatePushToken(req, res) {
     const { pushToken } = req.body;
-    if (!pushToken) {
-        return res.status(400).json({ success: false, message: 'Push token is required' });
-    }
+    if (!pushToken) return res.status(400).json({ success: false, message: 'Push token is required' });
     try {
         const user = await User.findById(req.user.id);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
         user.pushToken = pushToken;
         user.activityLogs.push({ action: 'push_token_update', details: `Push token updated from IP ${req.ip}` });
         await user.save();

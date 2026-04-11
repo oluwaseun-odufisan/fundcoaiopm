@@ -1,7 +1,6 @@
-// backend/controllers/reportController.js
+// backend/controllers/reportController.js — UPDATED: populates adminNotes
 import Report from '../models/reportModel.js';
 import Task   from '../models/taskModel.js';
-import File   from '../models/fileModel.js';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -9,13 +8,10 @@ const openai = new OpenAI({
   baseURL: 'https://api.x.ai/v1',
 });
 
-// ── Helper: emit via attached io instance (req.io) ────────────────────────────
-// No more hardcoded localhost:4000 — uses the same in-process socket.io server
 const emitEvent = (req, event, data) => {
   try { req.io?.emit(event, data); } catch {}
 };
 
-// ── Helper: call Grok and collect full streaming response ──────────────────────
 const callGrokStream = async ({ systemPrompt, userContent }) => {
   const stream = await openai.chat.completions.create({
     model: 'grok-4',
@@ -36,7 +32,14 @@ const callGrokStream = async ({ systemPrompt, userContent }) => {
 
 const REPORT_SYSTEM = `You are a professional report writer. Write natural, honest, first-person progress reports for employees reporting to their managers. Use clear Markdown formatting with headers, bullet points, and bold text. Be truthful — only use the tasks provided. Do not invent tasks or metrics.`;
 
-// ── Create manual report ───────────────────────────────────────────────────────
+// UPDATED: populate helper for admin fields
+const REPORT_POPULATE = [
+    { path: 'selectedTasks', select: 'title completed dueDate priority' },
+    { path: 'reviewedBy', select: 'firstName lastName email' },
+    { path: 'adminNotes.user', select: 'firstName lastName avatar role' },
+];
+
+// Create manual report
 export const createManualReport = async (req, res) => {
   try {
     const { title, reportType, periodStart, periodEnd, content, selectedTaskIds = [] } = req.body;
@@ -64,7 +67,7 @@ export const createManualReport = async (req, res) => {
   }
 };
 
-// ── AI Generate Report (non-streaming, returns full content) ───────────────────
+// AI Generate Report
 export const generateAIReport = async (req, res) => {
   try {
     const {
@@ -116,7 +119,7 @@ Write a complete ${reportType} progress report in Markdown. Start with an execut
   }
 };
 
-// ── Save AI-generated report ───────────────────────────────────────────────────
+// Save AI-generated report
 export const saveAIReport = async (req, res) => {
   try {
     const { title, reportType, periodStart, periodEnd, content, selectedTaskIds = [] } = req.body;
@@ -143,7 +146,7 @@ export const saveAIReport = async (req, res) => {
   }
 };
 
-// ── Get user's reports ────────────────────────────────────────────────────────
+// Get user's reports — UPDATED: populate adminNotes
 export const getMyReports = async (req, res) => {
   try {
     const { status, type, search, page = 1, limit = 20 } = req.query;
@@ -155,7 +158,7 @@ export const getMyReports = async (req, res) => {
 
     const [reports, total] = await Promise.all([
       Report.find(query)
-        .populate('selectedTasks', 'title completed')
+        .populate(REPORT_POPULATE)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(Number(limit)),
@@ -176,12 +179,11 @@ export const getMyReports = async (req, res) => {
   }
 };
 
-// ── Get single report ─────────────────────────────────────────────────────────
+// Get single report — UPDATED: populate adminNotes
 export const getReportById = async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.id, user: req.user._id })
-      .populate('selectedTasks', 'title completed dueDate priority')
-      .populate('reviewedBy',    'firstName lastName email');
+      .populate(REPORT_POPULATE);
 
     if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
     res.json({ success: true, report });
@@ -190,7 +192,7 @@ export const getReportById = async (req, res) => {
   }
 };
 
-// ── Update report (drafts only) ────────────────────────────────────────────────
+// Update report (drafts only)
 export const updateReport = async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.id, user: req.user._id });
@@ -198,7 +200,6 @@ export const updateReport = async (req, res) => {
     if (report.status !== 'draft')
       return res.status(400).json({ success: false, message: 'Only draft reports can be edited' });
 
-    // Archive current version
     report.versions.push({
       content:          report.content,
       metricsSnapshot:  report.metricsSnapshot,
@@ -221,7 +222,7 @@ export const updateReport = async (req, res) => {
   }
 };
 
-// ── Submit report ─────────────────────────────────────────────────────────────
+// Submit report
 export const submitReport = async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.id, user: req.user._id });
@@ -240,7 +241,7 @@ export const submitReport = async (req, res) => {
   }
 };
 
-// ── Delete report (drafts only) ────────────────────────────────────────────────
+// Delete report (drafts only)
 export const deleteReport = async (req, res) => {
   try {
     const report = await Report.findOne({ _id: req.params.id, user: req.user._id });

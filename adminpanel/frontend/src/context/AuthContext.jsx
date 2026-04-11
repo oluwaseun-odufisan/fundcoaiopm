@@ -1,44 +1,47 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { authService } from '../services/api'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import api from '../utils/api.js';
 
-const AuthContext = createContext(null)
-export const useAuth = () => useContext(AuthContext)
+const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [admin,   setAdmin]   = useState(null)
-  const [loading, setLoading] = useState(true)
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('adminUser')); } catch { return null; }
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken')
-    const user  = localStorage.getItem('adminUser')
-    if (token && user) {
-      try { setAdmin(JSON.parse(user)) } catch {}
-      authService.getMe()
-        .then(({ data }) => setAdmin(data.admin))
-        .catch(() => { localStorage.removeItem('adminToken'); localStorage.removeItem('adminUser'); setAdmin(null) })
-        .finally(() => setLoading(false))
-    } else { setLoading(false) }
-  }, [])
+    const token = localStorage.getItem('adminToken');
+    if (!token) { setLoading(false); return; }
+    api.get('/auth/me')
+      .then(({ data }) => { if (data.success) { setUser(data.user); localStorage.setItem('adminUser', JSON.stringify(data.user)); } })
+      .catch(() => { localStorage.removeItem('adminToken'); localStorage.removeItem('adminUser'); setUser(null); })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const login = (adminData, token) => {
-    localStorage.setItem('adminToken', token)
-    localStorage.setItem('adminUser', JSON.stringify(adminData))
-    setAdmin(adminData)
-  }
+  const login = async (email, password) => {
+    const { data } = await api.post('/auth/login', { email, password });
+    if (data.success) {
+      localStorage.setItem('adminToken', data.token);
+      localStorage.setItem('adminUser', JSON.stringify(data.user));
+      setUser(data.user);
+    }
+    return data;
+  };
 
-  const logout = () => {
-    localStorage.removeItem('adminToken')
-    localStorage.removeItem('adminUser')
-    setAdmin(null)
-  }
+  const logout = useCallback(() => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    setUser(null);
+  }, []);
 
-  const isSuperAdmin = admin?.role === 'super-admin'
-  const isExecutive  = admin?.role === 'executive'  || isSuperAdmin
-  const isTeamLead   = admin?.role === 'team-lead'  || isExecutive
+  const isRole = useCallback((role) => user?.role === role, [user]);
+  const hasRole = useCallback((...roles) => roles.includes(user?.role), [user]);
 
   return (
-    <AuthContext.Provider value={{ admin, loading, login, logout, isSuperAdmin, isExecutive, isTeamLead }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout, loading, isRole, hasRole }}>
       {children}
     </AuthContext.Provider>
-  )
-}
+  );
+};

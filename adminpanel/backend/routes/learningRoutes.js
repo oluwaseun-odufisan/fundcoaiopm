@@ -1,41 +1,22 @@
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove } from '../middleware/rbac.js';
+import { authMiddleware, adminOnly, superAdminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
 import {
-    getAllCourses,
-    getCourseById,
-    createCourse,
-    updateCourse,
-    deleteCourse,
-    upsertModule,
-    deleteModule,
-    assignCourse,
-    getAllProgress,
-    getTrainingStats,
-    getUserTrainingProgress,
+  getCourses, getCourseById, createCourse, updateCourse, deleteCourse,
+  getAllProgress, getTrainingStats, enrollUser,
 } from '../controllers/learningController.js';
 
-const learningRouter = express.Router();
-learningRouter.use(adminAuthMiddleware);
+const router = express.Router();
+router.use(authMiddleware, adminOnly);
 
-// ── COURSES ───────────────────────────────────────────────────────────────────
-learningRouter.get ('/courses',                     isTeamLeadOrAbove, getAllCourses);
-learningRouter.get ('/courses/:id',                 isTeamLeadOrAbove, getCourseById);
-learningRouter.post('/courses',                     isSuperAdmin,       createCourse);
-learningRouter.put ('/courses/:id',                 isSuperAdmin,       updateCourse);
-learningRouter.delete('/courses/:id',               isSuperAdmin,       deleteCourse);
+router.get('/courses', getCourses);
+router.get('/courses/:id', getCourseById);
+router.post('/courses', superAdminOnly, createCourse);
+router.put('/courses/:id', superAdminOnly, updateCourse);
+router.delete('/courses/:id', superAdminOnly, deleteCourse);
 
-// ── MODULES (within a course) ─────────────────────────────────────────────────
-learningRouter.post  ('/courses/:id/modules',           isSuperAdmin, upsertModule);
-learningRouter.put   ('/courses/:id/modules',           isSuperAdmin, upsertModule); // alias for update
-learningRouter.delete('/courses/:id/modules/:moduleId', isSuperAdmin, deleteModule);
+router.get('/progress', teamFilter, getAllProgress);
+router.get('/stats', teamFilter, getTrainingStats);
+router.post('/enroll', enrollUser);
 
-// ── ASSIGNMENT ────────────────────────────────────────────────────────────────
-learningRouter.post('/assign',                      isTeamLeadOrAbove, assignCourse);
-
-// ── PROGRESS & STATS ──────────────────────────────────────────────────────────
-learningRouter.get ('/progress',                    isTeamLeadOrAbove, getAllProgress);
-learningRouter.get ('/progress/user/:userId',       isTeamLeadOrAbove, getUserTrainingProgress);
-learningRouter.get ('/stats',                       isTeamLeadOrAbove, getTrainingStats);
-
-export default learningRouter;
+export default router;

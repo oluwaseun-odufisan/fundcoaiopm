@@ -1,15 +1,13 @@
-// backend/controllers/goalController.js
+// backend/controllers/goalController.js — UPDATED: populates adminComments
 import Goal from '../models/goalModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 
-// ── Missing helper (was causing the error) ───────────────────────────────────
 const updateUserPerformance = async (userId, delta) => {
   if (!delta) return;
   await User.findByIdAndUpdate(userId, { $inc: { points: delta } });
 };
 
-// Helper function to create or update reminder for a goal
 const createOrUpdateGoalReminder = async (goal, userId, io) => {
     if (!goal.endDate) {
         await Reminder.deleteMany({ targetId: goal._id, targetModel: 'Goal', user: userId });
@@ -54,7 +52,6 @@ const createOrUpdateGoalReminder = async (goal, userId, io) => {
     }
 };
 
-// Helper to calculate goal points
 const getGoalPoints = (goal) => {
   const progress = calculateGoalProgress(goal);
   return Math.round(progress / 100 * 50);
@@ -66,7 +63,6 @@ const calculateGoalProgress = (goal) => {
   return (completed / goal.subGoals.length) * 100;
 };
 
-// Helper to update user performance for goals
 const updateUserGoalPerformance = async (userId, oldGoal, newGoal) => {
   const oldPoints = getGoalPoints(oldGoal);
   const newPoints = getGoalPoints(newGoal);
@@ -75,6 +71,11 @@ const updateUserGoalPerformance = async (userId, oldGoal, newGoal) => {
     await updateUserPerformance(userId, delta);
   }
 };
+
+// UPDATED: populate helper for admin comments
+const GOAL_POPULATE = [
+    { path: 'adminComments.user', select: 'firstName lastName avatar role' },
+];
 
 // CREATE A NEW GOAL
 export const createGoal = async (req, res) => {
@@ -104,10 +105,11 @@ export const createGoal = async (req, res) => {
     }
 };
 
-// GET ALL GOALS FOR LOGGED-IN USER
+// GET ALL GOALS — UPDATED: populate adminComments
 export const getGoals = async (req, res) => {
     try {
         const goals = await Goal.find({ owner: req.user._id })
+            .populate(GOAL_POPULATE)
             .sort({ createdAt: -1 })
             .lean();
         res.json({ success: true, goals });
@@ -117,10 +119,11 @@ export const getGoals = async (req, res) => {
     }
 };
 
-// GET SINGLE GOAL BY ID
+// GET SINGLE GOAL — UPDATED: populate adminComments
 export const getGoalById = async (req, res) => {
     try {
-        const goal = await Goal.findOne({ _id: req.params.id, owner: req.user._id });
+        const goal = await Goal.findOne({ _id: req.params.id, owner: req.user._id })
+            .populate(GOAL_POPULATE);
         if (!goal) {
             return res.status(404).json({ success: false, message: 'Goal not found' });
         }
@@ -131,7 +134,7 @@ export const getGoalById = async (req, res) => {
     }
 };
 
-// UPDATE A GOAL BY ID
+// UPDATE A GOAL
 export const updateGoal = async (req, res) => {
     try {
         const oldGoal = await Goal.findById(req.params.id);
@@ -142,7 +145,7 @@ export const updateGoal = async (req, res) => {
             { _id: req.params.id, owner: req.user._id },
             data,
             { new: true, runValidators: true }
-        );
+        ).populate(GOAL_POPULATE);
         if (!updated) {
             return res.status(404).json({ success: false, message: 'Goal not found or not yours' });
         }

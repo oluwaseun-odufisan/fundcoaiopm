@@ -1,34 +1,20 @@
 import express from 'express';
-import adminAuthMiddleware from '../middleware/adminAuth.js';
-import { isSuperAdmin, isTeamLeadOrAbove } from '../middleware/rbac.js';
+import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { teamFilter } from '../middleware/teamFilter.js';
 import {
-    getAllGoals,
-    getGoalById,
-    createGoal,
-    updateGoal,
-    deleteGoal,
-    getGoalReport,
-    assignTeamGoal,
+  getAllGoals, getGoalById, createGoalForUser, updateGoal,
+  deleteGoal, addGoalComment, getGoalStats,
 } from '../controllers/goalController.js';
 
 const router = express.Router();
+router.use(authMiddleware, adminOnly, teamFilter);
 
-// All routes require authentication
-router.use(adminAuthMiddleware);
-
-// ── READ (all admin roles) ────────────────────────────────────────────────────
-router.get('/',        isTeamLeadOrAbove, getAllGoals);
-router.get('/report',  isTeamLeadOrAbove, getGoalReport);
-router.get('/:id',     isTeamLeadOrAbove, getGoalById);
-
-// ── CREATE (team-lead and above) ──────────────────────────────────────────────
-router.post('/',           isTeamLeadOrAbove, createGoal);
-router.post('/assign-team', isTeamLeadOrAbove, assignTeamGoal);
-
-// ── UPDATE (team-lead and above — executive blocked inside handler) ─────────────
-router.put('/:id', isTeamLeadOrAbove, updateGoal);
-
-// ── DELETE (team-lead and above — executive blocked inside handler) ─────────────
-router.delete('/:id', isTeamLeadOrAbove, deleteGoal);
+router.get('/', getAllGoals);
+router.get('/stats', getGoalStats);
+router.get('/:id', getGoalById);
+router.post('/', createGoalForUser);
+router.put('/:id', updateGoal);
+router.delete('/:id', deleteGoal);
+router.post('/:id/comment', addGoalComment);
 
 export default router;

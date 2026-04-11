@@ -1,4 +1,4 @@
-// backend/models/reportModel.js
+// backend/models/reportModel.js — UPDATED: added adminNotes field
 import mongoose from 'mongoose';
 
 const reportSchema = new mongoose.Schema(
@@ -12,7 +12,7 @@ const reportSchema = new mongoose.Schema(
     },
     periodStart: { type: Date, required: true },
     periodEnd:   { type: Date, required: true },
-    content:     { type: String, required: true },  // Markdown / rich text
+    content:     { type: String, required: true },
     metricsSnapshot: {
       totalTasks:        Number,
       completedTasks:    Number,
@@ -32,6 +32,12 @@ const reportSchema = new mongoose.Schema(
     submittedAt: Date,
     reviewedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
     feedback:    String,
+    // NEW: admin notes on reports — visible to both admin and user
+    adminNotes: [{
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
+      content: { type: String, required: true, trim: true, maxlength: 2000 },
+      createdAt: { type: Date, default: Date.now },
+    }],
     versions: [{
       content:          String,
       metricsSnapshot:  Object,

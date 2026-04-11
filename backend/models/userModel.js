@@ -1,6 +1,5 @@
-//userModel.js
+// models/userModel.js — UPDATED: added 'executive' to role enum
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import validator from 'validator';
 
 const userSchema = new mongoose.Schema(
@@ -39,9 +38,10 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // UPDATED: added 'executive' role
         role: {
             type: String,
-            enum: ['standard', 'team-lead', 'admin'],
+            enum: ['standard', 'team-lead', 'executive', 'admin'],
             default: 'standard',
         },
         isActive: {

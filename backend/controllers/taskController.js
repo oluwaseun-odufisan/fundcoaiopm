@@ -1,4 +1,4 @@
-// controllers/taskController.js
+// controllers/taskController.js — UPDATED: populates adminComments and assignedBy
 import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
@@ -50,6 +50,12 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
         io.to(`user:${userId}`).emit('newReminder', reminder);
     }
 };
+
+// UPDATED: populate helper for admin fields
+const TASK_POPULATE = [
+    { path: 'assignedBy', select: 'firstName lastName email' },
+    { path: 'adminComments.user', select: 'firstName lastName avatar role' },
+];
 
 // CREATE TASK
 export const createTask = async (req, res) => {
@@ -118,7 +124,7 @@ export const updateTask = async (req, res) => {
             { _id: req.params.id, owner: req.user._id },
             data,
             { new: true, runValidators: true }
-        );
+        ).populate(TASK_POPULATE);
 
         if (updated.checklist && updated.checklist.length > 0) {
             const allCompleted = updated.checklist.every(item => item.completed);
@@ -138,10 +144,12 @@ export const updateTask = async (req, res) => {
     }
 };
 
-// GET ALL TASKS FOR LOGGED-IN USER
+// GET ALL TASKS FOR LOGGED-IN USER — UPDATED: populate admin fields
 export const getTasks = async (req, res) => {
     try {
-        const tasks = await Task.find({ owner: req.user._id }).sort({ createdAt: -1 });
+        const tasks = await Task.find({ owner: req.user._id })
+            .populate(TASK_POPULATE)
+            .sort({ createdAt: -1 });
         res.json({ success: true, tasks });
     } catch (err) {
         console.error('Error fetching tasks:', err.message);
@@ -149,10 +157,11 @@ export const getTasks = async (req, res) => {
     }
 };
 
-// GET SINGLE TASK BY ID
+// GET SINGLE TASK BY ID — UPDATED: populate admin fields
 export const getTaskById = async (req, res) => {
     try {
-        const task = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+        const task = await Task.findOne({ _id: req.params.id, owner: req.user._id })
+            .populate(TASK_POPULATE);
         if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
         res.json({ success: true, task });
     } catch (err) {

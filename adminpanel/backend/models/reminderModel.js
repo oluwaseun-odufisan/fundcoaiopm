@@ -1,35 +1,42 @@
-// Connects to the same 'Reminder' collection as the user-side backend.
 import mongoose from 'mongoose';
 
 const reminderSchema = new mongoose.Schema(
-    {
-        user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
-        type: {
-            type: String,
-            enum: ['task_due', 'meeting', 'goal_deadline', 'appraisal_submission', 'manager_feedback', 'custom'],
-            required: true,
-        },
-        targetId:    { type: mongoose.Schema.Types.ObjectId },
-        targetModel: { type: String, enum: ['Task', 'Goal', 'Meeting', 'Custom'] },
-        message:     { type: String, required: true },
-        deliveryChannels: {
-            inApp: { type: Boolean, default: true },
-            email: { type: Boolean, default: true },
-            push:  { type: Boolean, default: false },
-        },
-        remindAt:    { type: Date, required: true },
-        status: {
-            type: String,
-            enum: ['pending', 'sent', 'dismissed'],
-            default: 'pending',
-        },
-        snoozeUntil: { type: Date, default: null },
-        createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
-        isUserCreated:{ type: Boolean, default: false },
-        isActive:    { type: Boolean, default: true },
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true, index: true },
+    type: {
+      type: String,
+      enum: ['task_due', 'meeting', 'goal_deadline', 'appraisal_submission', 'manager_feedback', 'custom'],
+      required: true,
     },
-    { timestamps: true }
+    targetId: { type: mongoose.Schema.Types.ObjectId, required: false },
+    targetModel: {
+      type: String,
+      enum: ['Task', 'Meeting', 'Goal', 'Appraisal', 'Feedback', null],
+      required: false,
+    },
+    message: { type: String, trim: true, required: true, minlength: 1, maxlength: 200 },
+    deliveryChannels: {
+      inApp: { type: Boolean, default: true },
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: false },
+    },
+    remindAt: { type: Date, required: true, index: true },
+    status: {
+      type: String,
+      enum: ['pending', 'sent', 'snoozed', 'dismissed'],
+      default: 'pending',
+    },
+    snoozeUntil: { type: Date, default: null },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
+    isUserCreated: { type: Boolean, default: false },
+    repeatInterval: { type: Number, default: null, min: 5, max: 1440 },
+    isActive: { type: Boolean, default: true, index: true },
+    emailOverride: { type: String, trim: true, lowercase: true, default: null },
+  },
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+reminderSchema.index({ user: 1, remindAt: 1, status: 1, isActive: 1 });
 
 const Reminder = mongoose.models.Reminder || mongoose.model('Reminder', reminderSchema);
 export default Reminder;

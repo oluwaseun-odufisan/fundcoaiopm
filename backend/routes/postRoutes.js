@@ -49,12 +49,12 @@ const emitPostEvent = (req, event, data) => {
   try { req.io?.emit(event, data); } catch {}
 };
 
-// ── Create post ───────────────────────────────────────────────────────────────
+// ── CREATE POST (now accepts announcement fields) ─────────────────────────────
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { content, fileUrl, contentType } = req.body;
-    const clean = sanitize(content);
+    const { content, fileUrl, contentType, isAnnouncement, announcementScope } = req.body;
 
+    const clean = sanitize(content);
     if (!clean && !fileUrl) {
       return res.status(400).json({ success: false, message: 'Post must have content or a file' });
     }
@@ -62,12 +62,22 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Content exceeds 2000 characters' });
     }
 
-    const post = new Post({ user: req.user._id, content: clean, fileUrl, contentType });
+    const post = new Post({
+      user: req.user._id,
+      content: clean,
+      fileUrl,
+      contentType,
+      // NEW announcement fields
+      isAnnouncement: isAnnouncement === true,
+      announcementScope: announcementScope || '',
+    });
+
     await post.save();
     await post.populate([POPULATE_USER, POPULATE_COMMENTS_USER]);
 
     const formatted = formatPost(post, req.user._id);
     emitPostEvent(req, 'post:new', formatted);
+
     res.status(201).json({ success: true, post: formatted });
   } catch (err) {
     console.error('Create post error:', err.message);
@@ -154,38 +164,45 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Update post ───────────────────────────────────────────────────────────────
+// ── UPDATE POST (now supports announcement fields) ─────────────────────────────
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id))
+    if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, message: 'Invalid post ID' });
+    }
 
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ success: false, message: 'Post not found' });
-    if (post.user.toString() !== req.user._id.toString())
+    if (post.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
 
-    const { content, fileUrl, contentType } = req.body;
+    const { content, fileUrl, contentType, isAnnouncement, announcementScope } = req.body;
+
     const clean = sanitize(content);
-
-    if (!clean && !fileUrl && !post.fileUrl)
-      return res.status(400).json({ success: false, message: 'Post must have content or a file' });
-
     if (clean !== undefined) post.content = clean;
-    if (fileUrl !== undefined) { post.fileUrl = fileUrl; post.contentType = contentType || ''; }
+    if (fileUrl !== undefined) {
+      post.fileUrl = fileUrl;
+      post.contentType = contentType || '';
+    }
+
+    // NEW announcement fields (only admins should normally set these)
+    if (isAnnouncement !== undefined) post.isAnnouncement = isAnnouncement === true;
+    if (announcementScope !== undefined) post.announcementScope = announcementScope || '';
+
     post.edited = true;
     await post.save();
     await post.populate([POPULATE_USER, POPULATE_COMMENTS_USER]);
 
     const formatted = formatPost(post, req.user._id);
     emitPostEvent(req, 'post:updated', formatted);
+
     res.json({ success: true, post: formatted });
   } catch (err) {
     console.error('Update post error:', err.message);
     res.status(500).json({ success: false, message: 'Failed to update post' });
   }
 });
-
 // ── Delete post ───────────────────────────────────────────────────────────────
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {

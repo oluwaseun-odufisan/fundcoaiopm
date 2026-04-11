@@ -1,4 +1,4 @@
-// backend/models/postModel.js
+// backend/models/postModel.js — UPDATED: added isAnnouncement and announcementScope
 import mongoose from 'mongoose';
 
 const commentSchema = new mongoose.Schema({
@@ -27,10 +27,9 @@ const postSchema = new mongoose.Schema({
     enum: ['image', 'video', 'application', ''],
     default: '',
   },
-  // Reactions: { userId: emojiType }
   reactions: {
     type: Map,
-    of: String,  // userId → emoji key e.g. 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'fire'
+    of: String,
     default: {},
   },
   comments: {
@@ -49,9 +48,18 @@ const postSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // NEW: announcement support from admin panel
+  isAnnouncement: {
+    type: Boolean,
+    default: false,
+  },
+  announcementScope: {
+    type: String,
+    enum: ['all', 'team', ''],
+    default: '',
+  },
 }, { timestamps: true });
 
-// Text index for search
 postSchema.index({ content: 'text' });
 postSchema.index({ createdAt: -1 });
 
