@@ -1,12 +1,12 @@
 //Training.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Award, BookOpen, CheckCircle2, Plus, Search, TrendingUp, Users, X } from 'lucide-react';
 import api from '../utils/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Plus, Search, X, Users, Award, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { EmptyState, LoadingScreen, Modal, PageHeader, Panel, SearchInput, StatCard } from '../components/ui.jsx';
 
-const LVL = { beginner: { c: '#059669', bg: '#ecfdf5' }, intermediate: { c: '#d97706', bg: '#fffbeb' }, expert: { c: '#7c3aed', bg: '#f5f3ff' } };
+const levelColors = { beginner: { c: '#059669', bg: '#ecfdf5' }, intermediate: { c: '#d97706', bg: '#fffbeb' }, expert: { c: '#7c3aed', bg: '#f5f3ff' } };
 
 const Training = () => {
   const { hasRole } = useAuth();
@@ -19,7 +19,11 @@ const Training = () => {
 
   useEffect(() => {
     Promise.all([api.get('/learning/courses'), api.get('/learning/progress'), api.get('/learning/stats')])
-      .then(([c, p, s]) => { setCourses(c.data.courses || []); setProgress(p.data.progress || []); setStats(s.data.stats || {}); })
+      .then(([c, p, s]) => {
+        setCourses(c.data.courses || []);
+        setProgress(p.data.progress || []);
+        setStats(s.data.stats || {});
+      })
       .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
   }, []);
@@ -31,178 +35,84 @@ const Training = () => {
       setShowCreate(false);
       const { data } = await api.get('/learning/courses');
       setCourses(data.courses || []);
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    }
   };
 
-  const filtered = courses.filter(c =>
-    !search || c.title.toLowerCase().includes(search.toLowerCase()) || c.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = courses.filter((course) => !search || course.title.toLowerCase().includes(search.toLowerCase()) || course.description?.toLowerCase().includes(search.toLowerCase()));
 
-  if (loading) return (
-    <div className="flex justify-center py-20">
-      <div className="w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin" style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} />
-    </div>
-  );
+  if (loading) return <LoadingScreen />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>Training</h1>
-          <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>Manage courses and track team progress</p>
-        </div>
-        {hasRole('admin') && (
-          <button onClick={() => setShowCreate(true)} className="btn-primary"><Plus className="w-4 h-4" /> Create Course</button>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div className="page-shell">
+      <PageHeader eyebrow="Learning system" title="Training" description="Manage internal learning experiences, completion rates, certification signal, and rollout velocity." actions={hasRole('admin') ? <button className="btn-primary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Course</button> : null} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
-          { l: 'Courses', v: stats.totalCourses || 0, c: 'var(--c-accent)', icon: BookOpen },
-          { l: 'Enrollments', v: stats.enrolled || 0, c: '#2563eb', icon: Users },
-          { l: 'Completed', v: stats.completed || 0, c: '#059669', icon: CheckCircle2 },
-          { l: 'Certified', v: stats.certified || 0, c: '#7c3aed', icon: Award },
-          { l: 'Avg Progress', v: `${stats.avgProgress || 0}%`, c: '#d97706', icon: TrendingUp },
-        ].map(s => (
-          <div key={s.l} className="card p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${s.c}12` }}>
-              <s.icon className="w-4 h-4" style={{ color: s.c }} />
-            </div>
-            <div>
-              <p className="stat-value text-[18px]" style={{ color: s.c }}>{s.v}</p>
-              <p className="text-[10px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>{s.l}</p>
-            </div>
-          </div>
-        ))}
+          { label: 'Courses', value: stats.totalCourses || 0, icon: BookOpen, tone: 'var(--c-accent)' },
+          { label: 'Enrollments', value: stats.enrolled || 0, icon: Users, tone: '#3B82F6' },
+          { label: 'Completed', value: stats.completed || 0, icon: CheckCircle2, tone: '#059669' },
+          { label: 'Certified', value: stats.certified || 0, icon: Award, tone: '#7c3aed' },
+          { label: 'Avg progress', value: `${stats.avgProgress || 0}%`, icon: TrendingUp, tone: '#d97706' },
+        ].map((item) => <StatCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} />)}
       </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search courses…"
-          className="input-base" style={{ paddingLeft: 38 }} />
-      </div>
-
-      {/* Courses grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((course, i) => {
-          const lv = LVL[course.level] || LVL.beginner;
-          const enrolled = progress.filter(p => String(p.courseId?._id || p.courseId) === String(course._id)).length;
-          const completed = progress.filter(p => String(p.courseId?._id || p.courseId) === String(course._id) && p.progress === 100).length;
-
-          return (
-            <motion.div key={course._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-              className="card p-5">
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="badge capitalize" style={{ background: lv.bg, color: lv.c }}>{course.level}</span>
-                <span className="badge" style={{ background: 'var(--c-surface-raised)', color: 'var(--c-text-2)' }}>{course.assetco}</span>
-                {course.required && <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Required</span>}
+      <Panel><SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search courses..." icon={Search} /></Panel>
+      {filtered.length === 0 ? <EmptyState icon={BookOpen} title="No courses found" description="Create the first course or change your search query." /> : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((course) => {
+            const level = levelColors[course.level] || levelColors.beginner;
+            const enrolled = progress.filter((item) => String(item.courseId?._id || item.courseId) === String(course._id)).length;
+            const completed = progress.filter((item) => String(item.courseId?._id || item.courseId) === String(course._id) && item.progress === 100).length;
+            return (
+              <div key={course._id} className="card p-5">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="badge capitalize" style={{ background: level.bg, color: level.c }}>{course.level}</span>
+                  <span className="badge" style={{ background: 'var(--c-surface-raised)', color: 'var(--c-text-2)' }}>{course.assetco}</span>
+                  {course.required ? <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Required</span> : null}
+                </div>
+                <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-0)' }}>{course.title}</h3>
+                <p className="mt-2 text-sm" style={{ color: 'var(--c-text-3)' }}>{course.description || 'No description yet.'}</p>
+                <div className="mt-4 flex flex-wrap gap-3 text-sm" style={{ color: 'var(--c-text-3)' }}>
+                  <span>{course.modules?.length || 0} modules</span>
+                  <span>{enrolled} enrolled</span>
+                  <span style={{ color: '#059669' }}>{completed} completed</span>
+                </div>
               </div>
-              <h3 className="text-[14px] font-bold line-clamp-2 mb-1" style={{ color: 'var(--c-text-0)' }}>{course.title}</h3>
-              {course.description && (
-                <p className="text-[12px] line-clamp-2 mb-3" style={{ color: 'var(--c-text-2)' }}>{course.description}</p>
-              )}
-              <div className="flex items-center gap-4 text-[11px]" style={{ color: 'var(--c-text-3)' }}>
-                <span>{course.modules?.length || 0} modules</span>
-                <span>{enrolled} enrolled</span>
-                <span style={{ color: '#059669' }}>{completed} completed</span>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* Progress table */}
-      {progress.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
-            <p className="text-[15px] font-bold" style={{ color: 'var(--c-text-0)' }}>Learner Progress ({progress.length})</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className="table-header">User</th>
-                  <th className="table-header">Course</th>
-                  <th className="table-header text-right">Progress</th>
-                  <th className="table-header text-right">Best Exam</th>
-                  <th className="table-header text-center">Certified</th>
-                </tr>
-              </thead>
-              <tbody>
-                {progress.slice(0, 50).map(p => (
-                  <tr key={p._id} className="table-row">
-                    <td className="table-cell font-medium" style={{ color: 'var(--c-text-0)' }}>
-                      {p.userId?.firstName} {p.userId?.lastName}
-                    </td>
-                    <td className="table-cell" style={{ color: 'var(--c-text-2)' }}>{p.courseId?.title || '—'}</td>
-                    <td className="table-cell text-right">
-                      <span className="font-bold" style={{ color: p.progress === 100 ? '#059669' : 'var(--c-accent)' }}>{p.progress}%</span>
-                    </td>
-                    <td className="table-cell text-right" style={{ color: 'var(--c-text-2)' }}>{p.bestExamScore || '—'}%</td>
-                    <td className="table-cell text-center">{p.certificationEarned ? '🏅' : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            );
+          })}
         </div>
       )}
-
-      {/* Create modal */}
-      <AnimatePresence>
-        {showCreate && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-50" onClick={() => setShowCreate(false)} />
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-              className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl p-6"
-              style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--shadow-xl)' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[16px] font-bold" style={{ color: 'var(--c-text-0)' }}>Create Course</h2>
-                <button onClick={() => setShowCreate(false)} className="btn-ghost p-2"><X className="w-4 h-4" /></button>
-              </div>
-              <CourseForm onSubmit={handleCreate} />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {progress.length ? (
+        <Panel title="Learner progress" subtitle={`${progress.length} learners tracked`}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr><th className="table-header">User</th><th className="table-header">Course</th><th className="table-header text-right">Progress</th><th className="table-header text-right">Best Exam</th><th className="table-header text-center">Certified</th></tr></thead>
+              <tbody>{progress.slice(0, 50).map((item) => <tr key={item._id} className="table-row"><td className="table-cell font-semibold" style={{ color: 'var(--c-text-0)' }}>{item.userId?.firstName} {item.userId?.lastName}</td><td className="table-cell">{item.courseId?.title || '-'}</td><td className="table-cell text-right font-bold" style={{ color: item.progress === 100 ? '#059669' : 'var(--c-accent)' }}>{item.progress}%</td><td className="table-cell text-right">{item.bestExamScore || '-'}%</td><td className="table-cell text-center">{item.certificationEarned ? 'Yes' : '-'}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+      <CourseModal open={showCreate} onClose={() => setShowCreate(false)} onSubmit={handleCreate} />
     </div>
   );
 };
 
-const CourseForm = ({ onSubmit }) => {
-  const [f, setF] = useState({ title: '', description: '', level: 'beginner', assetco: 'General', required: false, passingScore: 70 });
+const CourseModal = ({ open, onClose, onSubmit }) => {
+  const [form, setForm] = useState({ title: '', description: '', level: 'beginner', assetco: 'General', required: false, passingScore: 70 });
   return (
-    <div className="space-y-4">
-      <div><label className="label">Course Title</label>
-        <input value={f.title} onChange={e => setF(p => ({ ...p, title: e.target.value }))} className="input-base" placeholder="Course title" /></div>
-      <div><label className="label">Description</label>
-        <textarea value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} className="input-base" rows={3} style={{ resize: 'vertical' }} /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Level</label>
-          <select value={f.level} onChange={e => setF(p => ({ ...p, level: e.target.value }))} className="input-base">
-            {['beginner', 'intermediate', 'expert'].map(l => <option key={l} value={l}>{l}</option>)}
-          </select></div>
-        <div><label className="label">Department</label>
-          <input value={f.assetco} onChange={e => setF(p => ({ ...p, assetco: e.target.value }))} className="input-base" /></div>
-      </div>
-      <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: 'var(--c-text-0)' }}>
-          <input type="checkbox" checked={f.required} onChange={e => setF(p => ({ ...p, required: e.target.checked }))}
-            style={{ accentColor: 'var(--c-accent)', width: 16, height: 16 }} /> Required
-        </label>
-        <div className="flex items-center gap-2">
-          <span className="text-[12px]" style={{ color: 'var(--c-text-3)' }}>Pass score:</span>
-          <input type="number" value={f.passingScore} onChange={e => setF(p => ({ ...p, passingScore: Number(e.target.value) }))}
-            className="input-base" style={{ width: 64, padding: '6px 10px' }} />
-          <span className="text-[12px]" style={{ color: 'var(--c-text-3)' }}>%</span>
+    <Modal open={open} onClose={onClose} title="Create Course" subtitle="Ship a training experience with the existing learning API.">
+      <div className="space-y-4">
+        <div><label className="label">Course Title</label><input className="input-base" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} /></div>
+        <div><label className="label">Description</label><textarea className="input-base min-h-28" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} /></div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div><label className="label">Level</label><select className="input-base" value={form.level} onChange={(e) => setForm((prev) => ({ ...prev, level: e.target.value }))}>{['beginner', 'intermediate', 'expert'].map((level) => <option key={level} value={level}>{level}</option>)}</select></div>
+          <div><label className="label">Department</label><input className="input-base" value={form.assetco} onChange={(e) => setForm((prev) => ({ ...prev, assetco: e.target.value }))} /></div>
         </div>
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--c-text-1)' }}><input type="checkbox" checked={form.required} onChange={(e) => setForm((prev) => ({ ...prev, required: e.target.checked }))} /> Required</label>
+        <div><label className="label">Passing Score</label><input type="number" className="input-base" value={form.passingScore} onChange={(e) => setForm((prev) => ({ ...prev, passingScore: Number(e.target.value) }))} /></div>
+        <button className="btn-primary w-full" onClick={() => { if (!form.title) return toast.error('Title required'); onSubmit(form); }}>Create Course</button>
       </div>
-      <button onClick={() => { if (!f.title) return toast.error('Title required'); onSubmit(f); }}
-        className="btn-primary w-full" style={{ height: 44 }}>Create Course</button>
-    </div>
+    </Modal>
   );
 };
 

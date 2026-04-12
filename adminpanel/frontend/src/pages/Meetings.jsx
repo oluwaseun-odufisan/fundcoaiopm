@@ -1,12 +1,12 @@
 //Meetings.jsx
-import React, { useState, useEffect } from 'react';
-import api from '../utils/api.js';
-import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Video, Users, Clock, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Clock, Users, Video, XCircle } from 'lucide-react';
+import api from '../utils/api.js';
+import { EmptyState, FilterChip, LoadingScreen, PageHeader, Panel } from '../components/ui.jsx';
 
-const STATUS_C = { waiting: { c: '#d97706', bg: '#fffbeb' }, active: { c: '#059669', bg: '#ecfdf5' }, ended: { c: '#6b7494', bg: '#f7f8fb' } };
+const statusColors = { waiting: { c: '#d97706', bg: '#fffbeb' }, active: { c: '#059669', bg: '#ecfdf5' }, ended: { c: '#6b7494', bg: '#f7f8fb' } };
 
 const Meetings = () => {
   const [rooms, setRooms] = useState([]);
@@ -16,82 +16,69 @@ const Meetings = () => {
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const params = {}; if (filter) params.status = filter;
+      const params = {};
+      if (filter) params.status = filter;
       const { data } = await api.get('/meetings', { params });
       setRooms(data.rooms || []);
-    } catch { toast.error('Failed to load'); }
-    finally { setLoading(false); }
+    } catch {
+      toast.error('Failed to load');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchRooms(); }, [filter]);
+  useEffect(() => {
+    fetchRooms();
+  }, [filter]);
 
   const endRoom = async (roomId) => {
     if (!confirm('End this meeting?')) return;
-    try { await api.post(`/meetings/${roomId}/end`); toast.success('Meeting ended'); fetchRooms(); }
-    catch { toast.error('Failed'); }
+    try {
+      await api.post(`/meetings/${roomId}/end`);
+      toast.success('Meeting ended');
+      fetchRooms();
+    } catch {
+      toast.error('Failed');
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--c-text-0)' }}>Meetings</h1>
-        <p className="text-[14px] mt-1" style={{ color: 'var(--c-text-2)' }}>View and manage team meetings</p>
-      </div>
-
-      <div className="flex gap-1.5">
-        {['', 'active', 'waiting', 'ended'].map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className="px-3 py-2 rounded-lg text-[12px] font-semibold capitalize transition-colors"
-            style={filter === f
-              ? { background: 'var(--c-accent)', color: 'white' }
-              : { background: 'var(--c-surface)', color: 'var(--c-text-2)', border: '1px solid var(--c-border)' }}>
-            {f || 'All'}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin" style={{ borderColor: 'var(--c-accent)', borderTopColor: 'transparent' }} />
+    <div className="page-shell">
+      <PageHeader eyebrow="Meeting operations" title="Meetings" description="Track active rooms, host visibility, attendance, and close sessions from a cleaner meeting hub." />
+      <Panel>
+        <div className="flex flex-wrap gap-2">
+          {['', 'active', 'waiting', 'ended'].map((item) => <FilterChip key={item || 'all'} active={filter === item} onClick={() => setFilter(item)}>{item || 'All'}</FilterChip>)}
         </div>
-      ) : rooms.length === 0 ? (
-        <div className="card text-center py-20">
-          <Video className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--c-text-3)' }} />
-          <p className="text-[15px] font-semibold" style={{ color: 'var(--c-text-1)' }}>No meetings found</p>
-        </div>
-      ) : (
-        <div className="card overflow-hidden">
-          {rooms.map((room, i) => {
-            const sc = STATUS_C[room.status] || STATUS_C.ended;
-            const hostName = room.host ? `${room.host.firstName} ${room.host.lastName}` : 'Unknown';
-            const activeCount = room.participants?.filter(p => p.isActive).length || 0;
-
-            return (
-              <motion.div key={room._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-                className="flex items-center justify-between gap-4 px-6 py-4 table-row"
-                style={{ borderBottom: '1px solid var(--c-border-subtle)' }}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--c-text-0)' }}>{room.name}</p>
-                    <span className="badge capitalize" style={{ background: sc.bg, color: sc.c }}>{room.status}</span>
-                    <span className="badge capitalize" style={{ background: 'var(--c-surface-raised)', color: 'var(--c-text-2)' }}>{room.type}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px]" style={{ color: 'var(--c-text-3)' }}>
-                    <span>Host: {hostName}</span>
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{activeCount} active</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(room.createdAt), 'MMM d, h:mm a')}</span>
-                    <code className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--c-surface-raised)', fontFamily: 'var(--font-mono)' }}>{room.roomId}</code>
+      </Panel>
+      {loading ? <LoadingScreen height="18rem" /> : rooms.length === 0 ? <EmptyState icon={Video} title="No meetings found" description="Live rooms and historical sessions will appear here." /> : (
+        <Panel title="Meeting feed" subtitle={`${rooms.length} rooms visible`}>
+          <div className="space-y-3">
+            {rooms.map((room) => {
+              const sc = statusColors[room.status] || statusColors.ended;
+              const hostName = room.host ? `${room.host.firstName} ${room.host.lastName}` : 'Unknown';
+              const activeCount = room.participants?.filter((participant) => participant.isActive).length || 0;
+              return (
+                <div key={room._id} className="card p-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span className="badge capitalize" style={{ background: sc.bg, color: sc.c }}>{room.status}</span>
+                        <span className="badge capitalize" style={{ background: 'var(--c-surface-raised)', color: 'var(--c-text-2)' }}>{room.type}</span>
+                      </div>
+                      <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-0)' }}>{room.name}</h3>
+                      <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: 'var(--c-text-3)' }}>
+                        <span>Host: {hostName}</span>
+                        <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{activeCount} active</span>
+                        <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{format(new Date(room.createdAt), 'MMM d, h:mm a')}</span>
+                      </div>
+                    </div>
+                    {room.status !== 'ended' ? <button className="btn-danger" onClick={() => endRoom(room.roomId)}><XCircle className="h-4 w-4" /> End</button> : null}
                   </div>
                 </div>
-                {room.status !== 'ended' && (
-                  <button onClick={() => endRoom(room.roomId)} className="btn-ghost flex-shrink-0" style={{ color: 'var(--c-danger)' }}>
-                    <XCircle className="w-4 h-4" /> End
-                  </button>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </Panel>
       )}
     </div>
   );

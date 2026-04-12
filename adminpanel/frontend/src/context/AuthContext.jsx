@@ -1,5 +1,5 @@
 //AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api from '../utils/api.js';
 
 const AuthContext = createContext(null);
@@ -8,16 +8,34 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('adminUser')); } catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem('adminUser'));
+    } catch {
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-    if (!token) { setLoading(false); return; }
-    api.get('/auth/me')
-      .then(({ data }) => { if (data.success) { setUser(data.user); localStorage.setItem('adminUser', JSON.stringify(data.user)); } })
-      .catch(() => { localStorage.removeItem('adminToken'); localStorage.removeItem('adminUser'); setUser(null); })
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    api
+      .get('/auth/me')
+      .then(({ data }) => {
+        if (data.success) {
+          setUser(data.user);
+          localStorage.setItem('adminUser', JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 

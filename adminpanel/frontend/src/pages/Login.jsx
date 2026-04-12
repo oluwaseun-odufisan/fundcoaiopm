@@ -1,9 +1,9 @@
-//Login.jsx
+//Logn.jsx
 import React, { useState } from 'react';
+import { Eye, EyeOff, Lock, Mail, Orbit, Sparkles } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Lock, Mail, Eye, EyeOff } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -19,72 +19,104 @@ const Login = () => {
     setLoading(true);
     try {
       const data = await login(email, password);
-      if (data.success) { toast.success('Welcome back'); navigate('/', { replace: true }); }
-      else toast.error(data.message || 'Login failed');
-    } catch (err) { toast.error(err.response?.data?.message || 'Login failed'); }
-    finally { setLoading(false); }
+      if (data.success) {
+        toast.success('Welcome back');
+        navigate('/', { replace: true });
+      } else {
+        toast.error(data.message || 'Login failed');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--c-surface-sunken)' }}>
+    <div className="relative min-h-screen overflow-hidden" style={{ background: 'var(--gradient-subtle)' }}>
       <Toaster position="top-center" />
-      {/* Left panel */}
-      <div className="hidden lg:flex w-[480px] flex-col justify-between p-12" style={{ background: '#0a0f1e' }}>
-        <div>
-          <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-lg" style={{ background: '#2563eb' }}>F</div>
-            <span className="text-white font-bold text-xl tracking-tight">FundCo</span>
+      <div className="hero-orb -left-10 top-8 h-72 w-72" style={{ background: 'rgba(107, 70, 193, 0.28)' }} />
+      <div className="hero-orb right-0 top-1/3 h-80 w-80" style={{ background: 'rgba(59, 130, 246, 0.22)' }} />
+
+      <div className="relative grid min-h-screen lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="hidden px-10 py-10 lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <div className="mb-16 flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-3xl text-white shadow-2xl" style={{ background: 'var(--gradient-brand)' }}>
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: 'var(--c-text-3)' }}>Nexus</p>
+                <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--c-text-0)', fontFamily: 'var(--font-display)' }}>Admin Command</h1>
+              </div>
+            </div>
+
+            <div className="max-w-xl">
+              <p className="section-title mb-4">World-class admin orchestration</p>
+              <h2 className="text-6xl font-black leading-[0.96] tracking-tight" style={{ color: 'var(--c-text-0)', fontFamily: 'var(--font-display)' }}>
+                Manage the
+                <br />
+                future of work.
+              </h2>
+              <p className="mt-6 text-lg leading-8" style={{ color: 'var(--c-text-2)' }}>
+                One control plane for execution, strategy, performance, collaboration, and organizational rhythm. Designed for leaders who need perfect clarity.
+              </p>
+            </div>
           </div>
-          <h1 className="text-white text-[32px] font-extrabold leading-tight tracking-tight mb-4">
-            Admin<br />Control Center
-          </h1>
-          <p className="text-[15px] leading-relaxed" style={{ color: '#6b7494' }}>
-            Manage teams, review tasks, track performance, and oversee operations from one unified dashboard.
-          </p>
+
+          <div className="grid max-w-xl grid-cols-3 gap-4">
+            {[
+              { label: 'Task velocity', value: '98%', icon: Orbit },
+              { label: 'Team sync', value: '24/7', icon: Sparkles },
+              { label: 'Signal clarity', value: 'A+', icon: Lock },
+            ].map((item) => (
+              <div key={item.label} className="card p-4">
+                <item.icon className="mb-3 h-5 w-5" style={{ color: 'var(--c-accent)' }} />
+                <p className="stat-value text-2xl" style={{ color: 'var(--c-text-0)' }}>{item.value}</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--c-text-3)' }}>{item.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-[12px]" style={{ color: '#3b4261' }}>FundCo Capital Managers © 2025</p>
-      </div>
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-[400px]">
-          <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-black" style={{ background: '#2563eb' }}>F</div>
-            <span className="font-bold text-lg" style={{ color: 'var(--c-text-0)' }}>FundCo Admin</span>
+        <div className="flex items-center justify-center px-5 py-10 lg:px-10">
+          <div className="card glass w-full max-w-[480px] border p-6 lg:p-8">
+            <div className="mb-8">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-3xl text-white shadow-2xl" style={{ background: 'var(--gradient-brand)' }}>
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <h3 className="text-3xl font-black tracking-tight" style={{ color: 'var(--c-text-0)', fontFamily: 'var(--font-display)' }}>Sign in to Nexus</h3>
+              <p className="mt-2 text-sm" style={{ color: 'var(--c-text-3)' }}>Secure admin access for team leads, executives, and super admins.</p>
+            </div>
+
+            <form onSubmit={handle} className="space-y-5">
+              <div>
+                <label className="label">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-base" placeholder="admin@company.com" style={{ paddingLeft: 42 }} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }} />
+                  <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="input-base" placeholder="••••••••" style={{ paddingLeft: 42, paddingRight: 42 }} />
+                  <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--c-text-3)' }} onClick={() => setShowPw((prev) => !prev)}>
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <button type="submit" disabled={loading} className="btn-primary w-full text-base">
+                {loading ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : 'Enter Workspace'}
+              </button>
+            </form>
+
+            <div className="mt-8 rounded-[1.25rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-raised)' }}>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--c-text-3)' }}>Access tiers</p>
+              <p className="mt-2 text-sm" style={{ color: 'var(--c-text-2)' }}>Team Lead, Executive, and Super Admin credentials are supported by the current auth flow.</p>
+            </div>
           </div>
-
-          <h2 className="text-[24px] font-extrabold tracking-tight mb-1" style={{ color: 'var(--c-text-0)' }}>Sign in</h2>
-          <p className="text-[14px] mb-8" style={{ color: 'var(--c-text-2)' }}>Enter your admin credentials to continue</p>
-
-          <form onSubmit={handle} className="space-y-5">
-            <div>
-              <label className="label">Email address</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@fundco.ng" className="input-base" style={{ paddingLeft: 40 }} />
-              </div>
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--c-text-3)' }} />
-                <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" className="input-base" style={{ paddingLeft: 40, paddingRight: 40 }} />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text-3)' }}>
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            <button type="submit" disabled={loading} className="btn-primary w-full" style={{ height: 46 }}>
-              {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign in'}
-            </button>
-          </form>
-
-          <p className="text-center text-[12px] mt-8" style={{ color: 'var(--c-text-3)' }}>
-            Team Lead · Executive · Super Admin access only
-          </p>
         </div>
       </div>
     </div>

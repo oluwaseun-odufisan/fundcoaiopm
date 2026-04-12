@@ -1,17 +1,16 @@
+//api.js
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4002';
 
 const api = axios.create({ baseURL: `${API_BASE}/api/admin` });
 
-// Auto-attach token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('adminToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Auto-handle 401
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -23,7 +22,7 @@ api.interceptors.response.use(
       }
     }
     return Promise.reject(err);
-  }
+  },
 );
 
 export default api;
