@@ -1,4 +1,3 @@
-//Social.jsx
 import React, { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -74,7 +73,7 @@ const Social = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Social operations" title="Social" description="Moderate internal updates, post announcements, and monitor company signal flow from a polished social control room." />
+      <PageHeader eyebrow="Social Feed" title="Social Feed" description="Review posts, publish announcements, and moderate comments from one clean feed." />
       {hasRole('executive', 'admin', 'team-lead') ? (
         <Panel title="Create announcement" subtitle="Broadcast updates to your team or the full organization">
           <div className="space-y-4">

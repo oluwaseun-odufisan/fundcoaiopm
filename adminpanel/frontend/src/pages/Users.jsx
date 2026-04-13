@@ -1,4 +1,3 @@
-//Users.jsx
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Edit2, Lock, Plus, Search, Shield, Trash2, X } from 'lucide-react';
@@ -83,7 +82,7 @@ const Users = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Access control" title="Users" description="Create, update, secure, and deactivate accounts from a refined admin identity surface." actions={<button className="btn-primary" onClick={() => { setEditUser(null); setShowForm(true); }}><Plus className="h-4 w-4" /> Create User</button>} />
+      <PageHeader eyebrow="Users" title="Users Management" description="Create, update, secure, and deactivate accounts from one clear admin table." actions={<button className="btn-primary rounded-full" onClick={() => { setEditUser(null); setShowForm(true); }}><Plus className="h-4 w-4" /> Create User</button>} />
       <Panel><SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." icon={Search} /></Panel>
       {loading ? <LoadingScreen height="18rem" /> : users.length === 0 ? <EmptyState icon={Shield} title="No users found" description="Create the first user account to populate this directory." /> : (
         <Panel title="User directory" subtitle={`${users.length} accounts visible`}>
@@ -143,7 +142,7 @@ const UserModal = ({ open, user, onSubmit, onCancel }) => {
   }, [user, open]);
 
   return (
-    <Modal open={open} onClose={onCancel} title={isEdit ? 'Edit User' : 'Create User'} subtitle="Preserve existing user-management logic with a cleaner form shell.">
+    <Modal open={open} onClose={onCancel} title={isEdit ? 'Edit User' : 'Create User'} subtitle="User changes stay tied to the current account logic.">
       <div className="space-y-4">
         {['firstName', 'lastName', 'otherName', 'position', 'unitSector', 'email'].map((field) => <div key={field}><label className="label">{field.replace(/([A-Z])/g, ' $1').trim()}</label><input className="input-base" value={form[field]} onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))} /></div>)}
         {!isEdit ? <div><label className="label">Password</label><input type="password" className="input-base" value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} /></div> : null}

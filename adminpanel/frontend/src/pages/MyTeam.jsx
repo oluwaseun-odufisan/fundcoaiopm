@@ -1,4 +1,3 @@
-//MyTeam.jsx
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Briefcase, Info, Mail, Trash2, UserPlus, UsersRound } from 'lucide-react';
@@ -54,7 +53,7 @@ const MyTeam = () => {
   if (user?.role === 'admin') {
     return (
       <div className="page-shell">
-        <PageHeader eyebrow="Team scope" title="My Team" description="Super admins automatically see the full organization, so no team filter is required here." />
+        <PageHeader eyebrow="My Team" title="My Team" description="Super admins already see the full organization, so no extra team selection is needed here." />
         <Panel>
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'var(--c-accent-muted)' }}>
@@ -73,7 +72,7 @@ const MyTeam = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Team workspace filter" title="My Team" description="Choose the people you manage so the rest of the admin app reflects your real reporting scope." actions={<button className="btn-primary" onClick={() => setShowPicker(true)}><UserPlus className="h-4 w-4" /> Add Members</button>} />
+      <PageHeader eyebrow="My Team" title="My Team" description="Pick the people you manage so the rest of the app matches your team scope." actions={<button className="btn-primary rounded-full" onClick={() => setShowPicker(true)}><UserPlus className="h-4 w-4" /> Add Members</button>} />
       <Panel>
         <div className="flex items-start gap-3 rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-info-bg)' }}>
           <Info className="mt-0.5 h-5 w-5" style={{ color: 'var(--c-accent)' }} />
@@ -87,7 +86,7 @@ const MyTeam = () => {
               <div key={member._id} className="card p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl text-white font-bold" style={{ background: 'var(--gradient-brand)' }}>{(member.firstName || 'U')[0]}</div>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl text-white font-bold" style={{ background: 'var(--brand-primary)' }}>{(member.firstName || 'U')[0]}</div>
                     <div>
                       <p className="font-bold" style={{ color: 'var(--c-text-0)' }}>{member.firstName} {member.lastName}</p>
                       <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>{member.position || member.role}</p>

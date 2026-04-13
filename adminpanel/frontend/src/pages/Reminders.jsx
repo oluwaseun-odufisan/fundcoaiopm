@@ -1,4 +1,3 @@
-//Reminders.jsx
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -54,7 +53,7 @@ const Reminders = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Reminder center" title="Reminders" description="Manage scheduled nudges, deadline prompts, and team follow-up triggers." actions={<button className="btn-primary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Reminder</button>} />
+      <PageHeader eyebrow="Reminders" title="Reminders" description="Keep scheduled prompts, deadline notices, and follow-ups in one place." actions={<button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Reminder</button>} />
       {loading ? <LoadingScreen height="18rem" /> : reminders.length === 0 ? <EmptyState icon={Bell} title="No active reminders" description="Create your first reminder to start managing operational follow-ups." /> : (
         <Panel title="Reminder stream" subtitle={`${reminders.length} reminders`}>
           <div className="space-y-3">
@@ -89,7 +88,7 @@ const Reminders = () => {
 const ReminderModal = ({ open, users, onClose, onSubmit }) => {
   const [form, setForm] = useState({ userId: '', type: 'custom', message: '', remindAt: '' });
   return (
-    <Modal open={open} onClose={onClose} title="New Reminder" subtitle="Create a reminder without changing the current API contract.">
+    <Modal open={open} onClose={onClose} title="New Reminder" subtitle="Reminder create flow stays tied to the current API.">
       <div className="space-y-4">
         <div><label className="label">For User</label><select className="input-base" value={form.userId} onChange={(e) => setForm((prev) => ({ ...prev, userId: e.target.value }))}><option value="">Select user...</option>{users.map((user) => <option key={user._id} value={user._id}>{user.firstName} {user.lastName}</option>)}</select></div>
         <div><label className="label">Type</label><select className="input-base" value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}>{['task_due', 'meeting', 'goal_deadline', 'custom'].map((type) => <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>)}</select></div>

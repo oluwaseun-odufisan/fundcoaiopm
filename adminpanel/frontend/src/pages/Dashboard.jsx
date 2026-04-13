@@ -1,7 +1,5 @@
-//Dashboard.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -13,12 +11,23 @@ import {
   TriangleAlert,
   Users,
 } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import api from '../utils/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { EmptyState, LoadingScreen, PageHeader, Panel, ProgressBar, StatCard } from '../components/ui.jsx';
 
-const PIE_COLORS = ['#6B46C1', '#3B82F6', '#f59e0b', '#ef4444'];
+const PIE_COLORS = ['#312783', '#36a9e1', '#c98512', '#d64545'];
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -68,82 +77,78 @@ const Dashboard = () => {
 
   if (loading) return <LoadingScreen />;
 
-  const greeting = new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening';
+  const greeting =
+    new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening';
 
   return (
     <div className="page-shell">
       <PageHeader
-        eyebrow="Executive overview"
+        eyebrow="Overview"
         title={`Good ${greeting}, ${user?.firstName || 'Admin'}`}
-        description="A living command center for work orchestration, team momentum, execution risk, and strategic signals across the organization."
+        description="A sharper daily view for delivery, approvals, team movement, and current risk."
         actions={
           <>
-            <button className="btn-secondary" onClick={() => navigate('/reports')}>
+            <button className="btn-secondary rounded-full" onClick={() => navigate('/reports')}>
               <FileText className="h-4 w-4" />
-              Review Reports
+              Reports
             </button>
-            <button className="btn-primary" onClick={() => navigate('/tasks')}>
+            <button className="btn-primary rounded-full" onClick={() => navigate('/tasks')}>
               <ArrowUpRight className="h-4 w-4" />
-              Open Task Command
+              Open Tasks
             </button>
           </>
         }
+        aside={
+          <div className="rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em]" style={{ background: 'var(--c-secondary-soft)', color: 'var(--brand-secondary)' }}>
+            FundCo AI Live
+          </div>
+        }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Team members" value={analytics.totalUsers || 0} icon={Users} tone="#3B82F6" helper="Active visibility across your workspace" />
-        <StatCard label="Total tasks" value={analytics.totalTasks || 0} icon={ListTodo} tone="var(--c-accent)" helper={`${analytics.pendingApproval || 0} waiting for admin attention`} />
-        <StatCard label="Completed" value={analytics.completedTasks || 0} icon={CheckCircle2} tone="#059669" helper={`${analytics.completionRate || 0}% completion rate`} />
-        <StatCard label="Overdue" value={analytics.overdueTasks || 0} icon={TriangleAlert} tone="#dc2626" helper="Immediate delivery risk detected" />
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        <StatCard label="Team Members" value={analytics.totalUsers || 0} icon={Users} tone="var(--brand-secondary)" helper="Visible accounts in scope" />
+        <StatCard label="Total Tasks" value={analytics.totalTasks || 0} icon={ListTodo} tone="var(--brand-primary)" helper={`${analytics.pendingApproval || 0} waiting for review`} />
+        <StatCard label="Completed" value={analytics.completedTasks || 0} icon={CheckCircle2} tone="var(--c-success)" helper={`${analytics.completionRate || 0}% completion rate`} />
+        <StatCard label="Overdue" value={analytics.overdueTasks || 0} icon={TriangleAlert} tone="var(--c-danger)" helper="Items that need action soon" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-        <Panel title="Momentum curve" subtitle="Execution health across the current week">
+      <div className="grid gap-4 2xl:grid-cols-[1.55fr_0.95fr]">
+        <Panel title="Work Pace" subtitle="This week">
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="velocityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6B46C1" stopOpacity={0.36} />
-                    <stop offset="95%" stopColor="#6B46C1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="focusFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} stroke="var(--c-border-subtle)" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--c-text-3)', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--c-text-3)', fontSize: 12 }} />
+                <CartesianGrid vertical={false} stroke="var(--c-border)" />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'var(--c-text-faint)', fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--c-text-faint)', fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{
-                    background: 'var(--c-surface-strong)',
+                    background: 'var(--c-surface)',
                     border: '1px solid var(--c-border)',
                     borderRadius: 16,
                     boxShadow: 'var(--shadow-md)',
                   }}
                 />
-                <Area type="monotone" dataKey="focus" stroke="#3B82F6" fill="url(#focusFill)" strokeWidth={2.4} />
-                <Area type="monotone" dataKey="velocity" stroke="#6B46C1" fill="url(#velocityFill)" strokeWidth={2.8} />
+                <Area type="monotone" dataKey="focus" stroke="#36a9e1" fill="#36a9e1" fillOpacity={0.1} strokeWidth={2.4} />
+                <Area type="monotone" dataKey="velocity" stroke="#312783" fill="#312783" fillOpacity={0.12} strokeWidth={2.4} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Panel>
 
-        <Panel title="Task distribution" subtitle="Current operational state">
+        <Panel title="Task Mix" subtitle="Current status">
           {taskDistribution.length ? (
             <div className="space-y-5">
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={taskDistribution} innerRadius={68} outerRadius={92} paddingAngle={4} dataKey="value">
+                    <Pie data={taskDistribution} innerRadius={64} outerRadius={90} paddingAngle={4} dataKey="value">
                       {taskDistribution.map((entry, index) => (
                         <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
                       contentStyle={{
-                        background: 'var(--c-surface-strong)',
+                        background: 'var(--c-surface)',
                         border: '1px solid var(--c-border)',
                         borderRadius: 16,
                         boxShadow: 'var(--shadow-md)',
@@ -152,83 +157,81 @@ const Dashboard = () => {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 {taskDistribution.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--c-border)' }}>
+                  <div key={item.name} className="flex items-center justify-between rounded-[1.2rem] border px-4 py-3" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
                     <div className="flex items-center gap-3">
                       <span className="h-3 w-3 rounded-full" style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
-                      <span className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{item.name}</span>
+                      <span className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>{item.name}</span>
                     </div>
-                    <span className="text-sm font-black" style={{ color: 'var(--c-text-0)' }}>{item.value}</span>
+                    <span className="text-sm font-black" style={{ color: 'var(--c-text)' }}>{item.value}</span>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <EmptyState icon={ListTodo} title="No task signals yet" description="As tasks arrive, distribution analytics will appear here." />
+            <EmptyState icon={ListTodo} title="No task data yet" description="Task totals will appear here after work items are loaded." />
           )}
         </Panel>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr_0.8fr]">
-        <Panel title="Command shortcuts" subtitle="Jump into the most important admin queues">
+      <div className="grid gap-4 2xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
+        <Panel title="Quick Actions" subtitle="Fast routes into active work">
           <div className="grid gap-3 md:grid-cols-2">
             {[
-              { label: 'Pending review', value: analytics.pendingApproval || 0, icon: Clock3, tone: '#f59e0b', to: '/tasks' },
-              { label: 'Submitted reports', value: reportStats.submitted || 0, icon: FileText, tone: 'var(--c-accent)', to: '/reports' },
-              { label: 'Active goals', value: goalStats.active || 0, icon: Target, tone: '#3B82F6', to: '/goals' },
-              { label: 'Performance board', value: `${analytics.completionRate || 0}%`, icon: TrendingUp, tone: '#059669', to: '/performance' },
-            ].map((item, index) => (
-              <motion.button
+              { label: 'Pending Review', value: analytics.pendingApproval || 0, icon: Clock3, tone: 'var(--c-warning)', to: '/tasks' },
+              { label: 'Submitted Reports', value: reportStats.submitted || 0, icon: FileText, tone: 'var(--brand-primary)', to: '/reports' },
+              { label: 'Active Goals', value: goalStats.active || 0, icon: Target, tone: 'var(--brand-secondary)', to: '/goals' },
+              { label: 'Completion Rate', value: `${analytics.completionRate || 0}%`, icon: TrendingUp, tone: 'var(--c-success)', to: '/performance' },
+            ].map((item) => (
+              <button
                 key={item.label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                type="button"
                 onClick={() => navigate(item.to)}
-                className="card card-hover flex items-center justify-between p-4 text-left"
+                className="surface-card surface-card-hover flex items-center justify-between rounded-[1.4rem] p-4 text-left"
               >
                 <div>
                   <p className="section-title mb-2">{item.label}</p>
                   <p className="stat-value text-3xl" style={{ color: item.tone }}>{item.value}</p>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `color-mix(in srgb, ${item.tone} 14%, transparent)` }}>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: 'var(--c-surface-3)' }}>
                   <item.icon className="h-5 w-5" style={{ color: item.tone }} />
                 </div>
-              </motion.button>
+              </button>
             ))}
           </div>
         </Panel>
 
-        <Panel title="Goal pulse" subtitle="Strategic progress signal">
+        <Panel title="Goals" subtitle="Current progress">
           <div className="space-y-4">
             {[
-              { label: 'Total goals', value: goalStats.total || 0, tone: 'var(--c-accent)' },
-              { label: 'Active', value: goalStats.active || 0, tone: '#f59e0b' },
-              { label: 'Completed', value: goalStats.completed || 0, tone: '#059669' },
+              { label: 'Total Goals', value: goalStats.total || 0, tone: 'var(--brand-primary)' },
+              { label: 'Active', value: goalStats.active || 0, tone: 'var(--brand-secondary)' },
+              { label: 'Completed', value: goalStats.completed || 0, tone: 'var(--c-success)' },
             ].map((item) => (
-              <div key={item.label} className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
+              <div key={item.label} className="rounded-[1.3rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
                 <p className="section-title mb-2">{item.label}</p>
                 <p className="stat-value text-3xl" style={{ color: item.tone }}>{item.value}</p>
               </div>
             ))}
             <div>
               <div className="mb-2 flex items-center justify-between text-sm">
-                <span style={{ color: 'var(--c-text-3)' }}>Average progress</span>
-                <span className="font-bold" style={{ color: 'var(--c-accent)' }}>{goalStats.avgProgress || 0}%</span>
+                <span style={{ color: 'var(--c-text-soft)' }}>Average progress</span>
+                <span className="font-black" style={{ color: 'var(--brand-primary)' }}>{goalStats.avgProgress || 0}%</span>
               </div>
               <ProgressBar value={goalStats.avgProgress || 0} />
             </div>
           </div>
         </Panel>
 
-        <Panel title="Report health" subtitle="Approval flow balance">
+        <Panel title="Reports" subtitle="Review state">
           <div className="space-y-4">
             {[
-              { label: 'Submitted', value: reportStats.submitted || 0, tone: '#f59e0b' },
-              { label: 'Approved', value: reportStats.approved || 0, tone: '#059669' },
-              { label: 'Rejected', value: reportStats.rejected || 0, tone: '#ef4444' },
+              { label: 'Submitted', value: reportStats.submitted || 0, tone: 'var(--c-warning)' },
+              { label: 'Approved', value: reportStats.approved || 0, tone: 'var(--c-success)' },
+              { label: 'Rejected', value: reportStats.rejected || 0, tone: 'var(--c-danger)' },
             ].map((item) => (
-              <div key={item.label} className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
+              <div key={item.label} className="rounded-[1.3rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
                 <p className="section-title mb-2">{item.label}</p>
                 <p className="stat-value text-3xl" style={{ color: item.tone }}>{item.value}</p>
               </div>

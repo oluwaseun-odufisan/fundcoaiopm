@@ -1,4 +1,3 @@
-//Performance.jsx
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Gift, TrendingUp, Trophy } from 'lucide-react';
@@ -35,7 +34,7 @@ const Performance = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Performance intelligence" title="Performance" description="Leaderboard signal, delivery quality, and bonus management in one premium analytics surface." />
+      <PageHeader eyebrow="Performance" title="Performance" description="Ranking, delivery results, and bonus awards in one clear workspace." />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Ranked users" value={data.allUsers.length} icon={Trophy} tone="var(--c-accent)" />

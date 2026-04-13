@@ -1,4 +1,3 @@
-//Meetings.jsx
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -44,7 +43,7 @@ const Meetings = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Meeting operations" title="Meetings" description="Track active rooms, host visibility, attendance, and close sessions from a cleaner meeting hub." />
+      <PageHeader eyebrow="Meetings" title="Meetings" description="A clearer room board for status, host details, attendance, and close controls." />
       <Panel>
         <div className="flex flex-wrap gap-2">
           {['', 'active', 'waiting', 'ended'].map((item) => <FilterChip key={item || 'all'} active={filter === item} onClick={() => setFilter(item)}>{item || 'All'}</FilterChip>)}

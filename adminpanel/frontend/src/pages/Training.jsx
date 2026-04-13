@@ -1,4 +1,3 @@
-//Training.jsx
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Award, BookOpen, CheckCircle2, Plus, Search, TrendingUp, Users, X } from 'lucide-react';
@@ -46,7 +45,7 @@ const Training = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Learning system" title="Training" description="Manage internal learning experiences, completion rates, certification signal, and rollout velocity." actions={hasRole('admin') ? <button className="btn-primary" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Course</button> : null} />
+      <PageHeader eyebrow="Training" title="Training" description="Courses, learner progress, certification status, and completion rates in one view." actions={hasRole('admin') ? <button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Course</button> : null} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Courses', value: stats.totalCourses || 0, icon: BookOpen, tone: 'var(--c-accent)' },
@@ -100,7 +99,7 @@ const Training = () => {
 const CourseModal = ({ open, onClose, onSubmit }) => {
   const [form, setForm] = useState({ title: '', description: '', level: 'beginner', assetco: 'General', required: false, passingScore: 70 });
   return (
-    <Modal open={open} onClose={onClose} title="Create Course" subtitle="Ship a training experience with the existing learning API.">
+    <Modal open={open} onClose={onClose} title="Create Course" subtitle="Course setup stays tied to the current learning API.">
       <div className="space-y-4">
         <div><label className="label">Course Title</label><input className="input-base" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} /></div>
         <div><label className="label">Description</label><textarea className="input-base min-h-28" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} /></div>

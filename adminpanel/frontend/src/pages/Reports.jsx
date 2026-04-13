@@ -1,4 +1,3 @@
-//Reports.jsx
 import React, { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
@@ -62,7 +61,7 @@ const Reports = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Review workflow" title="Reports" description="Review, annotate, and approve submissions from a cleaner editorial control room." />
+      <PageHeader eyebrow="Reports" title="Reports" description="A sharper review queue for submitted reports, notes, and decisions." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Pending', value: stats.submitted || 0, tone: '#d97706' },

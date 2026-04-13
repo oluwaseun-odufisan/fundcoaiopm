@@ -1,4 +1,3 @@
-//Tasks.jsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -113,17 +112,17 @@ const Tasks = () => {
   return (
     <div className="page-shell">
       <PageHeader
-        eyebrow="Task command"
+        eyebrow="Tasks"
         title="Tasks"
-        description="Review execution, coach quality, approve submissions, and rebalance ownership with fast admin controls."
+        description="A sharper task workspace for review, ownership, approvals, and status changes."
         actions={
           <>
-            <button className="btn-secondary" onClick={() => setDisplay((prev) => (prev === 'list' ? 'grid' : 'list'))}>
+            <button className="btn-secondary rounded-full" onClick={() => setDisplay((prev) => (prev === 'list' ? 'grid' : 'list'))}>
               <LayoutGrid className="h-4 w-4" />
               {display === 'list' ? 'Grid view' : 'List view'}
             </button>
             {hasRole('team-lead', 'admin') ? (
-              <button className="btn-primary" onClick={() => setFormTask({})}>
+              <button className="btn-primary rounded-full" onClick={() => setFormTask({})}>
                 <Plus className="h-4 w-4" />
                 Assign Task
               </button>
@@ -268,7 +267,7 @@ const TaskFormModal = ({ open, task, users, onClose, onSave }) => {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit Task' : 'Assign New Task'} subtitle="Preserve assignment logic, but deliver it through a sharper operational flow." width="max-w-2xl">
+    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit Task' : 'Assign New Task'} subtitle="Task assignment stays tied to the current API." width="max-w-2xl">
       <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div>

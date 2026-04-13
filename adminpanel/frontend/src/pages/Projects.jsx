@@ -1,4 +1,3 @@
-//Projects.jsx
 import React, { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -74,7 +73,7 @@ const Projects = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Portfolio center" title="Projects" description="Organize initiatives, monitor delivery shape, and drill into project-specific task orchestration." actions={<button className="btn-primary" onClick={() => { setEditProject(null); setShowForm(true); }}><Plus className="h-4 w-4" /> New Project</button>} />
+      <PageHeader eyebrow="Projects" title="Projects" description="A stronger project hub for status, delivery pace, team members, and task views." actions={<button className="btn-primary rounded-full" onClick={() => { setEditProject(null); setShowForm(true); }}><Plus className="h-4 w-4" /> New Project</button>} />
       <Panel>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." icon={Search} />
@@ -169,7 +168,7 @@ const ProjectDashboard = ({ project: initialProject, users, onBack }) => {
   return (
     <div className="page-shell">
       <button className="btn-ghost w-fit" onClick={onBack}><ChevronLeft className="h-4 w-4" /> Projects</button>
-      <PageHeader eyebrow="Project detail" title={project.name} description={project.description || 'No description provided.'} actions={<button className="btn-primary" onClick={() => setShowAddTask(true)}><Plus className="h-4 w-4" /> Add Task</button>} />
+      <PageHeader eyebrow="Project Detail" title={project.name} description={project.description || 'No description provided.'} actions={<button className="btn-primary rounded-full" onClick={() => setShowAddTask(true)}><Plus className="h-4 w-4" /> Add Task</button>} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total tasks', value: totalTasks, tone: 'var(--c-accent)' },
@@ -233,7 +232,7 @@ const ProjectModal = ({ open, project, users, onSave, onClose }) => {
   const toggleMember = (id) => setForm((prev) => ({ ...prev, members: prev.members.includes(id) ? prev.members.filter((member) => member !== id) : [...prev.members, id] }));
 
   return (
-    <Modal open={open} onClose={onClose} title={project ? 'Edit Project' : 'New Project'} subtitle="Keep project CRUD exactly intact while redesigning the shell." width="max-w-2xl">
+    <Modal open={open} onClose={onClose} title={project ? 'Edit Project' : 'New Project'} subtitle="Project create and edit actions stay tied to the current API." width="max-w-2xl">
       <div className="space-y-4">
         <div><label className="label">Project Name</label><input className="input-base" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
         <div><label className="label">Description</label><textarea className="input-base min-h-28" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} /></div>
