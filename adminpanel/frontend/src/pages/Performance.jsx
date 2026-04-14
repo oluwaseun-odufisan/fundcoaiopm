@@ -34,7 +34,7 @@ const Performance = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Performance" title="Performance" description="Ranking, delivery results, and bonus awards in one clear workspace." />
+      <PageHeader eyebrow="Performance" title="Performance" />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Ranked users" value={data.allUsers.length} icon={Trophy} tone="var(--c-accent)" />

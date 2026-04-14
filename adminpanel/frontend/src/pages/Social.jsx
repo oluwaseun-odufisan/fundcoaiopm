@@ -73,7 +73,7 @@ const Social = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Social Feed" title="Social Feed" description="Review posts, publish announcements, and moderate comments from one clean feed." />
+      <PageHeader eyebrow="Social Feed" title="Social Feed" />
       {hasRole('executive', 'admin', 'team-lead') ? (
         <Panel title="Create announcement" subtitle="Broadcast updates to your team or the full organization">
           <div className="space-y-4">

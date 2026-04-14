@@ -54,7 +54,7 @@ const Goals = () => {
   const progressFor = (goal) => {
     if (!goal.subGoals?.length) return 0;
     return Math.round(
-      (goal.subGoals.filter((item) => item.completed).length / goal.subGoals.length) * 100,
+      (goal.subGoals.filter((item) => item.completed).length / goal.subGoals.length) * 100
     );
   };
 
@@ -105,7 +105,6 @@ const Goals = () => {
       <PageHeader
         eyebrow="Goals"
         title="Goals"
-        description="A cleaner goal board for owners, timing, and progress."
         actions={
           hasRole('team-lead', 'admin') ? (
             <button className="btn-primary rounded-full" onClick={() => setFormGoal({})}>
@@ -117,7 +116,7 @@ const Goals = () => {
         aside={
           <SegmentedTabs
             items={[
-              { label: 'Board', value: 'board' },
+              { label: 'Grid', value: 'board' },
               { label: 'List', value: 'list' },
             ]}
             value={view}
@@ -161,12 +160,26 @@ const Goals = () => {
             const owner = goal.owner ? `${goal.owner.firstName} ${goal.owner.lastName}` : 'Unassigned';
 
             return (
-              <button
+              <div
                 key={goal._id}
-                className={`surface-card surface-card-hover text-left ${view === 'board' ? 'rounded-[1.6rem] p-5' : 'w-full rounded-[1.4rem] p-4'}`}
+                className={`surface-card surface-card-hover text-left cursor-pointer ${
+                  view === 'board' ? 'rounded-[1.6rem] p-5' : 'w-full rounded-[1.4rem] p-4'
+                }`}
+                role="button"
+                tabIndex={0}
                 onClick={() => setViewGoal(goal)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setViewGoal(goal);
+                  }
+                }}
               >
-                <div className={`flex items-start justify-between gap-3 ${view === 'board' ? 'mb-3' : 'mb-4 flex-col md:flex-row md:items-center'}`}>
+                <div
+                  className={`flex items-start justify-between gap-3 ${
+                    view === 'board' ? 'mb-3' : 'mb-4 flex-col md:flex-row md:items-center'
+                  }`}
+                >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="badge capitalize" style={{ background: 'var(--c-primary-soft)', color: 'var(--brand-primary)' }}>
@@ -180,8 +193,11 @@ const Goals = () => {
                       {goal.title}
                     </h3>
                   </div>
-                  {hasRole('team-lead', 'admin') ? (
+
+                  {/* Inner Edit button - now allowed */}
+                  {hasRole('team-lead', 'admin') && (
                     <button
+                      type="button"
                       className="btn-secondary h-10 w-10 rounded-2xl p-0"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -190,7 +206,7 @@ const Goals = () => {
                     >
                       <Edit2 className="h-4 w-4" />
                     </button>
-                  ) : null}
+                  )}
                 </div>
 
                 <div className={`grid gap-3 ${view === 'board' ? '' : 'md:grid-cols-[1fr_auto]'}`}>
@@ -206,9 +222,13 @@ const Goals = () => {
                         {goal.endDate ? ` - ${format(new Date(goal.endDate), 'MMM d')}` : ''}
                       </span>
                     </div>
+
                     <div className="mb-2 mt-4 flex items-center justify-between text-sm">
                       <span style={{ color: 'var(--c-text-soft)' }}>Progress</span>
-                      <span className="font-black" style={{ color: progress === 100 ? 'var(--c-success)' : 'var(--brand-primary)' }}>
+                      <span
+                        className="font-black"
+                        style={{ color: progress === 100 ? 'var(--c-success)' : 'var(--brand-primary)' }}
+                      >
                         {progress}%
                       </span>
                     </div>
@@ -230,7 +250,7 @@ const Goals = () => {
                     {goal.subGoals?.filter((item) => item.completed).length || 0}/{goal.subGoals?.length || 0} items done
                   </p>
                 ) : null}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -259,6 +279,7 @@ const Goals = () => {
   );
 };
 
+/* ====================== GOAL FORM MODAL ====================== */
 const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
   const isEdit = !!goal;
   const [form, setForm] = useState({
@@ -281,8 +302,7 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
       type: goal?.type || 'personal',
       startDate: goal?.startDate ? new Date(goal.startDate).toISOString().split('T')[0] : '',
       endDate: goal?.endDate ? new Date(goal.endDate).toISOString().split('T')[0] : '',
-      subGoals:
-        goal?.subGoals?.map((item) => ({ title: item.title, completed: item.completed })) || [],
+      subGoals: goal?.subGoals?.map((item) => ({ title: item.title, completed: item.completed })) || [],
     });
   }, [goal, open]);
 
@@ -311,28 +331,18 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
         ...(form.ownerId ? { ownerId: form.ownerId } : {}),
       },
       isEdit,
-      goal?._id,
+      goal?._id
     );
     setSaving(false);
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={isEdit ? 'Edit Goal' : 'Create Goal'}
-      subtitle="Goal details stay tied to the current API."
-      width="max-w-2xl"
-    >
+    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit Goal' : 'Create Goal'} subtitle="Goal details stay tied to the current API." width="max-w-2xl">
       <div className="grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="label">{isEdit ? 'Reassign To' : 'Assign To *'}</label>
-            <select
-              className="input-base"
-              value={form.ownerId}
-              onChange={(e) => setForm((prev) => ({ ...prev, ownerId: e.target.value }))}
-            >
+            <select className="input-base" value={form.ownerId} onChange={(e) => setForm((prev) => ({ ...prev, ownerId: e.target.value }))}>
               <option value="">{isEdit ? 'Keep current owner' : 'Select user...'}</option>
               {users.map((user) => (
                 <option key={user._id} value={user._id}>
@@ -343,11 +353,7 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
           </div>
           <div>
             <label className="label">Timeframe</label>
-            <select
-              className="input-base"
-              value={form.timeframe}
-              onChange={(e) => setForm((prev) => ({ ...prev, timeframe: e.target.value }))}
-            >
+            <select className="input-base" value={form.timeframe} onChange={(e) => setForm((prev) => ({ ...prev, timeframe: e.target.value }))}>
               {['daily', 'weekly', 'monthly', 'quarterly'].map((timeframe) => (
                 <option key={timeframe} value={timeframe}>
                   {timeframe}
@@ -359,21 +365,12 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
 
         <div>
           <label className="label">Title *</label>
-          <input
-            className="input-base"
-            value={form.title}
-            onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-            placeholder="Goal title"
-          />
+          <input className="input-base" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Goal title" />
         </div>
 
         <div>
           <label className="label">Type</label>
-          <select
-            className="input-base"
-            value={form.type}
-            onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
-          >
+          <select className="input-base" value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}>
             <option value="personal">Personal</option>
             <option value="task">Task</option>
           </select>
@@ -382,21 +379,11 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="label">Start Date</label>
-            <input
-              type="date"
-              className="input-base"
-              value={form.startDate}
-              onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
-            />
+            <input type="date" className="input-base" value={form.startDate} onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))} />
           </div>
           <div>
             <label className="label">End Date</label>
-            <input
-              type="date"
-              className="input-base"
-              value={form.endDate}
-              onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
-            />
+            <input type="date" className="input-base" value={form.endDate} onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))} />
           </div>
         </div>
 
@@ -404,65 +391,17 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
           <label className="label">Goal Items ({form.subGoals.length})</label>
           <div className="space-y-2">
             {form.subGoals.map((item, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 rounded-[1.15rem] border px-3 py-3"
-                style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}
-              >
-                <input
-                  type="checkbox"
-                  checked={item.completed}
-                  onChange={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      subGoals: prev.subGoals.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, completed: !entry.completed } : entry,
-                      ),
-                    }))
-                  }
-                />
-                <input
-                  className="w-full bg-transparent text-sm outline-none"
-                  value={item.title}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      subGoals: prev.subGoals.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, title: e.target.value } : entry,
-                      ),
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  className="btn-ghost h-9 w-9 rounded-xl p-0"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      subGoals: prev.subGoals.filter((_, entryIndex) => entryIndex !== index),
-                    }))
-                  }
-                >
+              <div key={index} className="flex items-center gap-3 rounded-[1.15rem] border px-3 py-3" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
+                <input type="checkbox" checked={item.completed} onChange={() => setForm((prev) => ({ ...prev, subGoals: prev.subGoals.map((entry, i) => (i === index ? { ...entry, completed: !entry.completed } : entry)) }))} />
+                <input className="w-full bg-transparent text-sm outline-none" value={item.title} onChange={(e) => setForm((prev) => ({ ...prev, subGoals: prev.subGoals.map((entry, i) => (i === index ? { ...entry, title: e.target.value } : entry)) }))} />
+                <button type="button" className="btn-ghost h-9 w-9 rounded-xl p-0" onClick={() => setForm((prev) => ({ ...prev, subGoals: prev.subGoals.filter((_, i) => i !== index) }))}>
                   <X className="h-4 w-4" />
                 </button>
               </div>
             ))}
             <div className="flex gap-2">
-              <input
-                className="input-base"
-                value={subGoal}
-                onChange={(e) => setSubGoal(e.target.value)}
-                placeholder="Add goal item"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addSubGoal();
-                  }
-                }}
-              />
-              <button type="button" className="btn-secondary" onClick={addSubGoal}>
-                Add
-              </button>
+              <input className="input-base" value={subGoal} onChange={(e) => setSubGoal(e.target.value)} placeholder="Add goal item" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubGoal(); } }} />
+              <button type="button" className="btn-secondary" onClick={addSubGoal}>Add</button>
             </div>
           </div>
         </div>
@@ -475,17 +414,16 @@ const GoalFormModal = ({ open, goal, users, onClose, onSave }) => {
   );
 };
 
+/* ====================== GOAL DETAIL MODAL ====================== */
 const GoalDetailModal = ({ open, goal, onClose, onComment, onEdit, onDelete, canEdit }) => {
   const [comment, setComment] = useState('');
-
   if (!goal) return null;
 
   const progress = goal.subGoals?.length
     ? Math.round((goal.subGoals.filter((item) => item.completed).length / goal.subGoals.length) * 100)
     : 0;
-  const owner = goal.owner
-    ? `${goal.owner.firstName || ''} ${goal.owner.lastName || ''}`.trim()
-    : 'Unassigned';
+
+  const owner = goal.owner ? `${goal.owner.firstName || ''} ${goal.owner.lastName || ''}`.trim() : 'Unassigned';
 
   return (
     <Modal open={open} onClose={onClose} title="Goal Details" subtitle={goal.title} width="max-w-2xl">
@@ -502,7 +440,9 @@ const GoalDetailModal = ({ open, goal, onClose, onComment, onEdit, onDelete, can
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
             <p className="section-title mb-2">Owner</p>
-            <p className="text-base font-black" style={{ color: 'var(--c-text)' }}>{owner}</p>
+            <p className="text-base font-black" style={{ color: 'var(--c-text)' }}>
+              {owner}
+            </p>
           </div>
           <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
             <p className="section-title mb-2">Window</p>
@@ -517,7 +457,9 @@ const GoalDetailModal = ({ open, goal, onClose, onComment, onEdit, onDelete, can
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="section-title">Progress</p>
-            <span className="text-sm font-black" style={{ color: 'var(--brand-primary)' }}>{progress}%</span>
+            <span className="text-sm font-black" style={{ color: 'var(--brand-primary)' }}>
+              {progress}%
+            </span>
           </div>
           <ProgressBar value={progress} tone={progress === 100 ? 'var(--c-success)' : 'var(--brand-primary)'} />
         </div>
@@ -528,7 +470,11 @@ const GoalDetailModal = ({ open, goal, onClose, onComment, onEdit, onDelete, can
               <div
                 key={index}
                 className="rounded-[1.15rem] border px-4 py-3 text-sm"
-                style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)', color: item.completed ? 'var(--c-text-faint)' : 'var(--c-text)' }}
+                style={{
+                  borderColor: 'var(--c-border)',
+                  background: 'var(--c-surface-2)',
+                  color: item.completed ? 'var(--c-text-faint)' : 'var(--c-text)',
+                }}
               >
                 {item.title}
               </div>
@@ -555,16 +501,16 @@ const GoalDetailModal = ({ open, goal, onClose, onComment, onEdit, onDelete, can
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {canEdit ? (
+          {canEdit && (
             <button className="btn-secondary rounded-full" onClick={() => onEdit(goal)}>
               <Edit2 className="h-4 w-4" /> Edit Goal
             </button>
-          ) : null}
-          {canEdit ? (
+          )}
+          {canEdit && (
             <button className="btn-danger rounded-full" onClick={() => onDelete(goal._id)}>
               <Trash2 className="h-4 w-4" /> Delete Goal
             </button>
-          ) : null}
+          )}
         </div>
       </div>
     </Modal>

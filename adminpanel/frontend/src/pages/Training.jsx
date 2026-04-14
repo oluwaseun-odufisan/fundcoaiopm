@@ -45,7 +45,7 @@ const Training = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Training" title="Training" description="Courses, learner progress, certification status, and completion rates in one view." actions={hasRole('admin') ? <button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Course</button> : null} />
+      <PageHeader title="Training" actions={hasRole('admin') ? <button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Course</button> : null} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Courses', value: stats.totalCourses || 0, icon: BookOpen, tone: 'var(--c-accent)' },

@@ -53,7 +53,7 @@ const Reminders = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Reminders" title="Reminders" description="Keep scheduled prompts, deadline notices, and follow-ups in one place." actions={<button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Reminder</button>} />
+      <PageHeader title="Reminders" actions={<button className="btn-primary rounded-full" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /> Create Reminder</button>} />
       {loading ? <LoadingScreen height="18rem" /> : reminders.length === 0 ? <EmptyState icon={Bell} title="No active reminders" description="Create your first reminder to start managing operational follow-ups." /> : (
         <Panel title="Reminder stream" subtitle={`${reminders.length} reminders`}>
           <div className="space-y-3">

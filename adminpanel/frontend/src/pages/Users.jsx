@@ -82,7 +82,7 @@ const Users = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Users" title="Users Management" description="Create, update, secure, and deactivate accounts from one clear admin table." actions={<button className="btn-primary rounded-full" onClick={() => { setEditUser(null); setShowForm(true); }}><Plus className="h-4 w-4" /> Create User</button>} />
+      <PageHeader title="Users Management" actions={<button className="btn-primary rounded-full" onClick={() => { setEditUser(null); setShowForm(true); }}><Plus className="h-4 w-4" /> Create User</button>} />
       <Panel><SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." icon={Search} /></Panel>
       {loading ? <LoadingScreen height="18rem" /> : users.length === 0 ? <EmptyState icon={Shield} title="No users found" description="Create the first user account to populate this directory." /> : (
         <Panel title="User directory" subtitle={`${users.length} accounts visible`}>

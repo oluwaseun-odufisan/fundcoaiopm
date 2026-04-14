@@ -43,7 +43,7 @@ const Meetings = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Meetings" title="Meetings" description="A clearer room board for status, host details, attendance, and close controls." />
+      <PageHeader title="Meetings" />
       <Panel>
         <div className="flex flex-wrap gap-2">
           {['', 'active', 'waiting', 'ended'].map((item) => <FilterChip key={item || 'all'} active={filter === item} onClick={() => setFilter(item)}>{item || 'All'}</FilterChip>)}

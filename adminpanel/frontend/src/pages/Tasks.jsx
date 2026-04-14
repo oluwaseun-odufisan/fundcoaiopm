@@ -114,7 +114,6 @@ const Tasks = () => {
       <PageHeader
         eyebrow="Tasks"
         title="Tasks"
-        description="A sharper task workspace for review, ownership, approvals, and status changes."
         actions={
           <>
             <button className="btn-secondary rounded-full" onClick={() => setDisplay((prev) => (prev === 'list' ? 'grid' : 'list'))}>

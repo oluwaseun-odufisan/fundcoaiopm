@@ -61,7 +61,7 @@ const Reports = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="Reports" title="Reports" description="A sharper review queue for submitted reports, notes, and decisions." />
+      <PageHeader title="Reports" />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Pending', value: stats.submitted || 0, tone: '#d97706' },

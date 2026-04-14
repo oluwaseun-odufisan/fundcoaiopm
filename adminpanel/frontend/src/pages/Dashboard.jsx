@@ -85,7 +85,6 @@ const Dashboard = () => {
       <PageHeader
         eyebrow="Overview"
         title={`Good ${greeting}, ${user?.firstName || 'Admin'}`}
-        description="A sharper daily view for delivery, approvals, team movement, and current risk."
         actions={
           <>
             <button className="btn-secondary rounded-full" onClick={() => navigate('/reports')}>
@@ -98,11 +97,7 @@ const Dashboard = () => {
             </button>
           </>
         }
-        aside={
-          <div className="rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em]" style={{ background: 'var(--c-secondary-soft)', color: 'var(--brand-secondary)' }}>
-            FundCo AI Live
-          </div>
-        }
+
       />
 
       <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
