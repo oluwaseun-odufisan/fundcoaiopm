@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -9,18 +9,30 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handle = async (e) => {
     e.preventDefault();
     if (!email || !password) return toast.error('Enter email and password');
+
     setLoading(true);
+
     try {
       const data = await login(email, password);
+
       if (data.success) {
-        toast.success('Welcome back');
-        navigate('/', { replace: true });
+        // Show toast with auto-dismiss
+        toast.success('Welcome back!', {
+          duration: 2500,        // 2.5 seconds
+          position: 'top-center',
+        });
+
+        // Small delay so user actually sees the success message
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 800);
       } else {
         toast.error(data.message || 'Login failed');
       }
@@ -33,26 +45,18 @@ const Login = () => {
 
   return (
     <div className="min-h-screen px-4 py-6 lg:px-8 lg:py-8" style={{ background: 'var(--c-bg)' }}>
-      <Toaster position="top-center" />
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1480px] overflow-hidden rounded-[2rem] border shadow-[var(--shadow-lg)] lg:grid-cols-[1.1fr_0.9fr]" style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)' }}>
+        
+        {/* Left side - unchanged */}
         <section className="hidden border-r px-10 py-10 lg:flex lg:flex-col lg:justify-between" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
           <div>
             <div className="flex items-center gap-4">
-              <img
-                src="/Fundco.svg"
-                alt="FundCo"
-                className="h-16 w-auto object-contain"
-              />
-
-              <h1
-                className="flex items-center text-7xl font-black leading-none"
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
+              <img src="/Fundco.svg" alt="FundCo" className="h-16 w-auto object-contain" />
+              <h1 className="flex items-center text-7xl font-black leading-none" style={{ fontFamily: 'var(--font-display)' }}>
                 <span style={{ color: '#312783' }}>A</span>
                 <span style={{ color: '#36a9e1' }}>I</span>
               </h1>
             </div>
-
             <div className="mt-16 max-w-xl">
               <p className="section-title mb-4">Admin Control</p>
               <h2 className="text-5xl font-black leading-[1.02] tracking-[-0.06em]" style={{ color: 'var(--c-text)', fontFamily: 'var(--font-display)' }}>
@@ -75,8 +79,10 @@ const Login = () => {
           </div>
         </section>
 
+        {/* Right side - Login form */}
         <section className="flex items-center justify-center px-5 py-8 lg:px-12">
           <div className="w-full max-w-[460px]">
+            {/* Mobile logo */}
             <div className="mb-8 lg:hidden">
               <p className="text-[0.72rem] font-extrabold uppercase tracking-[0.18em]" style={{ color: 'var(--c-text-faint)' }}>
                 FundCo Capital Managers
