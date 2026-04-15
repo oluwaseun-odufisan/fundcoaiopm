@@ -1,4 +1,3 @@
-//api.js
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4002';

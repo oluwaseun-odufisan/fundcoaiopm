@@ -1,82 +1,137 @@
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Search, X } from 'lucide-react';
 
+const toneSurfaceMap = {
+  brand: { background: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' },
+  secondary: { background: 'var(--brand-secondary-soft)', color: 'var(--brand-secondary)' },
+  success: { background: 'var(--c-success-soft)', color: 'var(--c-success)' },
+  warning: { background: 'var(--c-warning-soft)', color: 'var(--c-warning)' },
+  danger: { background: 'var(--c-danger-soft)', color: 'var(--c-danger)' },
+  info: { background: 'var(--c-info-soft)', color: 'var(--c-info)' },
+  neutral: { background: 'var(--c-panel-subtle)', color: 'var(--c-text-soft)' },
+  default: { background: 'var(--c-panel-subtle)', color: 'var(--c-text-soft)' },
+};
+
+const readToneSurface = (tone) => {
+  if (tone === 'var(--brand-secondary)') return toneSurfaceMap.secondary;
+  if (tone === 'var(--brand-primary)' || tone === 'var(--c-accent)') return toneSurfaceMap.brand;
+  if (tone === 'var(--c-success)') return toneSurfaceMap.success;
+  if (tone === 'var(--c-warning)') return toneSurfaceMap.warning;
+  if (tone === 'var(--c-danger)') return toneSurfaceMap.danger;
+  if (tone === 'var(--c-info)') return toneSurfaceMap.info;
+  return toneSurfaceMap.default;
+};
+
 export const PageHeader = ({ eyebrow, title, description, actions, aside }) => (
-  <section className="surface-card rounded-[1.75rem] p-5 lg:p-7">
-    <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-      <div className="min-w-0">
-        {eyebrow ? <p className="section-title mb-3">{eyebrow}</p> : null}
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <h1
-              className="text-3xl font-black tracking-[-0.05em] lg:text-[2.5rem]"
-              style={{ color: 'var(--c-text)', fontFamily: 'var(--font-display)' }}
-            >
-              {title}
-            </h1>
-            {description ? (
-              <p className="mt-3 max-w-3xl text-sm leading-6 lg:text-[0.95rem]" style={{ color: 'var(--c-text-soft)' }}>
-                {description}
-              </p>
-            ) : null}
+  <section className="surface-panel px-4 py-4 lg:px-5">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
+          <div className="mt-2 flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <h1 className="page-title">{title}</h1>
+              {description ? <p className="page-description mt-2">{description}</p> : null}
+            </div>
+            {aside ? <div className="flex shrink-0 items-center gap-2">{aside}</div> : null}
           </div>
-          {aside ? <div className="xl:pb-1">{aside}</div> : null}
         </div>
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
     </div>
   </section>
 );
 
-export const StatCard = ({ label, value, icon: Icon, tone = 'var(--brand-primary)', helper, trend }) => (
-  <section className="surface-card surface-card-hover rounded-[1.5rem] p-5">
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <p className="section-title mb-3">{label}</p>
-        <p className="stat-value text-3xl lg:text-[2rem]" style={{ color: tone }}>
-          {value}
-        </p>
-        {helper ? <p className="mt-2 text-sm" style={{ color: 'var(--c-text-soft)' }}>{helper}</p> : null}
+export const StatCard = ({ label, value, icon: Icon, tone = 'var(--brand-primary)', helper, trend }) => {
+  const surface = readToneSurface(tone);
+
+  return (
+    <section className="surface-card surface-card-hover p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="section-title">{label}</p>
+          <p className="stat-value mt-2 text-[1.6rem] lg:text-[1.8rem]" style={{ color: tone }}>
+            {value}
+          </p>
+          {helper ? (
+            <p className="mt-1.5 text-xs leading-5" style={{ color: 'var(--c-text-muted)' }}>
+              {helper}
+            </p>
+          ) : null}
+        </div>
+        {Icon ? (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.7rem]" style={surface}>
+            <Icon className="h-5 w-5" />
+          </div>
+        ) : null}
       </div>
-      <div
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-        style={{ background: tone === 'var(--brand-secondary)' ? 'var(--c-secondary-soft)' : 'var(--c-primary-soft)' }}
-      >
-        <Icon className="h-5 w-5" style={{ color: tone }} />
-      </div>
-    </div>
-    {trend ? <div className="mt-4">{trend}</div> : null}
-  </section>
+      {trend ? <div className="mt-3">{trend}</div> : null}
+    </section>
+  );
+};
+
+export const MiniStat = ({ label, value, helper, tone = 'var(--brand-primary)' }) => (
+  <div className="rounded-[0.8rem] border px-4 py-3" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel-subtle)' }}>
+    <p className="section-title">{label}</p>
+    <p className="stat-value mt-2 text-[1.35rem]" style={{ color: tone }}>
+      {value}
+    </p>
+    {helper ? (
+      <p className="mt-2 text-xs leading-5" style={{ color: 'var(--c-text-muted)' }}>
+        {helper}
+      </p>
+    ) : null}
+  </div>
 );
 
 export const Panel = ({ title, subtitle, action, children, className = '', bodyClassName = '' }) => (
-  <section className={`surface-card rounded-[1.75rem] ${className}`}>
+  <section className={`surface-panel ${className}`}>
     {(title || subtitle || action) && (
-      <div
-        className="flex flex-col gap-3 border-b px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-6"
-        style={{ borderColor: 'var(--c-border)' }}
-      >
-        <div>
-          {title ? <h2 className="text-base font-extrabold" style={{ color: 'var(--c-text)' }}>{title}</h2> : null}
-          {subtitle ? <p className="mt-1 text-sm" style={{ color: 'var(--c-text-soft)' }}>{subtitle}</p> : null}
+      <div className="flex flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-5" style={{ borderColor: 'var(--c-border)' }}>
+        <div className="min-w-0">
+          {title ? <h2 className="text-base font-black" style={{ color: 'var(--c-text)' }}>{title}</h2> : null}
+          {subtitle ? (
+            <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>
+              {subtitle}
+            </p>
+          ) : null}
         </div>
-        {action ? <div className="flex items-center gap-2">{action}</div> : null}
+        {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
       </div>
     )}
-    <div className={`p-5 lg:p-6 ${bodyClassName}`}>{children}</div>
+    <div className={`p-4 lg:p-5 ${bodyClassName}`}>{children}</div>
   </section>
+);
+
+export const SurfaceMetric = ({ title, value, detail, tone = 'var(--brand-primary)' }) => (
+  <div className="rounded-[0.85rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel-subtle)' }}>
+    <p className="section-title">{title}</p>
+    <p className="stat-value mt-2 text-[1.5rem]" style={{ color: tone }}>
+      {value}
+    </p>
+    {detail ? (
+      <p className="mt-1.5 text-xs leading-5" style={{ color: 'var(--c-text-muted)' }}>
+        {detail}
+      </p>
+    ) : null}
+  </div>
+);
+
+export const StatusPill = ({ children, tone = 'default' }) => (
+  <span className="badge" style={toneSurfaceMap[tone] || toneSurfaceMap.default}>
+    {children}
+  </span>
 );
 
 export const FilterChip = ({ active, onClick, children }) => (
   <button
     type="button"
     onClick={onClick}
-    className="rounded-full border px-3.5 py-2 text-xs font-extrabold uppercase tracking-[0.08em] transition-all"
+    className="rounded-[0.65rem] border px-3 py-1.5 text-xs font-black uppercase tracking-[0.06em] transition-colors"
     style={
       active
         ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: '#ffffff' }
-        : { background: 'var(--c-surface)', borderColor: 'var(--c-border)', color: 'var(--c-text-soft)' }
+        : { background: 'var(--c-panel)', borderColor: 'var(--c-border)', color: 'var(--c-text-soft)' }
     }
   >
     {children}
@@ -86,75 +141,84 @@ export const FilterChip = ({ active, onClick, children }) => (
 export const SearchInput = ({ value, onChange, placeholder = 'Search', icon: Icon = Search }) => (
   <div className="relative w-full">
     <Icon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--c-text-faint)' }} />
-    <input
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      className="input-base"
-      style={{ paddingLeft: 44 }}
-    />
+    <input value={value} onChange={onChange} placeholder={placeholder} className="input-base" style={{ paddingLeft: 40 }} />
   </div>
 );
 
-export const EmptyState = ({ icon: Icon, title, description, action }) => (
-  <section className="surface-card rounded-[1.75rem] px-6 py-14 text-center">
-    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem]" style={{ background: 'var(--c-surface-3)' }}>
-      <Icon className="h-7 w-7" style={{ color: 'var(--brand-primary)' }} />
+export const InfoStrip = ({ title, description, tone = 'brand', actions }) => {
+  const surface = toneSurfaceMap[tone] || toneSurfaceMap.default;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[0.85rem] border px-4 py-3 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--c-border)', ...surface }}>
+      <div className="min-w-0">
+        <p className="text-sm font-black">{title}</p>
+        {description ? <p className="mt-1 text-sm leading-6 opacity-85">{description}</p> : null}
+      </div>
+      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
-    <h3 className="mt-5 text-xl font-black" style={{ color: 'var(--c-text)' }}>
+  );
+};
+
+export const EmptyState = ({ icon: Icon, title, description, action }) => (
+  <section className="surface-panel px-5 py-10 text-center">
+    {Icon ? (
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[0.8rem]" style={{ background: 'var(--c-panel-subtle)', color: 'var(--brand-primary)' }}>
+        <Icon className="h-6 w-6" />
+      </div>
+    ) : null}
+    <h3 className="mt-4 text-lg font-black" style={{ color: 'var(--c-text)' }}>
       {title}
     </h3>
-    {description ? <p className="mx-auto mt-2 max-w-lg text-sm leading-6" style={{ color: 'var(--c-text-soft)' }}>{description}</p> : null}
+    {description ? (
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>
+        {description}
+      </p>
+    ) : null}
     {action ? <div className="mt-5">{action}</div> : null}
   </section>
 );
 
-export const LoadingScreen = ({ height = 'calc(100vh - 160px)' }) => (
+export const LoadingScreen = ({ height = 'calc(100vh - 150px)' }) => (
   <div className="flex items-center justify-center" style={{ height }}>
-    <div className="relative flex h-14 w-14 items-center justify-center rounded-full border-2" style={{ borderColor: 'var(--c-border)' }}>
-      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-t-transparent" style={{ borderColor: 'var(--brand-primary)', borderTopColor: 'transparent' }} />
+    <div className="relative flex h-12 w-12 items-center justify-center rounded-full border" style={{ borderColor: 'var(--c-border)' }}>
+      <div className="h-7 w-7 animate-spin rounded-full border-[3px]" style={{ borderColor: 'var(--brand-primary)', borderTopColor: 'transparent' }} />
     </div>
   </div>
 );
 
-export const Modal = ({ open, title, subtitle, onClose, children, width = 'max-w-lg' }) => (
-  <AnimatePresence>
-    {open ? (
-      <>
-        <motion.div
-          className="fixed inset-0 z-50 bg-black/45"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-        />
-        <motion.div
-          initial={{ opacity: 0, y: 18, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.98 }}
-          transition={{ duration: 0.18 }}
-          className={`fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[94vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[1.8rem] border ${width}`}
-          style={{ background: 'var(--c-surface)', borderColor: 'var(--c-border)', boxShadow: 'var(--shadow-lg)' }}
-        >
-          <div className="flex items-start justify-between gap-4 border-b px-5 py-4 lg:px-6" style={{ borderColor: 'var(--c-border)' }}>
-            <div>
-              <h3 className="text-lg font-black" style={{ color: 'var(--c-text)' }}>{title}</h3>
-              {subtitle ? <p className="mt-1 text-sm" style={{ color: 'var(--c-text-soft)' }}>{subtitle}</p> : null}
+export const Modal = ({ open, title, subtitle, onClose, children, width = 'max-w-lg' }) => {
+  if (!open) return null;
+
+  return (
+    <>
+      <button type="button" className="fixed inset-0 z-50 bg-slate-950/45" onClick={onClose} aria-label="Close dialog" />
+      <div className={`fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[94vw] -translate-x-1/2 -translate-y-1/2 ${width}`}>
+        <div className="surface-panel max-h-[90vh] overflow-hidden" style={{ boxShadow: 'var(--shadow-lg)' }}>
+          <div className="flex items-start justify-between gap-4 border-b px-4 py-3 lg:px-5" style={{ borderColor: 'var(--c-border)' }}>
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-black" style={{ color: 'var(--c-text)' }}>
+                {title}
+              </h3>
+              {subtitle ? (
+                <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
-            <button type="button" onClick={onClose} className="btn-ghost h-10 w-10 rounded-2xl p-0" aria-label="Close dialog">
+            <button type="button" onClick={onClose} className="btn-ghost h-9 w-9 rounded-[0.7rem] p-0" aria-label="Close dialog">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="max-h-[calc(88vh-78px)] overflow-y-auto p-5 lg:p-6">{children}</div>
-        </motion.div>
-      </>
-    ) : null}
-  </AnimatePresence>
-);
+          <div className="max-h-[calc(90vh-72px)] overflow-y-auto p-4 lg:p-5">{children}</div>
+        </div>
+      </div>
+    </>
+  );
+};
 
-export const ProgressBar = ({ value, tone = 'var(--brand-primary)', height = 10 }) => (
-  <div className="overflow-hidden rounded-full" style={{ height, background: 'var(--c-surface-3)' }}>
-    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${value}%`, background: tone }} />
+export const ProgressBar = ({ value, tone = 'var(--brand-primary)', height = 9, track = 'var(--c-panel-strong)' }) => (
+  <div className="overflow-hidden rounded-full" style={{ height, background: track }}>
+    <div className="h-full rounded-full transition-all duration-300" style={{ width: `${value}%`, background: tone }} />
   </div>
 );
 
@@ -163,9 +227,9 @@ export const AvatarStack = ({ items = [], limit = 4 }) => (
     {items.slice(0, limit).map((item, index) => (
       <div
         key={item._id || index}
-        className="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-black text-white"
+        className="flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-black text-white"
         style={{
-          borderColor: 'var(--c-surface)',
+          borderColor: 'var(--c-panel)',
           background: index % 2 === 0 ? 'var(--brand-primary)' : 'var(--brand-secondary)',
         }}
       >
@@ -173,7 +237,7 @@ export const AvatarStack = ({ items = [], limit = 4 }) => (
       </div>
     ))}
     {items.length > limit ? (
-      <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-black" style={{ borderColor: 'var(--c-surface)', background: 'var(--c-surface-3)', color: 'var(--c-text-soft)' }}>
+      <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-black" style={{ borderColor: 'var(--c-panel)', background: 'var(--c-panel-subtle)', color: 'var(--c-text-soft)' }}>
         +{items.length - limit}
       </div>
     ) : null}
@@ -181,16 +245,16 @@ export const AvatarStack = ({ items = [], limit = 4 }) => (
 );
 
 export const SegmentedTabs = ({ items, value, onChange }) => (
-  <div className="inline-flex rounded-full border p-1" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)' }}>
+  <div className="inline-flex rounded-[0.75rem] border p-1" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel-subtle)' }}>
     {items.map((item) => (
       <button
         key={item.value}
         type="button"
         onClick={() => onChange(item.value)}
-        className="rounded-full px-3.5 py-2 text-xs font-extrabold uppercase tracking-[0.08em] transition-all"
+        className="rounded-[0.55rem] px-3 py-1.5 text-xs font-black uppercase tracking-[0.06em] transition-colors"
         style={
           value === item.value
-            ? { background: 'var(--brand-primary)', color: '#ffffff' }
+            ? { background: 'var(--c-panel)', color: 'var(--c-text)', boxShadow: 'var(--shadow-xs)' }
             : { color: 'var(--c-text-soft)' }
         }
       >

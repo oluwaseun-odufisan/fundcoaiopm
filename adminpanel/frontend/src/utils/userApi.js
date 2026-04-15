@@ -1,0 +1,28 @@
+import axios from 'axios';
+
+export const USER_API_BASE = import.meta.env.VITE_USER_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+export const USER_FRONTEND_BASE = import.meta.env.VITE_USER_FRONTEND_URL || import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173';
+
+const userApi = axios.create({ baseURL: USER_API_BASE });
+
+userApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('adminToken');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+userApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
+export default userApi;

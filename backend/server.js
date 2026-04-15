@@ -153,18 +153,24 @@ io.use(async (socket, next) => {
 
 // ─────────────────────────────────────────────────────────────
 // Socket.IO Events
+const activeUserSockets = new Map();
+
 io.on('connection', async (socket) => {
     console.log(`✅ Socket connected: ${socket.id} | User: ${socket.user?.id || 'unknown'}`);
 
-    // Update lastActive
+    const userId = String(socket.user.id);
+    const connectedAt = new Date();
+    if (!activeUserSockets.has(userId)) activeUserSockets.set(userId, new Set());
+    activeUserSockets.get(userId).add(socket.id);
+
     try {
-        const user = await User.findById(socket.user.id).select('lastActive');
-        if (user) { user.lastActive = new Date(); await user.save({ validateBeforeSave: false }); }
+        await User.findByIdAndUpdate(userId, { online: true, lastActive: connectedAt }, { runValidators: false });
+        io.emit('presence:update', { userId, online: true, lastActive: connectedAt });
     } catch (err) {
-        console.error('Error updating lastActive:', err.message);
+        console.error('Error updating presence:', err.message);
     }
 
-    socket.join(`user:${socket.user.id}`);
+    socket.join(`user:${userId}`);
 
     // ── Chat ──────────────────────────────────────────────────
     socket.on('joinChat',  (chatId) => { if (chatId) socket.join(chatId); });
@@ -202,7 +208,22 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('error',      (err)    => console.error('Socket error:', err.message));
-    socket.on('disconnect', (reason) => console.log(`❌ Socket disconnected: ${socket.id} | ${reason}`));
+    socket.on('disconnect', async (reason) => {
+        console.log(`❌ Socket disconnected: ${socket.id} | ${reason}`);
+        const sockets = activeUserSockets.get(userId);
+        if (!sockets) return;
+        sockets.delete(socket.id);
+        if (sockets.size > 0) return;
+        activeUserSockets.delete(userId);
+
+        const lastActive = new Date();
+        try {
+            await User.findByIdAndUpdate(userId, { online: false, lastActive }, { runValidators: false });
+            io.emit('presence:update', { userId, online: false, lastActive });
+        } catch (err) {
+            console.error('Error updating disconnect presence:', err.message);
+        }
+    });
 });
 
 // ─────────────────────────────────────────────────────────────

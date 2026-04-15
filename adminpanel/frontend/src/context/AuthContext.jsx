@@ -1,4 +1,3 @@
-//AuthContext.jsx
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api from '../utils/api.js';
 
@@ -39,6 +38,24 @@ export const AuthProvider = ({ children }) => {
       .finally(() => setLoading(false));
   }, []);
 
+  const syncUser = useCallback((nextUser) => {
+    setUser(nextUser);
+    if (nextUser) {
+      localStorage.setItem('adminUser', JSON.stringify(nextUser));
+    } else {
+      localStorage.removeItem('adminUser');
+    }
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const { data } = await api.get('/auth/me');
+    if (data.success) {
+      syncUser(data.user);
+      return data.user;
+    }
+    return null;
+  }, [syncUser]);
+
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     if (data.success) {
@@ -59,7 +76,7 @@ export const AuthProvider = ({ children }) => {
   const hasRole = useCallback((...roles) => roles.includes(user?.role), [user]);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, loading, isRole, hasRole }}>
+    <AuthContext.Provider value={{ user, setUser: syncUser, syncUser, refreshUser, login, logout, loading, isRole, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,13 +7,12 @@ import Sidebar from './Sidebar.jsx';
 const Layout = ({ children }) => {
   const { user, logout, hasRole } = useAuth();
   const navigate = useNavigate();
-
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const sideWidth = useMemo(() => 
-    collapsed ? 'var(--sidebar-w-collapsed)' : 'var(--sidebar-w)', 
-    [collapsed]
+  const sideWidth = useMemo(
+    () => (collapsed ? 'var(--sidebar-w-collapsed)' : 'var(--sidebar-w)'),
+    [collapsed],
   );
 
   const handleLogout = () => {
@@ -22,14 +21,14 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="app-shell">
       <Navbar
         user={user}
         collapsed={collapsed}
-        onToggleSidebar={() => setCollapsed((prev) => !prev)}
-        onMobileMenu={() => setMobileOpen(true)}
+        onMenu={() => setMobileOpen(true)}
+        onToggleSidebar={() => setCollapsed((current) => !current)}
+        onLogout={handleLogout}
       />
-
       <Sidebar
         user={user}
         hasRole={hasRole}
@@ -38,15 +37,8 @@ const Layout = ({ children }) => {
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
       />
-
-      <main
-        className="main-content transition-[margin] duration-200"
-        style={{ 
-          marginLeft: sideWidth, 
-          paddingTop: 'var(--topbar-h)' 
-        }}
-      >
-        <div className="mx-auto max-w-[1640px] p-4 lg:p-6 xl:p-8">
+      <main className="main-content" style={{ marginLeft: sideWidth, paddingTop: 'var(--topbar-h)' }}>
+        <div className="mx-auto max-w-[1720px] px-4 pb-8 pt-5 lg:px-6 lg:pb-10 lg:pt-6 xl:px-8">
           {children}
         </div>
       </main>
