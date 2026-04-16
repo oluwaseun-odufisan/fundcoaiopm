@@ -13,6 +13,7 @@ import { io as socketIO } from 'socket.io-client';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { VideoTile, FloatingReaction, ChatPanel, ParticipantsPanel, getFullName } from './VideoRoomComponents';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 
@@ -202,11 +203,13 @@ const CtrlBtn = ({ onClick, active, offIcon, onIcon, label, redWhenOff = false, 
 );
 
 // ── Main VideoRoom ────────────────────────────────────────────────────────────
-const VideoRoom = () => {
-  const { roomId }          = useParams();
-  const navigate             = useNavigate();
-  const { user, onLogout }  = useOutletContext();
-  const token                = localStorage.getItem('token');
+const VideoRoom = ({ embeddedUser = null, onLogout: onLogoutProp = null }) => {
+  const { roomId } = useParams();
+  const navigate = useNavigate();
+  const outletContext = useOutletContext() || {};
+  const user = embeddedUser || outletContext.user || null;
+  const token = localStorage.getItem('token');
+  const { markTypeRead } = useNotifications();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [phase,          setPhase]          = useState('loading');
@@ -231,6 +234,7 @@ const VideoRoom = () => {
   const [reactions,      setReactions]      = useState([]);
   const [isSpeaking,     setIsSpeaking]     = useState({});
   const [linkCopied,     setLinkCopied]     = useState(false);
+  const [isLeaving,      setIsLeaving]      = useState(false);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const socketRef          = useRef(null);
@@ -239,9 +243,90 @@ const VideoRoom = () => {
   const containerRef       = useRef(null);
   const iceCandidateQueue  = useRef({});
   const screenStreamRef    = useRef(null);
+  const cleanupDoneRef     = useRef(false);
+  const shouldBlockNavigation = phase === 'room' && !isLeaving;
 
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
   useEffect(() => { peersRef.current = peers; }, [peers]);
+
+  useEffect(() => {
+    cleanupDoneRef.current = false;
+    setIsLeaving(false);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (roomId) {
+      markTypeRead?.('meeting');
+    }
+  }, [markTypeRead, roomId]);
+
+  useEffect(() => {
+    if (!shouldBlockNavigation) return undefined;
+
+    const handlePopState = () => {
+      window.history.pushState({ roomGuard: roomId }, '', window.location.href);
+      toast('Use Leave to exit the meeting first.', { duration: 2200, position: 'top-center' });
+    };
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+      return '';
+    };
+
+    window.history.pushState({ roomGuard: roomId }, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [roomId, shouldBlockNavigation]);
+
+  const cleanupConnections = useCallback(({ emitLeave = false } = {}) => {
+    if (cleanupDoneRef.current) return;
+    cleanupDoneRef.current = true;
+
+    const activeSocket = socketRef.current;
+    if (emitLeave && activeSocket?.connected && roomId) {
+      activeSocket.emit('leaveRoom', { roomId });
+    }
+    activeSocket?.removeAllListeners();
+    activeSocket?.disconnect();
+    socketRef.current = null;
+
+    Object.values(peersRef.current).forEach(p => p.connection?.close());
+    peersRef.current = {};
+    iceCandidateQueue.current = {};
+    setPeers({});
+    setPinnedId(null);
+    setShowChat(false);
+    setShowParticipants(false);
+    setUnreadChat(0);
+
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
+
+    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    screenStreamRef.current = null;
+    setScreenStream(null);
+    setIsScreenSharing(false);
+  }, [roomId]);
+
+  const exitRoom = useCallback((destination = '/meetroom', options = {}) => {
+    const { emitLeave = false, delayMs = 0 } = options;
+    setIsLeaving(true);
+    cleanupConnections({ emitLeave });
+
+    const go = () => navigate(destination);
+    if (delayMs > 0) {
+      window.setTimeout(go, delayMs);
+      return;
+    }
+    go();
+  }, [cleanupConnections, navigate]);
 
   // ── Screen share support ───────────────────────────────────────────────────
   useEffect(() => {
@@ -318,6 +403,8 @@ const VideoRoom = () => {
 
   // ── Join room ──────────────────────────────────────────────────────────────
   const joinRoom = useCallback(async ({ audioOn, videoOn }) => {
+    cleanupDoneRef.current = false;
+    setIsLeaving(false);
     setPhase('joining');
     setAudioEnabled(audioOn);
     setVideoEnabled(videoOn);
@@ -479,24 +566,32 @@ const VideoRoom = () => {
         { duration: 3000, position: 'top-center' });
     });
 
-    socket.on('roomEnded',  () => { toast.error('The host ended this meeting'); setTimeout(() => navigate('/meetroom'), 1500); });
-    socket.on('kicked',     ({ message }) => { toast.error(message || 'You were removed from the room'); setTimeout(() => navigate('/meetroom'), 1500); });
+    socket.on('roomEnded', () => {
+      toast.error('The host ended this meeting');
+      exitRoom('/meetroom', { emitLeave: false, delayMs: 1500 });
+    });
+    socket.on('kicked', ({ message }) => {
+      toast.error(message || 'You were removed from the room');
+      exitRoom('/meetroom', { emitLeave: false, delayMs: 1500 });
+    });
     socket.on('forceMute',  () => { setAudioEnabled(false); localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = false; }); toast('🔇 You were muted by the host', { duration: 3000 }); });
     socket.on('roomLockChange', ({ locked }) => { setRoomInfo(r => r ? { ...r, isLocked: locked } : r); toast(locked ? '🔒 Room locked' : '🔓 Room unlocked', { duration: 2000 }); });
-    socket.on('joinError',  ({ message }) => { setErrorMsg(message); setPhase('error'); });
+    socket.on('joinError', ({ message }) => {
+      cleanupConnections({ emitLeave: false });
+      setErrorMsg(message);
+      setPhase('error');
+    });
 
-  }, [roomId, token, createPeerConnection, drainIceQueue, navigate]);
+  }, [roomId, token, createPeerConnection, drainIceQueue, exitRoom, cleanupConnections]);
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      socketRef.current?.emit('leaveRoom', { roomId });
-      socketRef.current?.disconnect();
-      Object.values(peersRef.current).forEach(p => p.connection?.close());
-      peersRef.current = {};
-      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      if (!cleanupDoneRef.current) {
+        cleanupConnections({ emitLeave: !isLeaving });
+      }
     };
-  }, [roomId]);
+  }, [cleanupConnections, isLeaving]);
 
   // ── Toggle audio ───────────────────────────────────────────────────────────
   const toggleAudio = useCallback(() => {
@@ -593,14 +688,8 @@ const VideoRoom = () => {
 
   // ── Leave ──────────────────────────────────────────────────────────────────
   const leaveRoom = useCallback(() => {
-    socketRef.current?.emit('leaveRoom', { roomId });
-    socketRef.current?.disconnect();
-    Object.values(peersRef.current).forEach(p => p.connection?.close());
-    peersRef.current = {};
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    screenStreamRef.current?.getTracks().forEach(t => t.stop());
-    navigate('/meetroom');
-  }, [roomId, navigate]);
+    exitRoom('/meetroom', { emitLeave: true });
+  }, [exitRoom]);
 
   // ── Copy link ──────────────────────────────────────────────────────────────
   const copyLink = () => {

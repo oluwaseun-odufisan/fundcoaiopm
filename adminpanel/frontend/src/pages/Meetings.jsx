@@ -6,6 +6,7 @@ import api from '../utils/api.js';
 import userApi, { USER_FRONTEND_BASE } from '../utils/userApi.js';
 import { EmptyState, FilterChip, LoadingScreen, Modal, PageHeader, Panel, SearchInput, StatCard, StatusPill } from '../components/ui.jsx';
 import { formatPersonName } from '../utils/adminFormat.js';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 const openRoomWindow = (roomId) => {
   if (!roomId) return;
@@ -27,6 +28,7 @@ const Meetings = () => {
   const [filter, setFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+  const { markTypeRead } = useNotifications();
 
   const visibleRooms = useMemo(() => {
     const map = new Map();
@@ -70,6 +72,10 @@ const Meetings = () => {
       setLoading(false);
     }
   }, [filter]);
+
+  useEffect(() => {
+    markTypeRead?.('meeting');
+  }, [markTypeRead]);
 
   useEffect(() => {
     fetchRooms();

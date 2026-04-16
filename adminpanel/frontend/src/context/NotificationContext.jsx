@@ -171,7 +171,7 @@ export const NotificationProvider = ({ children }) => {
         social: toCount(unreadByType.social),
         tasks: Math.max(toCount(unreadByType.task), taskPending),
         reports: Math.max(toCount(unreadByType.report), reportPending),
-        meetings: Math.max(toCount(unreadByType.meeting), activeMeetings),
+        meetings: toCount(unreadByType.meeting),
         reminders: Math.max(toCount(unreadByType.reminder), pendingReminders),
         goals: toCount(unreadByType.goal),
         files: toCount(unreadByType.file),

@@ -111,8 +111,12 @@ const App = () => {
           />
 
           <Route path="/meetroom" element={<MeetingLobby />} />
-          <Route path="/room/:roomId" element={<VideoRoom />} />
         </Route>
+
+        <Route
+          path="/room/:roomId"
+          element={currentUser ? <VideoRoom embeddedUser={currentUser} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
+        />
 
         <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
       </Routes>

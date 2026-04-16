@@ -93,7 +93,7 @@ const NotificationDropdown = ({ items, total, loading, lastUpdated, onRefresh, o
 const Navbar = ({ user = {}, onLogout }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
-  const { items, counts, loading, lastUpdated, refresh, markRead, markAllRead } = useNotifications();
+  const { items, counts, loading, lastUpdated, refresh, markRead, markAllRead, markTypeRead } = useNotifications();
   const dropdownRef = useRef(null);
   const mobileRef = useRef(null);
   const notificationRef = useRef(null);
@@ -114,6 +114,13 @@ const Navbar = ({ user = {}, onLogout }) => {
     document.addEventListener('mousedown', closeMenus);
     return () => document.removeEventListener('mousedown', closeMenus);
   }, []);
+
+  const meetingCount = counts?.meetings || 0;
+
+  useEffect(() => {
+    if (!notificationOpen || meetingCount <= 0) return;
+    markTypeRead?.('meeting');
+  }, [meetingCount, markTypeRead, notificationOpen]);
 
   const handleLogout = () => {
     setDropdownOpen(false);

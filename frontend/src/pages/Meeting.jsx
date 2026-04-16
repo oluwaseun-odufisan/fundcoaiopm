@@ -16,6 +16,7 @@ import moment from 'moment';
 import io from 'socket.io-client';
 import { Toaster, toast } from 'react-hot-toast';
 import { Tooltip } from 'react-tooltip';
+import { useNotifications } from '../context/NotificationContext.jsx';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4001';
@@ -43,10 +44,12 @@ const Meeting = () => {
   const [view, setView] = useState('list'); // 'list' or 'calendar'
   const socket = useRef(null);
   const localizer = momentLocalizer(moment);
+  const { markTypeRead } = useNotifications();
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm({
     resolver: zodResolver(meetingSchema),
   });
   useEffect(() => {
+    markTypeRead?.('meeting');
     fetchMeetings();
     fetchUsers();
     socket.current = io(SOCKET_URL, {
@@ -62,22 +65,35 @@ const Meeting = () => {
       toast.error('Failed to connect to real-time service. Some features may be unavailable.');
     });
     socket.current.on('newMeeting', (meeting) => {
-      setMeetings((prev) => [meeting, ...prev]);
-      updateCalendarEvents([meeting, ...meetings]);
+      setMeetings((prev) => {
+        const next = [meeting, ...prev];
+        updateCalendarEvents(next);
+        return next;
+      });
       toast.success('New meeting created!');
     });
     socket.current.on('meetingUpdated', (updatedMeeting) => {
-      setMeetings((prev) => prev.map((m) => m._id === updatedMeeting._id ? updatedMeeting : m));
-      updateCalendarEvents(prev.map((m) => m._id === updatedMeeting._id ? updatedMeeting : m));
+      setMeetings((prev) => {
+        const next = prev.map((m) => m._id === updatedMeeting._id ? updatedMeeting : m);
+        updateCalendarEvents(next);
+        return next;
+      });
       toast.success('Meeting updated!');
     });
     socket.current.on('meetingDeleted', (id) => {
-      setMeetings((prev) => prev.filter((m) => m._id !== id));
-      updateCalendarEvents(prev.filter((m) => m._id !== id));
+      setMeetings((prev) => {
+        const next = prev.filter((m) => m._id !== id);
+        updateCalendarEvents(next);
+        return next;
+      });
       toast.success('Meeting deleted!');
     });
     socket.current.on('meetingStarted', (id) => {
-      setMeetings((prev) => prev.map((m) => m._id === id ? { ...m, status: 'ongoing' } : m));
+      setMeetings((prev) => {
+        const next = prev.map((m) => m._id === id ? { ...m, status: 'ongoing' } : m);
+        updateCalendarEvents(next);
+        return next;
+      });
       toast.info('A meeting has started!');
     });
     return () => {
@@ -159,6 +175,30 @@ const Meeting = () => {
       }))
     );
   };
+  useEffect(() => {
+    const search = meetingSearch.trim().toLowerCase();
+    const filtered = meetings.filter((meeting) => {
+      const matchesSearch =
+        !search ||
+        meeting.topic.toLowerCase().includes(search) ||
+        meeting.status.toLowerCase().includes(search);
+      const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+    setFilteredMeetings(filtered);
+  }, [meetings, meetingSearch, statusFilter]);
+  useEffect(() => {
+    const search = meetingSearch.trim().toLowerCase();
+    const filtered = meetings.filter((meeting) => {
+      const matchesSearch =
+        !search ||
+        meeting.topic.toLowerCase().includes(search) ||
+        meeting.status.toLowerCase().includes(search);
+      const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+    setFilteredMeetings(filtered);
+  }, [meetings, meetingSearch, statusFilter]);
   const onSubmit = async (data) => {
     // Convert startTime to full ISO
     const parsedStartTime = new Date(data.startTime);
@@ -232,15 +272,10 @@ const Meeting = () => {
     });
   };
   const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase();
-    setMeetingSearch(term);
-    const filtered = meetings.filter(m => m.topic.toLowerCase().includes(term) || m.status.toLowerCase().includes(term));
-    setFilteredMeetings(filtered);
+    setMeetingSearch(e.target.value.toLowerCase());
   };
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
-    const filtered = status === 'all' ? meetings : meetings.filter(m => m.status === status);
-    setFilteredMeetings(filtered);
   };
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8">

@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import moment from 'moment-timezone';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 
@@ -330,6 +331,7 @@ const MeetingLobby = () => {
   const { user } = useOutletContext();
   const navigate  = useNavigate();
   const token     = localStorage.getItem('token');
+  const { markTypeRead } = useNotifications();
 
   const [showCreate,    setShowCreate]    = useState(false);
   const [joinCode,      setJoinCode]      = useState('');
@@ -339,6 +341,10 @@ const MeetingLobby = () => {
   const [videoEnabled,  setVideoEnabled]  = useState(true);
   const [audioEnabled,  setAudioEnabled]  = useState(true);
   const [tab,           setTab]           = useState('active');
+
+  useEffect(() => {
+    markTypeRead?.('meeting');
+  }, [markTypeRead]);
 
   const fetchRooms = useCallback(async () => {
     try {
