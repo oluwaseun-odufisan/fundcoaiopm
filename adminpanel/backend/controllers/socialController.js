@@ -3,8 +3,33 @@ import sanitizeHtml from 'sanitize-html';
 
 const sanitize = (str) => sanitizeHtml(str || '', { allowedTags: [], allowedAttributes: {} }).trim();
 
-const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id avatar position' };
-const POPULATE_COMMENTS = { path: 'comments.user', select: 'firstName lastName _id avatar' };
+const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id avatar position role' };
+const POPULATE_COMMENTS = { path: 'comments.user', select: 'firstName lastName otherName _id avatar role' };
+
+const formatPost = (post, currentUserId) => {
+  const obj = post?.toObject ? post.toObject() : post;
+  const reactionCounts = {};
+  let myReaction = null;
+  const reactionEntries = obj?.reactions instanceof Map
+    ? Array.from(obj.reactions.entries())
+    : Object.entries(obj?.reactions || {});
+
+  reactionEntries.forEach(([userId, reaction]) => {
+    if (!reaction) return;
+    reactionCounts[reaction] = (reactionCounts[reaction] || 0) + 1;
+    if (currentUserId && String(userId) === String(currentUserId)) {
+      myReaction = reaction;
+    }
+  });
+
+  return {
+    ...obj,
+    reactionCounts,
+    myReaction,
+    totalReactions: Object.values(reactionCounts).reduce((sum, value) => sum + value, 0),
+    commentCount: Array.isArray(obj?.comments) ? obj.comments.length : 0,
+  };
+};
 
 export const getAllPosts = async (req, res) => {
   try {
@@ -32,7 +57,7 @@ export const getAllPosts = async (req, res) => {
 
     res.json({
       success: true,
-      posts,
+      posts: posts.map((post) => formatPost(post, req.user._id)),
       total,
       pagination: {
         page: Number(page),
@@ -67,8 +92,9 @@ export const createAnnouncement = async (req, res) => {
     await post.save();
     await post.populate([POPULATE_USER, POPULATE_COMMENTS]);
 
-    if (req.io) req.io.emit('post:new', post.toObject());
-    res.status(201).json({ success: true, post: post.toObject() });
+    const formatted = formatPost(post, req.user._id);
+    if (req.io) req.io.emit('post:new', formatted);
+    res.status(201).json({ success: true, post: formatted });
   } catch (err) {
     console.error('createAnnouncement error:', err.message);
     res.status(500).json({ success: false, message: 'Failed to create announcement' });
@@ -106,8 +132,9 @@ export const deleteComment = async (req, res) => {
     await post.save();
     await post.populate([POPULATE_USER, POPULATE_COMMENTS]);
 
-    if (req.io) req.io.emit('post:updated', post.toObject());
-    res.json({ success: true, message: 'Comment deleted' });
+    const formatted = formatPost(post, req.user._id);
+    if (req.io) req.io.emit('post:updated', formatted);
+    res.json({ success: true, message: 'Comment deleted', post: formatted });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to delete comment' });
   }

@@ -12,8 +12,8 @@ const router = express.Router();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const sanitize = (str) => sanitizeHtml(str || '', { allowedTags: [], allowedAttributes: {} }).trim();
 
-const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id avatar position' };
-const POPULATE_COMMENTS_USER = { path: 'comments.user', select: 'firstName lastName _id avatar' };
+const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id avatar position role' };
+const POPULATE_COMMENTS_USER = { path: 'comments.user', select: 'firstName lastName otherName _id avatar role' };
 
 const ALLOWED_REACTIONS = new Set(['like', 'love', 'haha', 'wow', 'sad', 'fire']);
 

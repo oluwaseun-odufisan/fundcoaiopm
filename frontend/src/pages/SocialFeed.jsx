@@ -13,10 +13,11 @@ import {
   Bookmark, BookmarkCheck, MessageCircle, ChevronDown, ChevronUp,
   Search, Filter, Loader2, MoreHorizontal, Eye, Flame,
   Heart, ThumbsUp, Laugh, AlertCircle, Sparkles, RefreshCw,
+  Megaphone, Shield,
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext.jsx';
 
-const API = import.meta.env.VITE_API_URL;
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4001';
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

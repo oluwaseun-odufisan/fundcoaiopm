@@ -1,8 +1,21 @@
 import axios from 'axios';
 
-const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4002';
-export const USER_API_BASE = import.meta.env.VITE_USER_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4001';
-export const USER_FRONTEND_BASE = import.meta.env.VITE_USER_FRONTEND_URL || import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173';
+const normalizeBase = (value, fallback) => {
+  const raw = String(value || fallback || '').trim().replace(/\/+$/, '');
+  try {
+    const url = new URL(raw);
+    if (url.hostname === 'localhost') {
+      url.hostname = '127.0.0.1';
+    }
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return raw;
+  }
+};
+
+const ADMIN_API_BASE = normalizeBase(import.meta.env.VITE_ADMIN_API_URL, 'http://127.0.0.1:4002');
+export const USER_API_BASE = normalizeBase(import.meta.env.VITE_USER_API_URL, 'http://127.0.0.1:4001');
+export const USER_FRONTEND_BASE = normalizeBase(import.meta.env.VITE_USER_FRONTEND_URL, 'http://127.0.0.1:5173');
 
 const userApi = axios.create({ baseURL: `${ADMIN_API_BASE}/api/admin/shared` });
 
@@ -43,4 +56,3 @@ userApi.interceptors.response.use(
 );
 
 export default userApi;
-

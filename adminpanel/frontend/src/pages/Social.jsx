@@ -31,6 +31,30 @@ const Avatar = ({ user }) => (
   </div>
 );
 
+const normalizePost = (post, currentUserId) => {
+  const reactionCounts = {};
+  const reactions = post?.reactions instanceof Map
+    ? Array.from(post.reactions.entries())
+    : Object.entries(post?.reactions || {});
+  let myReaction = post?.myReaction || null;
+
+  reactions.forEach(([userId, reaction]) => {
+    if (!reaction) return;
+    reactionCounts[reaction] = (reactionCounts[reaction] || 0) + 1;
+    if (!myReaction && currentUserId && String(userId) === String(currentUserId)) {
+      myReaction = reaction;
+    }
+  });
+
+  return {
+    ...post,
+    comments: Array.isArray(post?.comments) ? post.comments : [],
+    reactionCounts: Object.keys(post?.reactionCounts || {}).length ? post.reactionCounts : reactionCounts,
+    myReaction,
+    totalReactions: Number(post?.totalReactions || Object.values(reactionCounts).reduce((sum, value) => sum + value, 0)),
+  };
+};
+
 const LikeButton = ({ active, count, onClick }) => (
   <button
     type="button"
@@ -109,14 +133,14 @@ const Social = () => {
       if (search) params.search = search;
       if (filter) params.filter = filter;
       const { data } = await api.get('/social', { params });
-      setPosts(data.posts || []);
+      setPosts((data.posts || []).map((post) => normalizePost(post, currentUserId)));
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load posts');
     } finally {
       if (silent) setRefreshing(false);
       else setLoading(false);
     }
-  }, [feedScope, filter, search]);
+  }, [currentUserId, feedScope, filter, search]);
 
   useEffect(() => {
     fetchPosts();
