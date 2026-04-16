@@ -6,10 +6,13 @@ import {
   BookOpen,
   FileText,
   FolderKanban,
+  HardDrive,
   LayoutDashboard,
   ListTodo,
   LogOut,
   MessageSquare,
+  Presentation,
+  Settings,
   Target,
   TrendingUp,
   Users,
@@ -32,9 +35,9 @@ const navConfig = [
   { to: '/training', icon: BookOpen, label: 'Training', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/reminders', icon: Bell, label: 'Reminders', roles: ['team-lead', 'executive', 'admin'], badge: 'reminders' },
   { to: '/meetings', icon: Video, label: 'Meetings', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },
-  { to: '/files', icon: Video, label: 'File Storage', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },
-  { to: '/deck-prep', icon: Video, label: 'DeckPrep', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },
-  { to: '/settings', icon: Video, label: 'Profile Settings', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },
+  { to: '/files', icon: HardDrive, label: 'File Storage', roles: ['team-lead', 'executive', 'admin'] },
+  { to: '/deck-prep', icon: Presentation, label: 'Deck Prep', roles: ['team-lead', 'executive', 'admin'] },
+  { to: '/settings', icon: Settings, label: 'Profile Settings', roles: ['team-lead', 'executive', 'admin'] },
   { divider: true },
   { to: '/users', icon: Users, label: 'Users', roles: ['admin'] },
 ];
@@ -178,4 +181,3 @@ const Sidebar = ({ user, hasRole, onLogout, collapsed, mobileOpen, onClose }) =>
 };
 
 export default Sidebar;
-

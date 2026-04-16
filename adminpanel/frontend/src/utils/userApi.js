@@ -1,9 +1,10 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
-export const USER_API_BASE = import.meta.env.VITE_USER_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4002';
+export const USER_API_BASE = import.meta.env.VITE_USER_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:4001';
 export const USER_FRONTEND_BASE = import.meta.env.VITE_USER_FRONTEND_URL || import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173';
 
-const userApi = axios.create({ baseURL: USER_API_BASE });
+const userApi = axios.create({ baseURL: `${ADMIN_API_BASE}/api/admin/shared` });
 
 const shouldClearSession = (error) => {
   if (error.response?.status !== 401) return false;
@@ -42,3 +43,4 @@ userApi.interceptors.response.use(
 );
 
 export default userApi;
+

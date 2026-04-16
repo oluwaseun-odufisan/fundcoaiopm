@@ -6,18 +6,17 @@ const sanitize = (str) => sanitizeHtml(str || '', { allowedTags: [], allowedAttr
 const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id avatar position' };
 const POPULATE_COMMENTS = { path: 'comments.user', select: 'firstName lastName _id avatar' };
 
-// ── Get all posts (admin view) ────────────────────────────────────────────────
 export const getAllPosts = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, filter } = req.query;
+    const { page = 1, limit = 20, search, filter, scope = 'all' } = req.query;
     const query = {};
+    const viewScope = scope === 'team' ? 'team' : 'all';
 
     if (search) query.$text = { $search: search };
     if (filter === 'announcements') query.isAnnouncement = true;
     if (filter === 'media') query.fileUrl = { $exists: true, $ne: '' };
 
-    // Team filter for non-super-admin
-    if (req.teamMemberIds && filter !== 'announcements') {
+    if (req.teamMemberIds && viewScope === 'team') {
       query.user = { $in: req.teamMemberIds };
     }
 
@@ -25,15 +24,22 @@ export const getAllPosts = async (req, res) => {
       Post.find(query)
         .populate([POPULATE_USER, POPULATE_COMMENTS])
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
+        .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit))
         .lean(),
       Post.countDocuments(query),
     ]);
 
     res.json({
-      success: true, posts, total,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / limit) },
+      success: true,
+      posts,
+      total,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
     });
   } catch (err) {
     console.error('getAllPosts error:', err.message);
@@ -41,22 +47,23 @@ export const getAllPosts = async (req, res) => {
   }
 };
 
-// ── Create announcement ───────────────────────────────────────────────────────
 export const createAnnouncement = async (req, res) => {
   try {
     const { content, scope = 'all' } = req.body;
     const clean = sanitize(content);
     if (!clean) return res.status(400).json({ success: false, message: 'Announcement content required' });
 
-    // Team leads can only post to their team
     if (req.user.role === 'team-lead' && scope === 'all') {
       return res.status(403).json({ success: false, message: 'Team leads can only post team announcements' });
     }
 
     const post = new Post({
-      user: req.user._id, content: clean,
-      isAnnouncement: true, announcementScope: scope,
+      user: req.user._id,
+      content: clean,
+      isAnnouncement: true,
+      announcementScope: scope,
     });
+
     await post.save();
     await post.populate([POPULATE_USER, POPULATE_COMMENTS]);
 
@@ -68,13 +75,11 @@ export const createAnnouncement = async (req, res) => {
   }
 };
 
-// ── Delete post (moderation) ──────────────────────────────────────────────────
 export const deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ success: false, message: 'Post not found' });
 
-    // Team leads can only delete posts from their team
     if (req.user.role === 'team-lead' && req.teamMemberIds) {
       if (!req.teamMemberIds.map(String).includes(String(post.user))) {
         return res.status(403).json({ success: false, message: 'Can only moderate your team posts' });
@@ -89,7 +94,6 @@ export const deletePost = async (req, res) => {
   }
 };
 
-// ── Delete comment (moderation) ───────────────────────────────────────────────
 export const deleteComment = async (req, res) => {
   try {
     const post = await Post.findById(req.params.postId);

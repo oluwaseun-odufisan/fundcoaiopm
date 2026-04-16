@@ -235,7 +235,7 @@ export const updateTags = async (req, res) => {
       { new: true }
     );
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
-    res.json({ success: true, tags: file.tags });
+    res.json({ success: true, file });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -256,8 +256,12 @@ export const associateTask = async (req, res) => {
       if (file.taskId) await Task.findByIdAndUpdate(file.taskId, { $pull: { files: file._id } });
       if (taskId)      await Task.findByIdAndUpdate(taskId, { $addToSet: { files: file._id } });
     }
-    await File.findByIdAndUpdate(file._id, { taskId: taskId || null, taskTitle });
-    res.json({ success: true });
+    const updatedFile = await File.findByIdAndUpdate(
+      file._id,
+      { taskId: taskId || null, taskTitle },
+      { new: true }
+    ).lean();
+    res.json({ success: true, file: updatedFile });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
