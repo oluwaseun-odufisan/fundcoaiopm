@@ -75,3 +75,43 @@ export const getAdminMe = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+export const changeAdminPassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password and new password with at least 8 characters are required',
+    });
+  }
+
+  try {
+    const user = await User.findById(req.user._id).select('password isActive lastActive activityLogs');
+    if (!user || !user.isActive) {
+      return res.status(404).json({ success: false, message: 'Admin account not found' });
+    }
+
+    const matched = await bcrypt.compare(currentPassword, user.password);
+    if (!matched) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    const samePassword = await bcrypt.compare(newPassword, user.password);
+    if (samePassword) {
+      return res.status(400).json({ success: false, message: 'New password must be different from the current password' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.lastActive = new Date();
+    user.activityLogs.push({
+      action: 'admin_password_change',
+      details: `Admin changed password from IP ${req.ip}`,
+    });
+    await user.save();
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Admin password change error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to update password' });
+  }
+};

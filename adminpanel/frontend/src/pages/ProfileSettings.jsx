@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { BellRing, KeyRound, Palette, ShieldCheck, UserCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import api from '../utils/api.js';
 import userApi from '../utils/userApi.js';
 import { getInitials, getRoleLabel } from '../utils/adminFormat.js';
 import { InfoStrip, LoadingScreen, PageHeader, Panel, SegmentedTabs, StatusPill, SurfaceMetric } from '../components/ui.jsx';
@@ -129,7 +130,7 @@ const ProfileSettings = () => {
 
     setSavingPassword(true);
     try {
-      const { data } = await userApi.put('/api/user/password', {
+      const { data } = await api.put('/auth/password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });

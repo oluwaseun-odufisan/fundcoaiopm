@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { User, Lock, Palette, Sun, Moon, Monitor, Save, Check } from 'lucide-react';
-import { api } from '../utils/api';
+import api from '../utils/api.js';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { TabBar, Field, Avatar } from '../components/ui';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { TabBar, Field, Avatar } from '../components/ui.jsx';
 
 export default function Settings() {
   const { user, setUser } = useAuth();
@@ -30,7 +30,7 @@ export default function Settings() {
     if (passwords.next !== passwords.confirm) { toast.error('Passwords do not match'); return; }
     setSaving(true);
     try {
-      await api.put('/auth/change-password', { currentPassword: passwords.current, newPassword: passwords.next });
+      await api.put('/auth/password', { currentPassword: passwords.current, newPassword: passwords.next });
       setPasswords({ current: '', next: '', confirm: '' });
       toast.success('Password changed');
     } catch { toast.error('Failed to change password'); }
