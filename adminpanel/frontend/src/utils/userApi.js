@@ -13,9 +13,21 @@ const normalizeBase = (value, fallback) => {
   }
 };
 
-const ADMIN_API_BASE = normalizeBase(import.meta.env.VITE_ADMIN_API_URL, 'http://127.0.0.1:4002');
-export const USER_API_BASE = normalizeBase(import.meta.env.VITE_USER_API_URL, 'http://127.0.0.1:4001');
-export const USER_FRONTEND_BASE = normalizeBase(import.meta.env.VITE_USER_FRONTEND_URL, 'http://127.0.0.1:5173');
+const isBrowserLocal = () => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+};
+
+const getBrowserOrigin = () => (typeof window !== 'undefined' ? window.location.origin : '');
+
+const getDefaultAdminApiBase = () => (isBrowserLocal() ? 'http://127.0.0.1:4002' : getBrowserOrigin());
+const getDefaultUserApiBase = () => (isBrowserLocal() ? 'http://127.0.0.1:4001' : 'https://negtm.onrender.com');
+const getDefaultUserFrontendBase = () => (isBrowserLocal() ? 'http://127.0.0.1:5173' : 'https://fundcoaiopm.vercel.app');
+
+const ADMIN_API_BASE = normalizeBase(import.meta.env.VITE_ADMIN_API_URL, getDefaultAdminApiBase());
+export const USER_API_BASE = normalizeBase(import.meta.env.VITE_USER_API_URL, getDefaultUserApiBase());
+export const USER_FRONTEND_BASE = normalizeBase(import.meta.env.VITE_USER_FRONTEND_URL, getDefaultUserFrontendBase());
 
 const userApi = axios.create({ baseURL: `${ADMIN_API_BASE}/api/admin/shared` });
 
@@ -56,3 +68,4 @@ userApi.interceptors.response.use(
 );
 
 export default userApi;
+

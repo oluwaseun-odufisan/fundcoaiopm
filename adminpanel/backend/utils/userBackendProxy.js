@@ -1,4 +1,19 @@
-const RAW_USER_API_BASE = (process.env.USER_API_URL || 'http://127.0.0.1:4001').replace(/\/+$/, '');
+const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '');
+
+const resolveUserApiBase = () => {
+  const explicitBase =
+    process.env.USER_API_URL ||
+    process.env.SHARED_USER_API_URL ||
+    process.env.PRODUCTION_USER_API_URL;
+
+  if (explicitBase) return explicitBase;
+
+  return (process.env.NODE_ENV || '').toLowerCase() === 'production'
+    ? 'https://negtm.onrender.com'
+    : 'http://127.0.0.1:4001';
+};
+
+const RAW_USER_API_BASE = normalizeBase(resolveUserApiBase());
 
 const getCandidateBases = (value) => {
   try {
@@ -104,3 +119,4 @@ export const createUserBackendProxy = (sourceBasePath) => async (req, res) => {
     message: 'Failed to reach shared service',
   });
 };
+

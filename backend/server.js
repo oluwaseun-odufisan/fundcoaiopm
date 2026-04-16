@@ -60,14 +60,41 @@ if (!port) {
 }
 console.log(`Starting server on port: ${port}`);
 
+
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
+const configuredOrigins = [...new Set(
+    [process.env.FRONTEND_URL, process.env.ADMIN_FRONTEND_URL, process.env.ALLOWED_ORIGINS]
+        .flatMap((value) => String(value || '').split(','))
+        .map(normalizeOrigin)
+        .filter(Boolean)
+)];
+
+const isLocalOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+
+const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
+    const normalizedOrigin = normalizeOrigin(origin);
+
+    if (!configuredOrigins.length) return true;
+    if (configuredOrigins.includes(normalizedOrigin)) return true;
+
+    if ((process.env.NODE_ENV || '').toLowerCase() !== 'production' && isLocalOrigin(normalizedOrigin)) {
+        return true;
+    }
+
+    return false;
+};
+
+const corsOrigin = (origin, callback) => {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+};
+
 // ─────────────────────────────────────────────────────────────
 // Socket.IO
 const io = new Server(httpServer, {
     cors: {
-        origin: [
-            process.env.FRONTEND_URL,
-            process.env.ADMIN_FRONTEND_URL,
-        ].filter(Boolean),
+        origin: corsOrigin,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],   
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true,
@@ -89,10 +116,7 @@ app.use((req, res, next) => { req.io = io; next(); });
 
 // CORS
 app.use(cors({
-    origin: [
-        process.env.FRONTEND_URL,
-        process.env.ADMIN_FRONTEND_URL,
-    ].filter(Boolean),
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],   
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
