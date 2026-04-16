@@ -28,6 +28,7 @@ import DeckPrep from './pages/DeckPrep';
 import MeetingLobby from './pages/MeetingLobby';
 import VideoRoom from './pages/VideoRoom';
 import { ThemeProvider } from './context/ThemeContext';
+import { NotificationProvider } from './context/NotificationContext.jsx';
 
 // ← NEW: Lazy load the heavy report page
 const ReportGeneration = lazy(() => import('./pages/ReportGeneration'));
@@ -71,6 +72,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
+      <NotificationProvider currentUser={currentUser}>
       <Routes>
         <Route path="/login" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Login onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/signup')} /></div>} />
         <Route path="/signup" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Signup onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/login')} /></div>} />
@@ -114,6 +116,7 @@ const App = () => {
 
         <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
       </Routes>
+      </NotificationProvider>
     </ThemeProvider>
   );
 };

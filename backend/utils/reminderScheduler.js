@@ -6,6 +6,7 @@ import Task from '../models/taskModel.js';
 import { sendEmail } from './emailService.js';
 import { sendPushNotification } from './pushService.js';
 import OpenAI from 'openai';
+import { createNotification } from './notificationService.js';
 
 const openai = new OpenAI({
     apiKey: process.env.GROK_API_KEY,
@@ -80,6 +81,17 @@ const sendReminder = async (reminder) => {
     try {
         if (reminder.deliveryChannels.inApp) {
             global.io.to(`user:${user._id}`).emit('reminderTriggered', { ...reminder.toObject(), message: finalMessage });
+            await createNotification({
+                userId: user._id,
+                type: 'reminder',
+                title: 'Reminder',
+                body: finalMessage,
+                entityId: reminder._id,
+                entityType: 'Reminder',
+                data: { reminderId: String(reminder._id), type: reminder.type },
+                io: global.io,
+                allowSelf: true,
+            });
             inAppSent = true;
         }
 

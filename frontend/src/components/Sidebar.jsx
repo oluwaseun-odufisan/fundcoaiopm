@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import axios from 'axios';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
@@ -21,7 +22,13 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
   });
 
   const fullName = user?.fullName || user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
+  const { counts } = useNotifications();
   const initial  = (user?.firstName || user?.name || 'U').charAt(0).toUpperCase();
+  const chatBadge = Math.max(chatUnreadTotal, counts.chat || 0);
+  const socialBadge = Math.max(socialUnreadTotal, counts.social || 0);
+  const taskBadge = counts.tasks || 0;
+  const reminderBadge = counts.reminders || 0;
+  const meetingBadge = counts.meetings || 0;
 
   /* ── Fetch unread counts ─────────────────────────────────────────────── */
   const fetchUnreadTotal = useCallback(async () => {
@@ -73,15 +80,15 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
   const menuItems = [
     { text: 'Dashboard',      path: '/',                   icon: LayoutDashboard },
     { text: 'Pending Tasks',  path: '/pending',            icon: List },
-    { text: 'Assigned', path: '/assigned',           icon: AlertCircle },
+    { text: 'Assigned', path: '/assigned',           icon: AlertCircle,     badge: taskBadge },
     { text: 'Completed',      path: '/complete',           icon: CheckCircle },
     { text: 'Analytics',       path: '/analytics',           icon: Calendar },
     { text: 'Calendar',       path: '/calendar',           icon: Calendar },
     { text: 'Goals',          path: '/goals',              icon: Target },
-    { text: 'Reminders',      path: '/reminders',          icon: Bell },
-    { text: 'Team Chat',      path: '/team-chat',          icon: MessageSquare,  badge: chatUnreadTotal },
-    { text: 'Meeting',        path: '/meetroom',           icon: Video },
-    { text: 'Social Feed',    path: '/social-feed',        icon: Instagram,      badge: socialUnreadTotal },
+    { text: 'Reminders',      path: '/reminders',          icon: Bell,           badge: reminderBadge },
+    { text: 'Team Chat',      path: '/team-chat',          icon: MessageSquare,  badge: chatBadge },
+    { text: 'Meeting',        path: '/meetroom',           icon: Video,          badge: meetingBadge },
+    { text: 'Social Feed',    path: '/social-feed',        icon: Instagram,      badge: socialBadge },
     { text: 'AI Tools',       path: '/ai-tools',           icon: Sparkles },
     { text: 'File Storage',   path: '/file-storage',       icon: File },
     { text: 'Reports',        path: '/reports',            icon: FileText },

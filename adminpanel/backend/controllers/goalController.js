@@ -1,5 +1,6 @@
 import Goal from '../models/goalModel.js';
 import { buildTeamQuery } from '../middleware/teamFilter.js';
+import { createNotification } from '../utils/notificationService.js';
 
 // ── Get all goals (team-filtered) ─────────────────────────────────────────────
 export const getAllGoals = async (req, res) => {
@@ -122,6 +123,19 @@ export const addGoalComment = async (req, res) => {
       .populate('owner', 'firstName lastName email avatar')
       .populate('adminComments.user', 'firstName lastName avatar')
       .lean();
+
+    await createNotification({
+      userId: goal.owner,
+      type: 'goal',
+      title: `New admin comment on ${goal.title}`,
+      body: content.trim(),
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: goal._id,
+      entityType: 'Goal',
+      data: { goalId: String(goal._id), status: 'commented' },
+      io: req.io,
+    });
 
     res.json({ success: true, goal: populated });
   } catch (err) {

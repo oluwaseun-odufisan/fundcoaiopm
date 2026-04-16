@@ -1,17 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell, Menu, Moon, RefreshCw, Sun } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, Menu, Moon, RefreshCw, Sun } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useNotifications } from '../context/NotificationContext.jsx';
 
 const toneStyles = {
   chat: { bg: 'var(--brand-secondary-soft)', color: 'var(--brand-secondary)' },
+  secondary: { bg: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' },
   warning: { bg: 'var(--c-warning-soft)', color: 'var(--c-warning)' },
-  success: { bg: 'var(--c-success-soft)', color: 'var(--c-success)' },
-  danger: { bg: 'var(--c-danger-soft)', color: 'var(--c-danger)' },
-  brand: { bg: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' },
-  secondary: { bg: 'var(--brand-secondary-soft)', color: 'var(--brand-secondary)' },
   info: { bg: 'var(--c-info-soft)', color: 'var(--c-info)' },
+  brand: { bg: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' },
+  success: { bg: 'var(--c-success-soft)', color: 'var(--c-success)' },
   neutral: { bg: 'var(--c-panel-subtle)', color: 'var(--c-text-soft)' },
 };
 
@@ -19,41 +18,47 @@ const formatUpdatedAt = (value) => {
   if (!value) return 'Not refreshed yet';
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return 'Not refreshed yet';
-  return `Updated ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const NotificationDropdown = ({ items, total, loading, lastUpdated, onRefresh }) => (
-  <div
-    className="surface-panel absolute right-0 top-[calc(100%+0.65rem)] z-50 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-[0.85rem]"
-    style={{ boxShadow: 'var(--shadow-lg)' }}
-  >
+const formatCreatedAt = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const NotificationDropdown = ({ items, total, loading, lastUpdated, onRefresh, onMarkAll, onSelect }) => (
+  <div className="surface-panel absolute right-0 top-[calc(100%+0.65rem)] z-50 w-[min(26rem,calc(100vw-1.5rem))] overflow-hidden" style={{ boxShadow: 'var(--shadow-lg)' }}>
     <div className="flex items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: 'var(--c-border)' }}>
       <div>
         <p className="text-sm font-black" style={{ color: 'var(--c-text)' }}>Notifications</p>
-        <p className="mt-0.5 text-xs" style={{ color: 'var(--c-text-faint)' }}>{formatUpdatedAt(lastUpdated)}</p>
+        <p className="mt-0.5 text-xs" style={{ color: 'var(--c-text-faint)' }}>
+          Updated {formatUpdatedAt(lastUpdated)}
+        </p>
       </div>
-      <button
-        type="button"
-        onClick={onRefresh}
-        className="btn-ghost h-9 w-9 rounded-[0.7rem] p-0"
-        aria-label="Refresh notifications"
-      >
-        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-      </button>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onRefresh} className="btn-ghost h-9 w-9 rounded-[0.7rem] p-0" aria-label="Refresh notifications">
+          <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+        </button>
+        <button type="button" onClick={onMarkAll} className="btn-ghost h-9 w-9 rounded-[0.7rem] p-0" aria-label="Mark all as read">
+          <CheckCheck className="h-4 w-4" />
+        </button>
+      </div>
     </div>
 
-    <div className="max-h-[24rem] overflow-y-auto py-2">
+    <div className="max-h-[28rem] overflow-y-auto py-2">
       {loading && items.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--c-text-soft)' }}>
+        <div className="px-4 py-10 text-center text-sm" style={{ color: 'var(--c-text-soft)' }}>
           Loading notifications...
         </div>
       ) : null}
 
       {!loading && items.length === 0 ? (
-        <div className="px-4 py-8 text-center">
-          <p className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>All clear</p>
-          <p className="mt-1 text-xs leading-5" style={{ color: 'var(--c-text-soft)' }}>
-            Chat alerts, approvals, reports, meetings, and reminders will appear here.
+        <div className="px-4 py-10 text-center">
+          <p className="text-sm font-black" style={{ color: 'var(--c-text)' }}>All clear</p>
+          <p className="mt-1 text-xs leading-6" style={{ color: 'var(--c-text-soft)' }}>
+            New chat activity, approvals, reminders, meetings, and system alerts will appear here.
           </p>
         </div>
       ) : null}
@@ -61,37 +66,48 @@ const NotificationDropdown = ({ items, total, loading, lastUpdated, onRefresh })
       {items.map((item) => {
         const tone = toneStyles[item.tone] || toneStyles.neutral;
         return (
-          <Link
+          <button
             key={item.id}
-            to={item.to || item.href || '#'}
-            className="mx-2 flex items-start gap-3 rounded-[0.75rem] px-3 py-3 transition-colors hover:bg-[var(--c-panel-subtle)]"
+            type="button"
+            onClick={() => onSelect(item)}
+            className="mx-2 flex w-[calc(100%-1rem)] items-start gap-3 rounded-[0.85rem] px-3 py-3 text-left transition-colors hover:bg-[var(--c-panel-subtle)]"
           >
-            <span
-              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.7rem] text-sm font-black"
-              style={{ background: tone.bg, color: tone.color }}
-            >
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.7rem] text-xs font-black" style={{ background: tone.bg, color: tone.color }}>
               {item.count > 99 ? '99+' : item.count || 1}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold" style={{ color: 'var(--c-text)' }}>{item.title}</span>
+              <span className="flex items-center gap-2">
+                <span className="truncate text-sm font-black" style={{ color: 'var(--c-text)' }}>{item.title}</span>
+                {item.synthetic ? (
+                  <span className="rounded-full px-2 py-0.5 text-[0.62rem] font-black uppercase tracking-[0.08em]" style={{ background: 'var(--c-panel-subtle)', color: 'var(--c-text-faint)' }}>
+                    Summary
+                  </span>
+                ) : null}
+              </span>
               {item.description ? (
-                <span className="mt-0.5 block text-xs leading-5" style={{ color: 'var(--c-text-soft)' }}>{item.description}</span>
+                <span className="mt-1 block text-xs leading-5" style={{ color: 'var(--c-text-soft)' }}>{item.description}</span>
+              ) : null}
+              {item.createdAt ? (
+                <span className="mt-1.5 block text-[0.68rem] font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--c-text-faint)' }}>
+                  {formatCreatedAt(item.createdAt)}
+                </span>
               ) : null}
             </span>
-          </Link>
+          </button>
         );
       })}
     </div>
 
     <div className="border-t px-4 py-3 text-xs" style={{ borderColor: 'var(--c-border)', color: 'var(--c-text-faint)' }}>
-      {total > 0 ? `${total} items need attention` : 'No pending admin items'}
+      {total > 0 ? total + ' items need attention' : 'No pending admin items'}
     </div>
   </div>
 );
 
 const Navbar = ({ onMenu }) => {
+  const navigate = useNavigate();
   const { resolvedTheme, toggleTheme } = useTheme();
-  const { items, counts, loading, lastUpdated, refresh } = useNotifications();
+  const { items, counts, loading, lastUpdated, refresh, markRead, markAllRead } = useNotifications();
   const [notificationOpen, setNotificationOpen] = useState(false);
   const notificationRef = useRef(null);
 
@@ -104,6 +120,14 @@ const Navbar = ({ onMenu }) => {
   }, []);
 
   const total = counts?.total || 0;
+
+  const handleSelect = async (item) => {
+    setNotificationOpen(false);
+    if (!item?.synthetic && item?.id) {
+      await markRead(item.id);
+    }
+    if (item?.to) navigate(item.to);
+  };
 
   return (
     <header
@@ -145,7 +169,10 @@ const Navbar = ({ onMenu }) => {
             >
               <Bell className="h-5 w-5" style={{ color: 'var(--c-text)' }} />
               {total > 0 ? (
-                <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.65rem] font-black text-white" style={{ height: 20, background: 'var(--c-danger)' }}>
+                <span
+                  className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.65rem] font-black text-white"
+                  style={{ height: 20, background: 'var(--c-danger)' }}
+                >
                   {total > 99 ? '99+' : total}
                 </span>
               ) : null}
@@ -158,6 +185,8 @@ const Navbar = ({ onMenu }) => {
                 loading={loading}
                 lastUpdated={lastUpdated}
                 onRefresh={refresh}
+                onMarkAll={markAllRead}
+                onSelect={handleSelect}
               />
             ) : null}
           </div>
@@ -181,7 +210,3 @@ const Navbar = ({ onMenu }) => {
 };
 
 export default Navbar;
-
-
-
-

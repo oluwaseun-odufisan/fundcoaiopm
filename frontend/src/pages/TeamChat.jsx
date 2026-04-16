@@ -14,6 +14,7 @@ import EmojiPicker from 'emoji-picker-react';
 import toast, { Toaster } from 'react-hot-toast';
 import moment from 'moment-timezone';
 import { debounce } from 'lodash';
+import { useNotifications } from '../context/NotificationContext.jsx';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const SOCKET_URL = API_BASE_URL;
 const TZ = 'Africa/Lagos';
@@ -72,6 +73,77 @@ const formatLastSeen = (ts) => {
     if (diffHours < 48) return `last seen yesterday at ${m.format('h:mm A')}`;
     return `last seen ${m.format('DD/MM/YY')}`;
 };
+const EMPTY_MENTION_STATE = { query: '', start: -1, end: -1, activeIndex: 0 };
+
+const escapeMentionPattern = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findMentionMatch = (value, caretIndex) => {
+    const nextValue = String(value || '');
+    const safeCaret = Number.isFinite(caretIndex) ? caretIndex : nextValue.length;
+    const beforeCaret = nextValue.slice(0, safeCaret);
+    const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret);
+    if (!match) return null;
+    const query = match[2] || '';
+    const start = beforeCaret.lastIndexOf(`@${query}`);
+    if (start < 0) return null;
+    return { query, start, end: safeCaret, activeIndex: 0 };
+};
+
+const normalizeDraftMentions = (value, mentions = []) => {
+    const text = String(value || '');
+    const seen = new Set();
+    return (Array.isArray(mentions) ? mentions : []).reduce((accumulator, item) => {
+        const userId = item?.userId || item?.user?._id || item?._id || item?.id;
+        const label = String(item?.label || item?.name || item?.fullName || '').trim();
+        if (!userId || !label || !text.includes(`@${label}`)) return accumulator;
+        const key = String(userId);
+        if (seen.has(key)) return accumulator;
+        seen.add(key);
+        accumulator.push({ userId: key, label });
+        return accumulator;
+    }, []);
+};
+
+const renderMentionContent = (message, sender) => {
+    const text = String(message?.content || '');
+    const mentions = Array.isArray(message?.mentions) ? message.mentions.filter((item) => item?.label) : [];
+    if (!mentions.length) {
+        return <p className="text-[13.5px] leading-[1.5] break-words whitespace-pre-wrap">{text}</p>;
+    }
+
+    const tokens = [...new Set(mentions.map((item) => `@${item.label}`))]
+        .filter(Boolean)
+        .sort((left, right) => right.length - left.length);
+
+    if (!tokens.length) {
+        return <p className="text-[13.5px] leading-[1.5] break-words whitespace-pre-wrap">{text}</p>;
+    }
+
+    const pattern = new RegExp(`(${tokens.map(escapeMentionPattern).join('|')})`, 'g');
+    const parts = text.split(pattern).filter(Boolean);
+
+    return (
+        <p className="text-[13.5px] leading-[1.5] break-words whitespace-pre-wrap">
+            {parts.map((part, index) => {
+                const matched = mentions.find((item) => part.toLowerCase() === `@${String(item.label).toLowerCase()}`);
+                if (!matched) return <React.Fragment key={index}>{part}</React.Fragment>;
+                return (
+                    <span
+                        key={index}
+                        className="rounded px-1 py-0.5 font-semibold"
+                        style={{
+                            backgroundColor: sender ? 'rgba(255,255,255,0.16)' : 'var(--brand-light)',
+                            color: sender ? '#ffffff' : 'var(--brand-primary)',
+                        }}
+                    >
+                        {part}
+                    </span>
+                );
+            })}
+        </p>
+    );
+};
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 const Avatar = ({ user, size = 10, showOnline = false }) => {
     const sz = `w-${size} h-${size}`;
@@ -520,12 +592,16 @@ const GroupModal = ({ isAddMode, selectedChat, users, onClose, onCreateGroup, on
 const TeamChat = () => {
     const { user, onLogout } = useOutletContext();
     const navigate = useNavigate();
+    const { markTypeRead } = useNotifications();
+    const currentUserId = user?._id || user?.id;
     const [chatMode, setChatMode] = useState(localStorage.getItem('chatMode') || 'individual');
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [editingMessage, setEditingMessage] = useState(null);
     const [replyTo, setReplyTo] = useState(null);
+    const [draftMentions, setDraftMentions] = useState([]);
+    const [mentionState, setMentionState] = useState(EMPTY_MENTION_STATE);
     const [users, setUsers] = useState([]);
     const [groups, setGroups] = useState([]);
     const [typingUsers, setTypingUsers] = useState({});
@@ -849,6 +925,28 @@ const TeamChat = () => {
         fetchPinnedMessages(group._id);
         if (window.innerWidth < 1024) window.scrollTo(0, 0);
     }, [markChatAsRead, fetchPinnedMessages]);
+    const mentionCandidates = useMemo(() => {
+        if (selectedChat?.type !== 'group') return [];
+        return (selectedChat.members || [])
+            .filter((member) => String(member?._id) !== String(currentUserId))
+            .map((member) => ({ userId: member._id, label: getFullName(member) }))
+            .filter((member) => member.userId && member.label);
+    }, [currentUserId, selectedChat]);
+    const visibleMentionOptions = useMemo(() => {
+        if (mentionState.start < 0) return [];
+        const query = mentionState.query.trim().toLowerCase();
+        return mentionCandidates
+            .filter((member) => !query || member.label.toLowerCase().includes(query))
+            .slice(0, 6);
+    }, [mentionCandidates, mentionState]);
+    const chooseMention = useCallback((option) => {
+        if (!option) return;
+        const token = `@${option.label}`;
+        const nextValue = `${newMessage.slice(0, mentionState.start)}${token} ${newMessage.slice(mentionState.end)}`;
+        setNewMessage(nextValue);
+        setDraftMentions((current) => normalizeDraftMentions(nextValue, [...current, option]));
+        setMentionState(EMPTY_MENTION_STATE);
+    }, [mentionState, newMessage]);
     const fetchMessages = useCallback(async () => {
         if (!selectedChat?._id) return;
         const fetchingChatId = selectedChat._id;
@@ -899,6 +997,11 @@ const TeamChat = () => {
     useEffect(() => {
         if (selectedChat?._id) fetchMessages();
     }, [fetchMessages]);
+    useEffect(() => {
+        if (selectedChat?._id) {
+            markTypeRead?.('chat');
+        }
+    }, [markTypeRead, selectedChat?._id]);
     const debouncedTyping = useMemo(() => debounce((chatId, userId) => {
         socket.current?.emit('typing', { chatId, userId, isTyping: true });
     }, 400), []);
@@ -927,6 +1030,7 @@ const TeamChat = () => {
     const handleSendMessage = useCallback(async () => {
         const text = newMessage.trim();
         if (!text && !file && !editingMessage) return;
+        const resolvedMentions = normalizeDraftMentions(newMessage, draftMentions);
         let fileUrl = '', contentType = '', fileName = '';
         if (file) {
             try {
@@ -948,9 +1052,12 @@ const TeamChat = () => {
                     contentType,
                     fileName,
                     replyTo: replyTo?._id || null,
+                    mentions: resolvedMentions,
                 }, { headers: getAuthHeaders() });
             }
             setNewMessage('');
+            setDraftMentions([]);
+            setMentionState(EMPTY_MENTION_STATE);
             setFile(null);
             setEditingMessage(null);
             setReplyTo(null);
@@ -960,7 +1067,7 @@ const TeamChat = () => {
             toast.error(error.response?.data?.message || 'Failed to send.');
             if (error.response?.status === 401) onLogout?.();
         }
-    }, [selectedChat, newMessage, file, editingMessage, replyTo, getAuthHeaders, onLogout, uploadFile]);
+    }, [selectedChat, newMessage, file, editingMessage, replyTo, getAuthHeaders, onLogout, uploadFile, draftMentions]);
     const openDeleteModal = useCallback((msg) => {
         setContextMenu(null);
         setDeleteModal({ msg });
@@ -1061,6 +1168,8 @@ const TeamChat = () => {
         setCurrentPage(1);
         setEditingMessage(null);
         setNewMessage('');
+        setDraftMentions([]);
+        setMentionState(EMPTY_MENTION_STATE);
         setReplyTo(null);
         setContextMenu(null);
         setDeleteModal(null);
@@ -1074,16 +1183,21 @@ const TeamChat = () => {
     const startEdit = (msg) => {
         setEditingMessage({ id: msg._id, originalContent: msg.content });
         setNewMessage(msg.content || '');
+        setDraftMentions((msg.mentions || []).map((item) => ({ userId: item.user?._id || item.userId || item._id, label: item.label || getFullName(item.user) })));
+        setMentionState(EMPTY_MENTION_STATE);
         inputRef.current?.focus();
     };
     const startReply = (msg) => {
         setReplyTo(msg);
         setEditingMessage(null);
+        setMentionState(EMPTY_MENTION_STATE);
         inputRef.current?.focus();
     };
     const cancelEdit = () => {
         setEditingMessage(null);
         setNewMessage('');
+        setDraftMentions([]);
+        setMentionState(EMPTY_MENTION_STATE);
     };
     const cancelReply = () => setReplyTo(null);
     const isSender = (msg) => msg.sender?._id === user?._id;
@@ -1625,11 +1739,7 @@ const TeamChat = () => {
                                                     </p>
                                                 ) : (
                                                     <>
-                                                        {msg.content && (
-                                                            <p className="text-[13.5px] leading-[1.5] break-words whitespace-pre-wrap">
-                                                                {msg.content}
-                                                            </p>
-                                                        )}
+                                                        {msg.content && renderMentionContent(msg, sender)}
                                                         {msg.isEdited && <span className="text-[10px] opacity-50 ml-1 italic">edited</span>}
                                                         {msg.fileUrl && (
                                                             <div className="mt-1.5">
@@ -1855,23 +1965,53 @@ const TeamChat = () => {
                                     />
                                 </div>
                                 <div
-                                    className="flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-2 min-h-[44px] ring-1 ring-transparent focus-within:ring-[var(--brand-accent)]/30 focus-within:bg-[var(--bg-surface)] transition-all"
+                                    className="relative flex-1 rounded-2xl px-4 py-2.5 flex items-center gap-2 min-h-[44px] ring-1 ring-transparent focus-within:ring-[var(--brand-accent)]/30 focus-within:bg-[var(--bg-surface)] transition-all"
                                     style={{ backgroundColor: 'var(--bg-subtle)' }}
                                 >
-                                    <textarea
+                                                                        <textarea
                                         ref={inputRef}
                                         value={newMessage}
                                         onChange={(e) => {
-                                            setNewMessage(e.target.value);
+                                            const nextValue = e.target.value;
+                                            setNewMessage(nextValue);
+                                            setDraftMentions((current) => normalizeDraftMentions(nextValue, current));
                                             if (selectedChat?._id) debouncedTyping(selectedChat._id, user?._id);
+                                            if (selectedChat?.type === 'group') {
+                                                const nextMatch = findMentionMatch(nextValue, e.target.selectionStart ?? nextValue.length);
+                                                setMentionState(nextMatch ? { ...nextMatch, activeIndex: 0 } : EMPTY_MENTION_STATE);
+                                            } else {
+                                                setMentionState(EMPTY_MENTION_STATE);
+                                            }
                                         }}
                                         onKeyDown={(e) => {
+                                            if (visibleMentionOptions.length) {
+                                                if (e.key === 'ArrowDown') {
+                                                    e.preventDefault();
+                                                    setMentionState((current) => ({ ...current, activeIndex: (current.activeIndex + 1) % visibleMentionOptions.length }));
+                                                    return;
+                                                }
+                                                if (e.key === 'ArrowUp') {
+                                                    e.preventDefault();
+                                                    setMentionState((current) => ({ ...current, activeIndex: current.activeIndex <= 0 ? visibleMentionOptions.length - 1 : current.activeIndex - 1 }));
+                                                    return;
+                                                }
+                                                if (e.key === 'Enter' || e.key === 'Tab') {
+                                                    e.preventDefault();
+                                                    chooseMention(visibleMentionOptions[Math.min(mentionState.activeIndex, visibleMentionOptions.length - 1)]);
+                                                    return;
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    setMentionState(EMPTY_MENTION_STATE);
+                                                    return;
+                                                }
+                                            }
                                             if (e.key === 'Enter' && !e.shiftKey) {
                                                 e.preventDefault();
                                                 handleSendMessage();
                                             }
                                         }}
-                                        placeholder={editingMessage ? 'Edit your message…' : replyTo ? 'Reply…' : 'Type a message'}
+                                        placeholder={editingMessage ? 'Edit your message...' : replyTo ? 'Reply...' : selectedChat?.type === 'group' ? 'Type a message... Use @ to mention someone' : 'Type a message'}
                                         className="flex-1 bg-transparent text-sm focus:outline-none placeholder-[var(--text-muted)] min-w-0 resize-none overflow-y-auto"
                                         style={{ 
                                             color: 'var(--text-primary)',
@@ -1881,6 +2021,33 @@ const TeamChat = () => {
                                         }}
                                         rows={1}
                                     />
+                                    {visibleMentionOptions.length > 0 && (
+                                        <div
+                                            className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-2xl border"
+                                            style={{
+                                                borderColor: 'var(--border-color)',
+                                                backgroundColor: 'var(--bg-surface)',
+                                                boxShadow: '0 12px 32px rgba(17,24,39,0.12)',
+                                            }}
+                                        >
+                                            {visibleMentionOptions.map((option, index) => (
+                                                <button
+                                                    key={option.userId}
+                                                    type="button"
+                                                    onClick={() => chooseMention(option)}
+                                                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
+                                                    style={index === mentionState.activeIndex
+                                                        ? { backgroundColor: 'var(--brand-light)', color: 'var(--brand-primary)' }
+                                                        : { color: 'var(--text-primary)' }}
+                                                >
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold text-white" style={{ backgroundColor: 'var(--brand-primary)' }}>
+                                                        {option.label.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{option.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     {file && (
                                         <div className="flex items-center gap-1 text-xs truncate max-w-[80px] flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
                                             <span className="truncate">{file.name}</span>

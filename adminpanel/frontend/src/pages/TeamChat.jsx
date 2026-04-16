@@ -40,6 +40,77 @@ const formatLastSeen = (value) => {
   return `Last seen ${formatDistanceToNow(date, { addSuffix: true })}`;
 };
 
+const EMPTY_MENTION_STATE = { query: '', start: -1, end: -1, activeIndex: 0 };
+
+const escapeMentionPattern = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findMentionMatch = (value, caretIndex) => {
+  const nextValue = String(value || '');
+  const safeCaret = Number.isFinite(caretIndex) ? caretIndex : nextValue.length;
+  const beforeCaret = nextValue.slice(0, safeCaret);
+  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCaret);
+  if (!match) return null;
+  const query = match[2] || '';
+  const start = beforeCaret.lastIndexOf(`@${query}`);
+  if (start < 0) return null;
+  return { query, start, end: safeCaret, activeIndex: 0 };
+};
+
+const normalizeDraftMentions = (value, mentions = []) => {
+  const text = String(value || '');
+  const seen = new Set();
+  return (Array.isArray(mentions) ? mentions : []).reduce((accumulator, item) => {
+    const userId = item?.userId || item?.user?._id || item?._id || item?.id;
+    const label = String(item?.label || item?.name || item?.fullName || '').trim();
+    if (!userId || !label || !text.includes(`@${label}`)) return accumulator;
+    const key = String(userId);
+    if (seen.has(key)) return accumulator;
+    seen.add(key);
+    accumulator.push({ userId: key, label });
+    return accumulator;
+  }, []);
+};
+
+const renderMentionContent = (message, own) => {
+  const text = String(message?.content || '');
+  const mentions = Array.isArray(message?.mentions) ? message.mentions.filter((item) => item?.label) : [];
+  if (!mentions.length) {
+    return <p className="whitespace-pre-wrap text-sm leading-6">{text}</p>;
+  }
+
+  const tokens = [...new Set(mentions.map((item) => `@${item.label}`))]
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+
+  if (!tokens.length) {
+    return <p className="whitespace-pre-wrap text-sm leading-6">{text}</p>;
+  }
+
+  const pattern = new RegExp(`(${tokens.map(escapeMentionPattern).join('|')})`, 'g');
+  const parts = text.split(pattern).filter(Boolean);
+
+  return (
+    <p className="whitespace-pre-wrap text-sm leading-6">
+      {parts.map((part, index) => {
+        const matched = mentions.find((item) => part.toLowerCase() === `@${String(item.label).toLowerCase()}`);
+        if (!matched) return <React.Fragment key={index}>{part}</React.Fragment>;
+        return (
+          <span
+            key={index}
+            className="rounded px-1 py-0.5 font-semibold"
+            style={{
+              background: own ? 'rgba(255,255,255,0.16)' : 'var(--brand-primary-soft)',
+              color: own ? '#ffffff' : 'var(--brand-primary)',
+            }}
+          >
+            {part}
+          </span>
+        );
+      })}
+    </p>
+  );
+};
+
 const getPresenceLabel = (person) => {
   if (!person) return 'Direct message';
   if (person.online) return 'Online';
@@ -62,7 +133,7 @@ const Avatar = ({ user, tone = 'var(--brand-primary)' }) => (
 
 const TeamChat = () => {
   const { user } = useAuth();
-  const { counts, refresh: refreshNotifications } = useNotifications();
+  const { counts, refresh: refreshNotifications, markTypeRead } = useNotifications();
   const currentUserId = user?._id || user?.id;
   const [mode, setMode] = useState('individual');
   const [users, setUsers] = useState([]);
@@ -83,6 +154,8 @@ const TeamChat = () => {
   const [uploading, setUploading] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [draftMentions, setDraftMentions] = useState([]);
+  const [mentionState, setMentionState] = useState(EMPTY_MENTION_STATE);
   const [groupModal, setGroupModal] = useState(null);
   const [forwardMessage, setForwardMessage] = useState(null);
   const fileRef = useRef(null);
@@ -169,6 +242,12 @@ const TeamChat = () => {
   }, [messages.length, selectedChat?._id]);
 
   useEffect(() => {
+    if (selectedChat?._id) {
+      markTypeRead?.('chat');
+    }
+  }, [markTypeRead, selectedChat?._id]);
+
+  useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) return undefined;
 
@@ -227,6 +306,31 @@ const TeamChat = () => {
     setSelectedChat({ ...group, type: 'group' });
   };
 
+  const mentionCandidates = useMemo(() => {
+    if (selectedChat?.type !== 'group') return [];
+    return (selectedChat.members || [])
+      .filter((member) => String(member?._id) !== String(currentUserId))
+      .map((member) => ({ userId: member._id, label: formatPersonName(member) }))
+      .filter((member) => member.userId && member.label);
+  }, [currentUserId, selectedChat]);
+
+  const visibleMentionOptions = useMemo(() => {
+    if (mentionState.start < 0) return [];
+    const query = mentionState.query.trim().toLowerCase();
+    return mentionCandidates
+      .filter((member) => !query || member.label.toLowerCase().includes(query))
+      .slice(0, 6);
+  }, [mentionCandidates, mentionState]);
+
+  const chooseMention = useCallback((option) => {
+    if (!option) return;
+    const token = `@${option.label}`;
+    const nextValue = `${draft.slice(0, mentionState.start)}${token} ${draft.slice(mentionState.end)}`;
+    setDraft(nextValue);
+    setDraftMentions((current) => normalizeDraftMentions(nextValue, [...current, option]));
+    setMentionState(EMPTY_MENTION_STATE);
+  }, [draft, mentionState]);
+
   const uploadFile = async () => {
     if (!file) return {};
     setUploading(true);
@@ -244,6 +348,9 @@ const TeamChat = () => {
     if (!selectedChat?._id) return;
     const content = draft.trim();
     if (!content && !file && !editing) return;
+
+    const resolvedMentions = normalizeDraftMentions(draft, draftMentions);
+
     try {
       if (editing) {
         await userApi.put(`/api/chats/messages/${editing._id}`, { content });
@@ -256,10 +363,13 @@ const TeamChat = () => {
           contentType: upload.contentType || '',
           fileName: upload.fileName || file?.name || '',
           replyTo: replyTo?._id || null,
+          mentions: resolvedMentions,
         });
         setReplyTo(null);
       }
       setDraft('');
+      setDraftMentions([]);
+      setMentionState(EMPTY_MENTION_STATE);
       setFile(null);
       if (fileRef.current) fileRef.current.value = '';
       await fetchMessages(selectedChat._id);
@@ -493,8 +603,8 @@ const TeamChat = () => {
                           message={message}
                           own={String(message.sender?._id || message.sender) === String(currentUserId)}
                           isPinned={pinnedMessages.some((item) => item._id === message._id)}
-                          onReply={() => { setReplyTo(message); setEditing(null); }}
-                          onEdit={() => { setEditing(message); setDraft(message.content || ''); setReplyTo(null); }}
+                          onReply={() => { setReplyTo(message); setEditing(null); setMentionState(EMPTY_MENTION_STATE); }}
+                          onEdit={() => { setEditing(message); setDraft(message.content || ''); setDraftMentions((message.mentions || []).map((item) => ({ userId: item.user?._id || item.userId || item._id, label: item.label || formatPersonName(item.user) }))); setReplyTo(null); setMentionState(EMPTY_MENTION_STATE); }}
                           onDelete={() => deleteMessage(message)}
                           onPin={() => togglePin(message)}
                           onForward={() => setForwardMessage(message)}
@@ -507,9 +617,9 @@ const TeamChat = () => {
 
                 <div className="border-t p-4" style={{ borderColor: 'var(--c-border)' }}>
                   {replyTo ? <ComposerNotice label={`Replying to ${formatPersonName(replyTo.sender)}`} text={getMessageText(replyTo)} onClear={() => setReplyTo(null)} /> : null}
-                  {editing ? <ComposerNotice label="Editing message" text={editing.content} onClear={() => { setEditing(null); setDraft(''); }} /> : null}
+                  {editing ? <ComposerNotice label="Editing message" text={editing.content} onClear={() => { setEditing(null); setDraft(''); setDraftMentions([]); setMentionState(EMPTY_MENTION_STATE); }} /> : null}
                   {file ? <ComposerNotice label="Attachment ready" text={`${file.name} (${Math.round(file.size / 1024)} KB)`} onClear={() => { setFile(null); if (fileRef.current) fileRef.current.value = ''; }} /> : null}
-                  <div className="flex items-end gap-2">
+                  <div className="relative flex items-end gap-2">
                     <button className="btn-secondary h-12 w-12 rounded-full p-0" onClick={() => fileRef.current?.click()} aria-label="Attach file">
                       <Paperclip className="h-4 w-4" />
                     </button>
@@ -518,15 +628,63 @@ const TeamChat = () => {
                       className="input-base min-h-12 flex-1 resize-none"
                       rows={1}
                       value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setDraft(nextValue);
+                        setDraftMentions((current) => normalizeDraftMentions(nextValue, current));
+                        if (selectedChat?.type === 'group') {
+                          const nextMatch = findMentionMatch(nextValue, event.target.selectionStart ?? nextValue.length);
+                          setMentionState(nextMatch ? { ...nextMatch, activeIndex: 0 } : EMPTY_MENTION_STATE);
+                        } else {
+                          setMentionState(EMPTY_MENTION_STATE);
+                        }
+                      }}
                       onKeyDown={(event) => {
+                        if (visibleMentionOptions.length) {
+                          if (event.key === 'ArrowDown') {
+                            event.preventDefault();
+                            setMentionState((current) => ({ ...current, activeIndex: (current.activeIndex + 1) % visibleMentionOptions.length }));
+                            return;
+                          }
+                          if (event.key === 'ArrowUp') {
+                            event.preventDefault();
+                            setMentionState((current) => ({ ...current, activeIndex: current.activeIndex <= 0 ? visibleMentionOptions.length - 1 : current.activeIndex - 1 }));
+                            return;
+                          }
+                          if (event.key === 'Enter' || event.key === 'Tab') {
+                            event.preventDefault();
+                            chooseMention(visibleMentionOptions[Math.min(mentionState.activeIndex, visibleMentionOptions.length - 1)]);
+                            return;
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            setMentionState(EMPTY_MENTION_STATE);
+                            return;
+                          }
+                        }
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
                           sendMessage();
                         }
                       }}
-                      placeholder={editing ? 'Edit your message...' : 'Type a message...'}
+                      placeholder={editing ? 'Edit your message...' : selectedChat?.type === 'group' ? 'Type a message... Use @ to mention someone' : 'Type a message...'}
                     />
+                    {visibleMentionOptions.length ? (
+                      <div className="absolute bottom-full left-14 right-14 mb-2 overflow-hidden rounded-[0.9rem] border" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)', boxShadow: 'var(--shadow-md)' }}>
+                        {visibleMentionOptions.map((option, index) => (
+                          <button
+                            key={option.userId}
+                            type="button"
+                            onClick={() => chooseMention(option)}
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
+                            style={index === mentionState.activeIndex ? { background: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' } : { color: 'var(--c-text)' }}
+                          >
+                            <Avatar user={{ firstName: option.label }} tone="var(--brand-secondary)" />
+                            <span className="min-w-0 flex-1 truncate text-sm font-bold">{option.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     <button className="btn-primary h-12 w-12 rounded-full p-0" onClick={sendMessage} disabled={uploading || (!draft.trim() && !file)}>
                       {uploading ? '...' : <Send className="h-4 w-4" />}
                     </button>
@@ -604,7 +762,7 @@ const MessageRow = ({ message, own, isPinned, onReply, onEdit, onDelete, onPin, 
         <p className="text-sm italic opacity-70">This message was deleted</p>
       ) : (
         <>
-          {message.content ? <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p> : null}
+          {message.content ? renderMentionContent(message, own) : null}
           {message.fileUrl ? <AttachmentPreview message={message} own={own} /> : null}
         </>
       )}

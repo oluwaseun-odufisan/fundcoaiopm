@@ -42,6 +42,10 @@ const messageSchema = new mongoose.Schema(
             senderName: { type: String },
             chatName:   { type: String },
         },
+        mentions: [{
+            user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
+            label: { type: String, trim: true, required: true },
+        }],
     },
     { timestamps: true }
 );

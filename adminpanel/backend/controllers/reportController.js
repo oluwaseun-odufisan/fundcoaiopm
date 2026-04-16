@@ -1,5 +1,6 @@
 import Report from '../models/reportModel.js';
 import { buildTeamQuery } from '../middleware/teamFilter.js';
+import { createNotification } from '../utils/notificationService.js';
 
 // ── Get all reports (team-filtered, only submitted+) ──────────────────────────
 export const getAllReports = async (req, res) => {
@@ -83,6 +84,19 @@ export const reviewReport = async (req, res) => {
       });
     }
 
+    await createNotification({
+      userId: report.user,
+      type: 'report',
+      title: `Report ${action}: ${report.title}`,
+      body: feedback || `Reviewed by ${req.user.fullName || req.user.email}`,
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: report._id,
+      entityType: 'Report',
+      data: { reportId: String(report._id), status: action },
+      io: req.io,
+    });
+
     res.json({ success: true, report: populated });
   } catch (err) {
     console.error('reviewReport error:', err.message);
@@ -106,6 +120,19 @@ export const addReportNote = async (req, res) => {
       .populate('user', 'firstName lastName email avatar')
       .populate('adminNotes.user', 'firstName lastName avatar')
       .lean();
+
+    await createNotification({
+      userId: report.user,
+      type: 'report',
+      title: `New admin note on ${report.title}`,
+      body: content.trim(),
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: report._id,
+      entityType: 'Report',
+      data: { reportId: String(report._id), status: 'commented' },
+      io: req.io,
+    });
 
     res.json({ success: true, report: populated });
   } catch (err) {

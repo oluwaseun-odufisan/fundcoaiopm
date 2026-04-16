@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import Post from '../models/postModel.js';
 import authMiddleware from '../middleware/auth.js';
 import { uploadFileToIPFS } from '../pinning/pinata.js';
+import { createNotification } from '../utils/notificationService.js';
 
 const router = express.Router();
 
@@ -15,6 +16,32 @@ const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id 
 const POPULATE_COMMENTS_USER = { path: 'comments.user', select: 'firstName lastName _id avatar' };
 
 const ALLOWED_REACTIONS = new Set(['like', 'love', 'haha', 'wow', 'sad', 'fire']);
+
+const getActorName = (user) => {
+  if (!user) return 'Someone';
+  if (user.fullName) return user.fullName.trim();
+  if (user.firstName || user.lastName) return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
+  return user.name || user.email || 'Someone';
+};
+
+const cleanText = (value, maxLength = 140) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength);
+
+const createSocialNotification = async (req, post, title, body) => {
+  const ownerId = post?.user?._id || post?.user;
+  if (!ownerId || String(ownerId) === String(req.user._id)) return;
+  await createNotification({
+    userId: ownerId,
+    type: 'social',
+    title,
+    body,
+    actorId: req.user._id,
+    actorName: getActorName(req.user),
+    entityId: post._id,
+    entityType: 'Post',
+    data: { postId: String(post._id) },
+    io: req.io,
+  });
+};
 
 const formatPost = (post, currentUserId) => {
   const obj = post.toObject ? post.toObject() : post;
@@ -251,6 +278,14 @@ router.put('/:id/react', authMiddleware, async (req, res) => {
     await post.populate([POPULATE_USER, POPULATE_COMMENTS_USER]);
 
     const formatted = formatPost(post, req.user._id);
+    if (existing !== emoji) {
+      await createSocialNotification(
+        req,
+        post,
+        `${getActorName(req.user)} reacted to your post`,
+        cleanText(formatted?.content) || `${getActorName(req.user)} left a ${emoji} reaction on your post.`
+      );
+    }
     emitPostEvent(req, 'post:updated', formatted);
     res.json({ success: true, post: formatted });
   } catch (err) {
@@ -277,6 +312,12 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
     await post.populate([POPULATE_USER, POPULATE_COMMENTS_USER]);
 
     const formatted = formatPost(post, req.user._id);
+    await createSocialNotification(
+      req,
+      post,
+      `${getActorName(req.user)} commented on your post`,
+      cleanText(content)
+    );
     emitPostEvent(req, 'post:updated', formatted);
     res.status(201).json({ success: true, post: formatted });
   } catch (err) {

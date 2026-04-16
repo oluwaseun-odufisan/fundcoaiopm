@@ -1,5 +1,6 @@
 import Room from '../models/roomModel.js';
 import { buildTeamQuery } from '../middleware/teamFilter.js';
+import { createNotification } from '../utils/notificationService.js';
 
 // ── Get all rooms (team-filtered) ─────────────────────────────────────────────
 export const getAllRooms = async (req, res) => {
@@ -53,6 +54,24 @@ export const endRoom = async (req, res) => {
     room.endedAt = new Date();
     room.participants.forEach(p => { if (p.isActive) { p.isActive = false; p.leftAt = new Date(); } });
     await room.save();
+
+    const recipients = [...new Set([
+      String(room.host),
+      ...room.participants.map((participant) => String(participant.userId)),
+    ])].filter((userId) => userId !== String(req.user._id));
+
+    await Promise.all(recipients.map((userId) => createNotification({
+      userId,
+      type: 'meeting',
+      title: `Meeting ended: ${room.name}`,
+      body: `Closed by ${req.user.fullName || req.user.email}`,
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: req.params.roomId,
+      entityType: 'Room',
+      data: { roomId: req.params.roomId, roomName: room.name, status: 'ended' },
+      io: req.io,
+    })));
 
     if (req.io) req.io.to(req.params.roomId).emit('roomEnded', { roomId: req.params.roomId, endedBy: req.user._id });
     res.json({ success: true, message: 'Room ended' });

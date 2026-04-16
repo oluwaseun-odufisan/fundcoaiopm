@@ -32,6 +32,7 @@ import './models/projectModel.js';
 import './models/reminderModel.js';
 import './models/learningMaterialModel.js';
 import './models/roomModel.js';
+import './models/notificationModel.js';
 
 const app = express();
 const httpServer = createServer(app);

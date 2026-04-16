@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import Chat from '../models/chatModel.js';
 import Message from '../models/messageModel.js';
 import User from '../models/userModel.js';
+import { createNotification } from '../utils/notificationService.js';
 import { uploadFileToIPFS } from '../pinning/pinata.js';
 
 // Safe full name helper
@@ -15,6 +16,38 @@ const getFullName = (user) => {
         return `${user.firstName || ''} ${user.lastName || ''} ${user.otherName || ''}`.trim();
     }
     return user.name?.trim() || 'Unknown User';
+};
+
+const getMessagePreview = ({ content, fileName, fileUrl }) => {
+    if (content) return String(content).trim().slice(0, 140);
+    if (fileName) return `Sent ${fileName}`;
+    if (fileUrl) return 'Sent an attachment';
+    return 'Sent a message';
+};
+
+const buildMentions = (mentions = [], chatMembers = [], senderId) => {
+    const memberSet = new Set((chatMembers || []).map((memberId) => String(memberId)));
+    const senderKey = String(senderId);
+    const seen = new Set();
+
+    return (Array.isArray(mentions) ? mentions : []).reduce((accumulator, item) => {
+        const userId = item?.user?._id || item?.userId || item?._id || item?.id;
+        const cleanLabel = sanitizeHtml(
+            item?.label || item?.name || item?.fullName || '',
+            { allowedTags: [], allowedAttributes: {} }
+        ).trim();
+
+        if (!userId || !mongoose.isValidObjectId(userId)) return accumulator;
+        const userKey = String(userId);
+        if (userKey === senderKey || !memberSet.has(userKey) || seen.has(userKey)) return accumulator;
+
+        seen.add(userKey);
+        accumulator.push({
+            user: new mongoose.Types.ObjectId(userKey),
+            label: validator.isLength(cleanLabel || userKey, { min: 1, max: 80 }) ? cleanLabel : userKey,
+        });
+        return accumulator;
+    }, []);
 };
 
 // Fetch all users except current user
@@ -226,8 +259,9 @@ export const getChatMessages = async (req, res) => {
         const [chat, messages, totalMessages] = await Promise.all([
             Chat.findOne({ _id: chatId, members: req.user._id }).select('_id').lean(),
             Message.find(msgQuery)
-                .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy')
+                .select('_id chatId sender content fileUrl fileName contentType createdAt isDeleted isEdited reactions replyTo readBy mentions')
                 .populate('sender', 'firstName lastName otherName avatar')
+                .populate('mentions.user', 'firstName lastName otherName avatar')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum)
@@ -258,7 +292,7 @@ export const getChatMessages = async (req, res) => {
 // Send message (real-time fixed)
 export const sendMessage = async (req, res) => {
     const { chatId } = req.params;
-    const { content, fileUrl, contentType, fileName, replyTo } = req.body;
+    const { content, fileUrl, contentType, fileName, replyTo, mentions = [] } = req.body;
     if (!mongoose.isValidObjectId(chatId)) {
         return res.status(400).json({ success: false, message: 'Invalid chat ID' });
     }
@@ -276,17 +310,17 @@ export const sendMessage = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid replyTo ID' });
     }
     try {
-        // Fetch only what we need: membership check + current unreadCounts + members list
         const chat = await Chat.findOne(
             { _id: chatId, members: req.user._id },
-            { members: 1, unreadCounts: 1 }
+            { members: 1, unreadCounts: 1, type: 1, name: 1 }
         ).lean();
         if (!chat) {
             return res.status(404).json({ success: false, message: 'Chat not found or access denied' });
         }
 
-        // Save message and fetch sender info in parallel
-        const [message, senderDoc] = await Promise.all([
+        const resolvedMentions = buildMentions(mentions, chat.members, req.user._id);
+
+        const [message, senderDoc, mentionDocs] = await Promise.all([
             Message.create({
                 chatId,
                 sender: req.user._id,
@@ -294,32 +328,40 @@ export const sendMessage = async (req, res) => {
                 fileUrl,
                 contentType,
                 fileName,
-                // Store replyTo as a snapshot so preview always works even if original is deleted
-            replyTo: replyTo ? await (async () => {
-                if (!mongoose.isValidObjectId(replyTo)) return null;
-                const orig = await Message.findById(replyTo)
-                    .populate('sender', 'firstName lastName otherName')
-                    .lean();
-                if (!orig) return null;
-                return {
-                    messageId: orig._id,
-                    content: orig.isDeleted ? 'This message was deleted' : orig.content,
-                    senderName: orig.sender ? `${orig.sender.firstName || ''} ${orig.sender.lastName || ''}`.trim() : 'Unknown',
-                    sender: orig.sender?._id,
-                    contentType: orig.contentType,
-                    fileUrl: orig.fileUrl,
-                };
-            })() : null,
+                mentions: resolvedMentions,
+                replyTo: replyTo ? await (async () => {
+                    if (!mongoose.isValidObjectId(replyTo)) return null;
+                    const original = await Message.findById(replyTo)
+                        .populate('sender', 'firstName lastName otherName')
+                        .lean();
+                    if (!original) return null;
+                    return {
+                        messageId: original._id,
+                        content: original.isDeleted ? 'This message was deleted' : original.content,
+                        senderName: original.sender ? `${original.sender.firstName || ''} ${original.sender.lastName || ''}`.trim() : 'Unknown',
+                        sender: original.sender?._id,
+                        contentType: original.contentType,
+                        fileUrl: original.fileUrl,
+                    };
+                })() : null,
             }),
-            User.findById(req.user._id)
-                .select('firstName lastName otherName avatar')
-                .lean(),
+            User.findById(req.user._id).select('firstName lastName otherName avatar').lean(),
+            resolvedMentions.length
+                ? User.find({ _id: { $in: resolvedMentions.map((item) => item.user) } })
+                    .select('firstName lastName otherName avatar')
+                    .lean()
+                : Promise.resolve([]),
         ]);
 
-        // Fire-and-forget lastActive update — does not block response
         User.updateOne({ _id: req.user._id }, { $set: { lastActive: new Date() } }).catch(() => {});
 
-        // Build the populated message object from data we already have — no extra DB read
+        const senderName = getFullName(senderDoc);
+        const mentionMap = new Map(mentionDocs.map((userDoc) => [String(userDoc._id), userDoc]));
+        const populatedMentions = resolvedMentions.map((item) => ({
+            user: mentionMap.get(String(item.user)) || { _id: item.user, firstName: item.label },
+            label: item.label,
+        }));
+
         const populatedMessage = {
             _id: message._id,
             chatId: message.chatId,
@@ -328,23 +370,24 @@ export const sendMessage = async (req, res) => {
             fileUrl: message.fileUrl,
             fileName: message.fileName,
             contentType: message.contentType,
+            mentions: populatedMentions,
             isDeleted: false,
             isEdited: false,
             createdAt: message.createdAt,
             updatedAt: message.updatedAt,
+            replyTo: message.replyTo,
         };
 
-        // Build atomic $set for unread increments — one DB write instead of full document save
         const unreadIncrements = {};
         const now = Date.now();
 
         chat.members.forEach((memberId) => {
-            const mid = memberId.toString();
-            if (mid !== req.user._id.toString()) {
-                const currentCount = (chat.unreadCounts && chat.unreadCounts[mid]) || 0;
+            const memberKey = memberId.toString();
+            if (memberKey !== req.user._id.toString()) {
+                const currentCount = (chat.unreadCounts && chat.unreadCounts[memberKey]) || 0;
                 const newCount = currentCount + 1;
-                unreadIncrements[`unreadCounts.${mid}`] = newCount;
-                req.io.to(`user:${mid}`).emit('unreadUpdate', {
+                unreadIncrements[`unreadCounts.${memberKey}`] = newCount;
+                req.io.to(`user:${memberKey}`).emit('unreadUpdate', {
                     chatId,
                     count: newCount,
                     message: populatedMessage,
@@ -352,14 +395,57 @@ export const sendMessage = async (req, res) => {
             }
         });
 
-        // Single atomic update: bump updatedAt + all unread counters at once
         Chat.findByIdAndUpdate(chatId, {
             $set: { updatedAt: now, ...unreadIncrements },
-        }).catch((err) => console.error('Chat update error:', err.message));
+        }).catch((error) => console.error('Chat update error:', error.message));
 
-        // Broadcast to everyone in the chat room
+        const preview = getMessagePreview({ content: sanitizedContent, fileName, fileUrl });
+        if (chat.type === 'individual') {
+            const recipientId = chat.members.find((memberId) => String(memberId) !== String(req.user._id));
+            if (recipientId) {
+                await createNotification({
+                    userId: recipientId,
+                    type: 'chat',
+                    title: `${senderName} sent you a message`,
+                    body: preview,
+                    actorId: req.user._id,
+                    actorName: senderName,
+                    entityId: chatId,
+                    entityType: 'Chat',
+                    data: { chatId: String(chatId), kind: 'direct' },
+                    io: req.io,
+                });
+            }
+        } else if (chat.type === 'group') {
+            const mentionSet = new Set(resolvedMentions.map((mention) => String(mention.user)));
+            const recipients = chat.members
+                .map((memberId) => String(memberId))
+                .filter((memberId) => memberId !== String(req.user._id));
+
+            await Promise.all(recipients.map((memberId) => {
+                const isMentioned = mentionSet.has(memberId);
+                return createNotification({
+                    userId: memberId,
+                    type: 'chat',
+                    title: isMentioned
+                        ? `${senderName} mentioned you in ${chat.name || 'a group chat'}`
+                        : `New message in ${chat.name || 'your group chat'}`,
+                    body: preview,
+                    actorId: req.user._id,
+                    actorName: senderName,
+                    entityId: chatId,
+                    entityType: 'Chat',
+                    data: {
+                        chatId: String(chatId),
+                        kind: isMentioned ? 'mention' : 'group',
+                        chatName: chat.name || '',
+                    },
+                    io: req.io,
+                });
+            }));
+        }
+
         req.io.to(chatId.toString()).emit('message', populatedMessage);
-
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
         console.error('Error sending message:', error.message, error.stack);
@@ -417,6 +503,7 @@ export const editMessage = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -473,6 +560,7 @@ export const deleteMessage = async (req, res) => {
 
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
 
         // Broadcast to everyone in the chat room
@@ -583,6 +671,7 @@ export const markMessageRead = async (req, res) => {
         }
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
         req.io.to(message.chatId.toString()).emit('messageRead', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -616,6 +705,7 @@ export const addReaction = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -638,6 +728,7 @@ export const removeReaction = async (req, res) => {
         await message.save();
         const populatedMessage = await Message.findById(message._id)
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
         req.io.to(message.chatId.toString()).emit('messageUpdated', populatedMessage);
         res.json({ success: true, message: populatedMessage });
@@ -854,6 +945,7 @@ export const getPinnedMessages = async (req, res) => {
 
         const messages = await Message.find({ _id: { $in: chat.pinnedMessages } })
             .populate('sender', 'firstName lastName otherName avatar')
+            .populate('mentions.user', 'firstName lastName otherName avatar')
             .lean();
 
         res.json({ success: true, pinnedMessages: messages });

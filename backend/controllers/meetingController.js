@@ -4,6 +4,7 @@ import User from '../models/userModel.js';
 import Joi from 'joi';
 import { createZoomMeeting, updateZoomMeeting, deleteZoomMeeting, getZoomTranscript, getZoomMeetingRecordings, generateSignature } from '../utils/zoomService.js';
 import { sendEmail } from '../utils/emailService.js';
+import { createNotification } from '../utils/notificationService.js';
 
 const meetingSchema = Joi.object({
   topic: Joi.string().min(3).max(200).required(),
@@ -58,6 +59,18 @@ export const createMeeting = async (req, res) => {
         });
       }
       req.io.to(`user:${participantId}`).emit('newMeetingInvitation', { meeting });
+      await createNotification({
+        userId: participantId,
+        type: 'meeting',
+        title: `Meeting invitation: ${meeting.topic}`,
+        body: `Starts ${parsedStartTime.toLocaleString()}`,
+        actorId: req.user.id,
+        actorName: req.user.fullName || req.user.email || 'A teammate',
+        entityId: meeting._id,
+        entityType: 'Meeting',
+        data: { meetingId: String(meeting._id), kind: 'invite' },
+        io: req.io,
+      });
     }
 
     // Emit to creator as well
@@ -121,6 +134,18 @@ export const updateMeeting = async (req, res) => {
         });
       }
       req.io.to(`user:${participantId}`).emit('meetingUpdated', meeting);
+      await createNotification({
+        userId: participantId,
+        type: 'meeting',
+        title: `Meeting updated: ${meeting.topic}`,
+        body: `Starts ${parsedStartTime.toLocaleString()}`,
+        actorId: req.user.id,
+        actorName: req.user.fullName || req.user.email || 'A teammate',
+        entityId: meeting._id,
+        entityType: 'Meeting',
+        data: { meetingId: String(meeting._id), kind: 'update' },
+        io: req.io,
+      });
     }
     req.io.to(`user:${req.user.id}`).emit('meetingUpdated', meeting);
 
@@ -150,6 +175,18 @@ export const deleteMeeting = async (req, res) => {
         });
       }
       req.io.to(`user:${participantId}`).emit('meetingCancelled', { id: meeting._id, message });
+      await createNotification({
+        userId: participantId,
+        type: 'meeting',
+        title: `Meeting cancelled: ${meeting.topic}`,
+        body: message,
+        actorId: req.user.id,
+        actorName: req.user.fullName || req.user.email || 'A teammate',
+        entityId: meeting._id,
+        entityType: 'Meeting',
+        data: { meetingId: String(meeting._id), kind: 'cancelled' },
+        io: req.io,
+      });
     }
 
     await meeting.deleteOne();

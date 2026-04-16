@@ -2,6 +2,7 @@ import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 import { buildTeamQuery } from '../middleware/teamFilter.js';
+import { createNotification } from '../utils/notificationService.js';
 
 // ── Get all tasks (team-filtered) ─────────────────────────────────────────────
 export const getAllTasks = async (req, res) => {
@@ -109,6 +110,19 @@ export const createTaskForUser = async (req, res) => {
       req.io.to(`user:${ownerId}`).emit('newTask', populated);
     }
 
+    await createNotification({
+      userId: ownerId,
+      type: 'task',
+      title: `New task assigned: ${task.title}`,
+      body: `Assigned by ${req.user.fullName || req.user.email}`,
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: task._id,
+      entityType: 'Task',
+      data: { taskId: String(task._id), status: 'assigned' },
+      io: req.io,
+    });
+
     res.status(201).json({ success: true, task: populated });
   } catch (err) {
     console.error('createTaskForUser error:', err.message);
@@ -208,6 +222,19 @@ export const reviewTask = async (req, res) => {
       });
     }
 
+    await createNotification({
+      userId: task.owner,
+      type: 'task',
+      title: `Task ${action}: ${task.title}`,
+      body: `Reviewed by ${req.user.fullName || req.user.email}`,
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: task._id,
+      entityType: 'Task',
+      data: { taskId: String(task._id), status: action },
+      io: req.io,
+    });
+
     res.json({ success: true, task: populated });
   } catch (err) {
     console.error('reviewTask error:', err.message);
@@ -235,6 +262,19 @@ export const addTaskComment = async (req, res) => {
     if (req.io) {
       req.io.to(`user:${task.owner}`).emit('updateTask', populated);
     }
+
+    await createNotification({
+      userId: task.owner,
+      type: 'task',
+      title: `New admin comment on ${task.title}`,
+      body: content.trim(),
+      actorId: req.user._id,
+      actorName: req.user.fullName || req.user.email,
+      entityId: task._id,
+      entityType: 'Task',
+      data: { taskId: String(task._id), status: 'commented' },
+      io: req.io,
+    });
 
     res.json({ success: true, task: populated });
   } catch (err) {

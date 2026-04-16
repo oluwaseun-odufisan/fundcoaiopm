@@ -31,7 +31,7 @@ const navConfig = [
   { divider: true },
   { to: '/my-team', icon: UsersRound, label: 'My Team', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/team-chat', icon: MessageSquare, label: 'Team Chat', roles: ['team-lead', 'executive', 'admin'], badge: 'chat' },
-  { to: '/social', icon: MessageSquare, label: 'Social Feed', roles: ['team-lead', 'executive', 'admin'] },
+  { to: '/social', icon: MessageSquare, label: 'Social Feed', roles: ['team-lead', 'executive', 'admin'], badge: 'social' },
   { to: '/training', icon: BookOpen, label: 'Training', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/reminders', icon: Bell, label: 'Reminders', roles: ['team-lead', 'executive', 'admin'], badge: 'reminders' },
   { to: '/meetings', icon: Video, label: 'Meetings', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },

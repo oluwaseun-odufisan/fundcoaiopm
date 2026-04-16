@@ -1,6 +1,7 @@
 // controllers/roomController.js
 import Room from '../models/roomModel.js';
 import User from '../models/userModel.js';
+import { createNotification } from '../utils/notificationService.js';
 import { nanoid } from 'nanoid';
 
 // ─── Generate a unique room ID ───────────────────────────────────────────────
@@ -61,6 +62,19 @@ export const createRoom = async (req, res) => {
                 });
             });
         }
+
+        await Promise.all((invitedUsers || []).map((userId) => createNotification({
+            userId,
+            type: 'meeting',
+            title: `Room invitation: ${room.name}`,
+            body: 'A live room is ready for you to join.',
+            actorId: req.user.id,
+            actorName: req.user.fullName || req.user.email || 'A teammate',
+            entityId: room.roomId,
+            entityType: 'Room',
+            data: { roomId: room.roomId, kind: 'room-invite', roomName: room.name },
+            io: req.io,
+        })));
 
         res.status(201).json({ success: true, room });
     } catch (err) {
@@ -302,6 +316,19 @@ export const inviteToRoom = async (req, res) => {
                 });
             });
         }
+
+        await Promise.all(newInvites.map((userId) => createNotification({
+            userId,
+            type: 'meeting',
+            title: `Room invitation: ${room.name}`,
+            body: 'A live room invitation was just sent to you.',
+            actorId: req.user.id,
+            actorName: inviter.fullName || req.user.email || 'A teammate',
+            entityId: room.roomId,
+            entityType: 'Room',
+            data: { roomId: room.roomId, kind: 'room-invite', roomName: room.name },
+            io: req.io,
+        })));
 
         res.json({ success: true, message: 'Invitations sent' });
     } catch (err) {

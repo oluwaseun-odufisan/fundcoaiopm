@@ -26,6 +26,7 @@ import documentRoutes from './routes/documentRoutes.js';
 import grokRouter from './routes/grokRoutes.js';
 import reportRouter from './routes/reportRoutes.js';
 import roomRouter from './routes/roomRoutes.js';
+import notificationRouter from './routes/notificationRoutes.js';
 
 import { startReminderScheduler } from './utils/reminderScheduler.js';
 import Meeting from './models/meetingModel.js';
@@ -42,6 +43,7 @@ import './models/goalModel.js';
 import './models/meetingModel.js';
 import './models/learningMaterialModel.js';
 import './models/feedbackModel.js';
+import './models/notificationModel.js';
 import Room from './models/roomModel.js';
 
 import { setupRoomSignaling } from './socket/roomSignaling.js';
@@ -123,6 +125,7 @@ app.use('/api/documents',   documentRoutes);
 app.use('/api/reports',     reportRouter);
 app.use('/api/feedback',    feedbackRouter);
 app.use('/api/rooms',       roomRouter);
+app.use('/api/notifications', notificationRouter);
 
 // Environment variable validation
 const requiredEnvVars = [

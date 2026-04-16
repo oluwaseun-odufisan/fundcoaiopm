@@ -14,6 +14,7 @@ import {
   Search, Filter, Loader2, MoreHorizontal, Eye, Flame,
   Heart, ThumbsUp, Laugh, AlertCircle, Sparkles, RefreshCw,
 } from 'lucide-react';
+import { useNotifications } from '../context/NotificationContext.jsx';
 
 const API = import.meta.env.VITE_API_URL;
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
@@ -531,6 +532,7 @@ const PostComposer = ({ user, editPost = null, onSubmit, onCancel, uploading, po
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 const SocialFeed = () => {
   const { user } = useOutletContext();
+  const { markTypeRead } = useNotifications();
   const [posts, setPosts]             = useState([]);
   const [page, setPage]               = useState(1);
   const [pagination, setPagination]   = useState(null);
@@ -546,6 +548,10 @@ const SocialFeed = () => {
   const socketRef = useRef(null);
   const loaderRef = useRef(null);
   const searchTimer = useRef(null);
+
+  useEffect(() => {
+    markTypeRead?.('social');
+  }, [markTypeRead]);
 
   // ── Socket ──────────────────────────────────────────────────────────────
   useEffect(() => {
