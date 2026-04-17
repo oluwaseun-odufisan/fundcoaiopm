@@ -9,6 +9,7 @@ import { LoadingScreen } from './components/ui.jsx';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const Tasks = lazy(() => import('./pages/Tasks.jsx'));
+const MyTasks = lazy(() => import('./pages/MyTasks.jsx'));
 const Goals = lazy(() => import('./pages/Goals.jsx'));
 const Reports = lazy(() => import('./pages/Reports.jsx'));
 const Performance = lazy(() => import('./pages/Performance.jsx'));
@@ -64,6 +65,7 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Suspense fallback={<Loader />}><Dashboard /></Suspense>} />
           <Route path="/tasks" element={<Suspense fallback={<Loader />}><Tasks /></Suspense>} />
+          <Route path="/my-tasks" element={<Suspense fallback={<Loader />}><MyTasks /></Suspense>} />
           <Route path="/goals" element={<Suspense fallback={<Loader />}><Goals /></Suspense>} />
           <Route path="/reports" element={<Suspense fallback={<Loader />}><Reports /></Suspense>} />
           <Route path="/performance" element={<Suspense fallback={<Loader />}><Performance /></Suspense>} />

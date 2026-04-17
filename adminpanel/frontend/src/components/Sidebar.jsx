@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Bell,
   BookOpen,
+  ClipboardList,
   FileText,
   FolderKanban,
   HardDrive,
@@ -24,6 +25,7 @@ import { useNotifications } from '../context/NotificationContext.jsx';
 const navConfig = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/tasks', icon: ListTodo, label: 'Tasks', roles: ['team-lead', 'executive', 'admin'], badge: 'tasks' },
+  { to: '/my-tasks', icon: ClipboardList, label: 'My Tasks', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/projects', icon: FolderKanban, label: 'Projects', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/goals', icon: Target, label: 'Goals', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/reports', icon: FileText, label: 'Reports', roles: ['team-lead', 'executive', 'admin'], badge: 'reports' },

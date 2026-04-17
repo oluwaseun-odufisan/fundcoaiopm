@@ -122,7 +122,8 @@ const sendReminder = async (reminder) => {
             reminder.remindAt = new Date(reminder.remindAt.getTime() + reminder.repeatInterval * 60 * 1000);
             reminder.status = 'pending';
         } else if (!reminder.repeatInterval) {
-            reminder.isActive = false;
+            // Keep one-off reminders visible in the reminders page until the user dismisses them.
+            reminder.status = 'sent';
         }
 
         await reminder.save();

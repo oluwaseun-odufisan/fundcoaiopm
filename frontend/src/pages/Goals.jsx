@@ -631,12 +631,9 @@ const Goals = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3" style={{ color: 'var(--text-primary)' }}>
-            <Target className="w-6 h-6" style={{ color: 'var(--brand-primary)' }} />
+            
             Goals
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Track progress toward what matters
-          </p>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-opacity"

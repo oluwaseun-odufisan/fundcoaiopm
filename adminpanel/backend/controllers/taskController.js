@@ -12,6 +12,40 @@ import {
 const getActorName = (user) => user?.fullName || user?.email || 'Admin';
 const getTaskId = (task) => String(task?._id || task?.id || '');
 const getUserId = (value) => String(value?._id || value || '');
+const isSelfAssignedTask = (task) => {
+  const ownerId = getUserId(task?.owner);
+  const assignerId = getUserId(task?.assignedBy);
+  return Boolean(ownerId) && (!assignerId || assignerId === ownerId);
+};
+
+const getTaskReviewAccess = ({ task, reviewerId, reviewerRole, teamMemberIds }) => {
+  if (!task) {
+    return { allowed: false, reason: 'Task not found' };
+  }
+
+  if (reviewerRole === 'admin') {
+    return { allowed: true, reason: '' };
+  }
+
+  const ownerId = getUserId(task.owner);
+  const assignerId = getUserId(task.assignedBy);
+  const reviewerKey = getUserId(reviewerId);
+
+  if (isSelfAssignedTask(task)) {
+    const visibleTeamIds = Array.isArray(teamMemberIds) ? teamMemberIds.map(String) : [];
+    const allowed = Boolean(ownerId) && visibleTeamIds.includes(ownerId);
+    return {
+      allowed,
+      reason: allowed ? '' : 'Only an admin who manages this self-assigned task owner can review it.',
+    };
+  }
+
+  const allowed = Boolean(assignerId) && Boolean(reviewerKey) && assignerId === reviewerKey;
+  return {
+    allowed,
+    reason: allowed ? '' : 'Only the admin who assigned this task can approve or reject it.',
+  };
+};
 
 const buildTaskReminderDetails = ({ user, task }) => {
   const reminderMinutes = user?.preferences?.reminders?.defaultReminderTimes?.task_due ?? 60;
@@ -453,6 +487,16 @@ export const reviewTask = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Task has not been submitted for review' });
     }
 
+    const reviewAccess = getTaskReviewAccess({
+      task,
+      reviewerId: req.user._id,
+      reviewerRole: req.user.role,
+      teamMemberIds: req.teamMemberIds,
+    });
+    if (!reviewAccess.allowed) {
+      return res.status(403).json({ success: false, message: reviewAccess.reason });
+    }
+
     task.submissionStatus = action;
     await task.save();
 
@@ -507,6 +551,17 @@ export const addTaskComment = async (req, res) => {
       .lean();
 
     await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: populated, io: req.io });
+    await emitTaskRealtime({
+      event: 'taskCommented',
+      userId: task.owner,
+      payload: {
+        taskId: task._id,
+        title: task.title,
+        content: content.trim(),
+        commentedBy: getActorName(req.user),
+      },
+      io: req.io,
+    });
     await createTaskNotification({
       task,
       userId: task.owner,
@@ -532,18 +587,106 @@ export const bulkAction = async (req, res) => {
 
     let result;
     switch (action) {
-      case 'approve':
+      case 'approve': {
+        const submittedTasks = await Task.find({ _id: { $in: taskIds }, submissionStatus: 'submitted' }).lean();
+        const allowedTasks = submittedTasks.filter((task) => getTaskReviewAccess({
+          task,
+          reviewerId: req.user._id,
+          reviewerRole: req.user.role,
+          teamMemberIds: req.teamMemberIds,
+        }).allowed);
+
+        if (!allowedTasks.length) {
+          return res.status(403).json({ success: false, message: 'No submitted tasks are available for you to approve.' });
+        }
+
+        const allowedIds = allowedTasks.map((task) => task._id);
         result = await Task.updateMany(
-          { _id: { $in: taskIds }, submissionStatus: 'submitted' },
+          { _id: { $in: allowedIds } },
           { $set: { submissionStatus: 'approved' } }
         );
+
+        const updatedTasks = await Task.find({ _id: { $in: allowedIds } })
+          .populate('owner', 'firstName lastName email avatar')
+          .lean();
+
+        await Promise.all(updatedTasks.map(async (task) => {
+          await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: task, io: req.io });
+          await emitTaskRealtime({
+            event: 'taskReviewed',
+            userId: task.owner,
+            payload: {
+              taskId: task._id,
+              title: task.title,
+              status: 'approved',
+              reviewedBy: getActorName(req.user),
+            },
+            io: req.io,
+          });
+          await createTaskNotification({
+            task,
+            userId: task.owner,
+            title: `Task approved: ${task.title}`,
+            body: `Reviewed by ${getActorName(req.user)}`,
+            status: 'approved',
+            actor: req.user,
+            io: req.io,
+            authHeader: req.headers.authorization || '',
+          });
+        }));
+
         break;
-      case 'reject':
+      }
+      case 'reject': {
+        const submittedTasks = await Task.find({ _id: { $in: taskIds }, submissionStatus: 'submitted' }).lean();
+        const allowedTasks = submittedTasks.filter((task) => getTaskReviewAccess({
+          task,
+          reviewerId: req.user._id,
+          reviewerRole: req.user.role,
+          teamMemberIds: req.teamMemberIds,
+        }).allowed);
+
+        if (!allowedTasks.length) {
+          return res.status(403).json({ success: false, message: 'No submitted tasks are available for you to reject.' });
+        }
+
+        const allowedIds = allowedTasks.map((task) => task._id);
         result = await Task.updateMany(
-          { _id: { $in: taskIds }, submissionStatus: 'submitted' },
+          { _id: { $in: allowedIds } },
           { $set: { submissionStatus: 'rejected' } }
         );
+
+        const updatedTasks = await Task.find({ _id: { $in: allowedIds } })
+          .populate('owner', 'firstName lastName email avatar')
+          .lean();
+
+        await Promise.all(updatedTasks.map(async (task) => {
+          await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: task, io: req.io });
+          await emitTaskRealtime({
+            event: 'taskReviewed',
+            userId: task.owner,
+            payload: {
+              taskId: task._id,
+              title: task.title,
+              status: 'rejected',
+              reviewedBy: getActorName(req.user),
+            },
+            io: req.io,
+          });
+          await createTaskNotification({
+            task,
+            userId: task.owner,
+            title: `Task rejected: ${task.title}`,
+            body: `Reviewed by ${getActorName(req.user)}`,
+            status: 'rejected',
+            actor: req.user,
+            io: req.io,
+            authHeader: req.headers.authorization || '',
+          });
+        }));
+
         break;
+      }
       case 'delete':
         if (req.user.role !== 'admin') {
           return res.status(403).json({ success: false, message: 'Only Super Admin can bulk delete' });

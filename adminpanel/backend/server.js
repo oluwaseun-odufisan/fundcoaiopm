@@ -19,6 +19,7 @@ import socialRoutes from './routes/socialRoutes.js';
 import reminderRoutes from './routes/reminderRoutes.js';
 import learningRoutes from './routes/learningRoutes.js';
 import meetingRoutes from './routes/meetingRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import sharedProxyRoutes from './routes/sharedProxyRoutes.js';
 
 // Models (register with mongoose)
@@ -113,6 +114,7 @@ app.use('/api/admin/social', socialRoutes);
 app.use('/api/admin/reminders', reminderRoutes);
 app.use('/api/admin/learning', learningRoutes);
 app.use('/api/admin/meetings', meetingRoutes);
+app.use('/api/admin/notifications', notificationRoutes);
 app.use('/api/admin/shared', sharedProxyRoutes);
 
 // ── Socket.IO Auth ────────────────────────────────────────────────────────────

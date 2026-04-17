@@ -224,9 +224,7 @@ const Social = () => {
   return (
     <div className="page-shell">
       <PageHeader
-        eyebrow="Social Feed"
         title="Social Feed"
-        description="Review activity, engage with posts, and publish announcements without leaving the admin workspace."
         actions={(
           <button type="button" className="btn-secondary" onClick={() => fetchPosts(true)} disabled={refreshing}>
             <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />

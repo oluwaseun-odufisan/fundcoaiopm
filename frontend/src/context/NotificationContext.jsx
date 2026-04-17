@@ -317,11 +317,28 @@ export const NotificationProvider = ({ children }) => {
       }));
     };
 
+    const handleTaskCommented = (payload) => {
+      const taskId = getTaskId(payload);
+      if (!taskId) return;
+
+      pushLiveTaskNotification(makeLiveTaskNotification({
+        taskId,
+        title: `New admin comment on ${payload.title || 'Task'}`,
+        body: payload.content || (payload.commentedBy ? `${payload.commentedBy} added a comment.` : 'An admin added a comment to this task.'),
+        status: 'commented',
+      }));
+    };
+
     userSocket.on('notification:new', handleIncoming);
     adminSocket.on('notification:new', handleIncoming);
     userSocket.on('newTask', handleNewTask);
+    adminSocket.on('newTask', handleNewTask);
     userSocket.on('updateTask', handleUpdateTask);
+    adminSocket.on('updateTask', handleUpdateTask);
     userSocket.on('taskReviewed', handleTaskReviewed);
+    adminSocket.on('taskReviewed', handleTaskReviewed);
+    userSocket.on('taskCommented', handleTaskCommented);
+    adminSocket.on('taskCommented', handleTaskCommented);
 
     const timer = setInterval(refresh, 30000);
     return () => {
@@ -329,8 +346,13 @@ export const NotificationProvider = ({ children }) => {
       userSocket.off('notification:new', handleIncoming);
       adminSocket.off('notification:new', handleIncoming);
       userSocket.off('newTask', handleNewTask);
+      adminSocket.off('newTask', handleNewTask);
       userSocket.off('updateTask', handleUpdateTask);
+      adminSocket.off('updateTask', handleUpdateTask);
       userSocket.off('taskReviewed', handleTaskReviewed);
+      adminSocket.off('taskReviewed', handleTaskReviewed);
+      userSocket.off('taskCommented', handleTaskCommented);
+      adminSocket.off('taskCommented', handleTaskCommented);
       userSocket.disconnect();
       adminSocket.disconnect();
     };

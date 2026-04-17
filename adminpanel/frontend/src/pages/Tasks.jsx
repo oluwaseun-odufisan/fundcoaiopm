@@ -23,9 +23,36 @@ import { EmptyState, FilterChip, LoadingScreen, Modal, PageHeader, Panel, Progre
 const PRI = { High: { c: '#dc2626', bg: '#fef2f2' }, Medium: { c: '#d97706', bg: '#fffbeb' }, Low: { c: '#6b7494', bg: '#f7f8fb' } };
 const SUB = { approved: { c: '#059669', bg: '#ecfdf5' }, submitted: { c: '#d97706', bg: '#fffbeb' }, rejected: { c: '#dc2626', bg: '#fef2f2' }, not_submitted: { c: '#6b7494', bg: '#f7f8fb' } };
 const RESPONSE = { accepted: { label: 'Accepted by user', c: '#0284c7', bg: '#e0f2fe' }, rejected: { label: 'Rejected by user', c: '#b91c1c', bg: '#fef2f2' } };
+const getId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object') {
+    return String(value._id || value.id || '');
+  }
+  return String(value);
+};
+const isSelfAssignedTask = (task) => {
+  const ownerId = getId(task?.owner);
+  const assignerId = getId(task?.assignedBy);
+  return Boolean(ownerId) && (!assignerId || assignerId === ownerId);
+};
+const canReviewTask = (task, user) => {
+  if (!task || task.submissionStatus !== 'submitted') return false;
+  if (user?.role === 'admin') return true;
+  const reviewerId = getId(user);
+  const assignerId = getId(task?.assignedBy);
+  if (isSelfAssignedTask(task)) return Boolean(getId(task?.owner));
+  return Boolean(reviewerId) && reviewerId === assignerId;
+};
+const getReviewAccessHint = (task, user) => {
+  if (!task || task.submissionStatus !== 'submitted' || canReviewTask(task, user)) return '';
+  if (isSelfAssignedTask(task)) {
+    return 'This self-assigned task can only be reviewed by a manager who has the owner in their visible team.';
+  }
+  return 'Only the admin who assigned this task can approve or reject it.';
+};
 
 const Tasks = () => {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const { markTypeRead } = useNotifications();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
@@ -140,7 +167,6 @@ const Tasks = () => {
   return (
     <div className="page-shell">
       <PageHeader
-        eyebrow="Tasks"
         title="Tasks"
         actions={
           <>
@@ -148,7 +174,7 @@ const Tasks = () => {
               <LayoutGrid className="h-4 w-4" />
               {display === 'list' ? 'Grid view' : 'List view'}
             </button>
-            {hasRole('team-lead', 'admin') ? (
+            {hasRole('team-lead', 'executive', 'admin') ? (
               <button className="btn-primary rounded-full" onClick={() => { setFormMode('create'); setFormTask({}); }}>
                 <Plus className="h-4 w-4" />
                 Assign Task
@@ -285,7 +311,9 @@ const Tasks = () => {
       <TaskDetailModal
         task={viewTask}
         open={!!viewTask}
-        canEdit={hasRole('team-lead', 'admin')}
+        canEdit={hasRole('team-lead', 'executive', 'admin')}
+        canReview={canReviewTask(viewTask, user)}
+        reviewHint={getReviewAccessHint(viewTask, user)}
         onClose={() => setViewTask(null)}
         onReview={handleReview}
         onDelete={handleDelete}
@@ -394,7 +422,7 @@ const TaskFormModal = ({ open, task, mode = 'create', users, onClose, onSave }) 
   );
 };
 
-const TaskDetailModal = ({ open, task, onClose, onReview, onDelete, onEdit, onReassign, onRefresh, canEdit }) => {
+const TaskDetailModal = ({ open, task, onClose, onReview, onDelete, onEdit, onReassign, onRefresh, canEdit, canReview, reviewHint }) => {
   const [comment, setComment] = useState('');
   const [posting, setPosting] = useState(false);
   if (!task) return null;
@@ -462,10 +490,16 @@ const TaskDetailModal = ({ open, task, onClose, onReview, onDelete, onEdit, onRe
           <div className="flex gap-2"><input className="input-base" value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a note..." /><button className="btn-primary" onClick={addComment} disabled={posting || !comment.trim()}>{posting ? '...' : 'Send'}</button></div>
         </div>
 
+        {task.submissionStatus === 'submitted' && reviewHint ? (
+          <div className="rounded-[1.1rem] border px-4 py-3 text-sm" style={{ borderColor: 'var(--c-border)', background: 'var(--c-surface-2)', color: 'var(--c-text-soft)' }}>
+            {reviewHint}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-3">
           {canEdit ? <button className="btn-secondary" onClick={() => onEdit(task)}><Edit2 className="h-4 w-4" /> Edit Task</button> : null}
           {canEdit ? <button className="btn-secondary" onClick={() => onReassign(task)}><ArrowRightLeft className="h-4 w-4" /> Reassign Task</button> : null}
-          {task.submissionStatus === 'submitted' ? <><button className="btn-primary" onClick={() => onReview(task._id, 'approved')} style={{ background: '#059669' }}>Approve</button><button className="btn-danger" onClick={() => onReview(task._id, 'rejected')}>Reject</button></> : null}
+          {task.submissionStatus === 'submitted' && canReview ? <><button className="btn-primary" onClick={() => onReview(task._id, 'approved')} style={{ background: '#059669' }}>Approve</button><button className="btn-danger" onClick={() => onReview(task._id, 'rejected')}>Reject</button></> : null}
           {canEdit ? <button className="btn-danger" onClick={() => onDelete(task._id)}><Trash2 className="h-4 w-4" /> Delete</button> : null}
         </div>
       </div>

@@ -5,6 +5,13 @@ import api from '../utils/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { EmptyState, LoadingScreen, Modal, PageHeader, Panel, SearchInput } from '../components/ui.jsx';
 
+const roleLabel = (role) => {
+  if (role === 'admin') return 'Super Admin';
+  if (role === 'executive') return 'Executive';
+  if (role === 'team-lead') return 'Team Lead';
+  return 'Standard';
+};
+
 const MyTeam = () => {
   const { user } = useAuth();
   const [team, setTeam] = useState({ members: [], name: 'My Team' });
@@ -53,7 +60,7 @@ const MyTeam = () => {
   if (user?.role === 'admin') {
     return (
       <div className="page-shell">
-        <PageHeader eyebrow="My Team" title="My Team" description="Super admins already see the full organization, so no extra team selection is needed here." />
+        <PageHeader title="My Team" />
         <Panel>
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'var(--c-accent-muted)' }}>
@@ -72,7 +79,7 @@ const MyTeam = () => {
 
   return (
     <div className="page-shell">
-      <PageHeader eyebrow="My Team" title="My Team" description="Pick the people you manage so the rest of the app matches your team scope." actions={<button className="btn-primary rounded-full" onClick={() => setShowPicker(true)}><UserPlus className="h-4 w-4" /> Add Members</button>} />
+      <PageHeader title="My Team" actions={<button className="btn-primary rounded-full" onClick={() => setShowPicker(true)}><UserPlus className="h-4 w-4" /> Add Members</button>} />
       <Panel>
         <div className="flex items-start gap-3 rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-info-bg)' }}>
           <Info className="mt-0.5 h-5 w-5" style={{ color: 'var(--c-accent)' }} />
@@ -89,7 +96,7 @@ const MyTeam = () => {
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl text-white font-bold" style={{ background: 'var(--brand-primary)' }}>{(member.firstName || 'U')[0]}</div>
                     <div>
                       <p className="font-bold" style={{ color: 'var(--c-text-0)' }}>{member.firstName} {member.lastName}</p>
-                      <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>{member.position || member.role}</p>
+                      <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>{member.position || roleLabel(member.role)}</p>
                     </div>
                   </div>
                   <button className="btn-danger" onClick={() => removeMember(member._id)}><Trash2 className="h-4 w-4" /></button>
@@ -97,6 +104,7 @@ const MyTeam = () => {
                 <div className="mt-4 space-y-2 text-sm" style={{ color: 'var(--c-text-3)' }}>
                   <p><Mail className="mr-1 inline h-4 w-4" />{member.email}</p>
                   {member.position ? <p><Briefcase className="mr-1 inline h-4 w-4" />{member.position}</p> : null}
+                  <p>{roleLabel(member.role)}</p>
                 </div>
               </div>
             ))}
@@ -113,7 +121,10 @@ const MyTeam = () => {
                   <p className="font-bold" style={{ color: 'var(--c-text-0)' }}>{candidate.firstName} {candidate.lastName}</p>
                   <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>{candidate.email}</p>
                 </div>
-                <span className="badge" style={{ background: 'var(--c-accent-muted)', color: 'var(--c-accent)' }}>Add</span>
+                <div className="flex items-center gap-2">
+                  <span className="badge" style={{ background: 'var(--c-surface-3)', color: 'var(--c-text-soft)' }}>{roleLabel(candidate.role)}</span>
+                  <span className="badge" style={{ background: 'var(--c-accent-muted)', color: 'var(--c-accent)' }}>Add</span>
+                </div>
               </button>
             ))}
           </div>

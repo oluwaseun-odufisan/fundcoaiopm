@@ -3,6 +3,7 @@ import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 import { createNotification } from '../utils/notificationService.js';
+import { createNotificationInAdminBackend } from '../utils/adminRealtime.js';
 
 // Helper to create smart reminder after task creation / update
 const createOrUpdateTaskReminder = async (task, userId, io) => {
@@ -63,7 +64,7 @@ const getActorName = (user) => user?.fullName || user?.email || 'User';
 const notifyAssignedAdmin = async ({ task, req, title, body, status }) => {
     if (!task?.assignedBy) return;
 
-    await createNotification({
+    const payload = {
         userId: task.assignedBy,
         type: 'task',
         title,
@@ -73,6 +74,13 @@ const notifyAssignedAdmin = async ({ task, req, title, body, status }) => {
         entityId: String(task._id),
         entityType: 'Task',
         data: { taskId: String(task._id), status },
+    };
+
+    const mirrored = await createNotificationInAdminBackend(payload);
+    if (mirrored) return mirrored;
+
+    return createNotification({
+        ...payload,
         io: req.io,
     });
 };

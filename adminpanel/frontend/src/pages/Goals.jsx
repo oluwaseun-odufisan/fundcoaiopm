@@ -103,10 +103,9 @@ const Goals = () => {
   return (
     <div className="page-shell">
       <PageHeader
-        eyebrow="Goals"
         title="Goals"
         actions={
-          hasRole('team-lead', 'admin') ? (
+          hasRole('team-lead', 'executive', 'admin') ? (
             <button className="btn-primary rounded-full" onClick={() => setFormGoal({})}>
               <Plus className="h-4 w-4" />
               New Goal
@@ -195,7 +194,7 @@ const Goals = () => {
                   </div>
 
                   {/* Inner Edit button - now allowed */}
-                  {hasRole('team-lead', 'admin') && (
+                  {hasRole('team-lead', 'executive', 'admin') && (
                     <button
                       type="button"
                       className="btn-secondary h-10 w-10 rounded-2xl p-0"
@@ -266,7 +265,7 @@ const Goals = () => {
       <GoalDetailModal
         open={!!viewGoal}
         goal={viewGoal}
-        canEdit={hasRole('team-lead', 'admin')}
+        canEdit={hasRole('team-lead', 'executive', 'admin')}
         onClose={() => setViewGoal(null)}
         onComment={addComment}
         onEdit={(goal) => {

@@ -723,7 +723,7 @@ const SocialFeed = () => {
           <h1 className="text-2xl font-black flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
              Social Connect
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Share updates with your team</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Share updates</p>
         </div>
         <button onClick={() => fetchPosts(1, true)}
           className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors"
