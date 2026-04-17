@@ -26,6 +26,109 @@ const validateReminderInput = (body) => {
     return true;
 };
 
+const buildTaskReminderPayload = ({ taskId, title, dueDate, user }) => {
+    const reminderMinutes = user.preferences?.reminders?.defaultReminderTimes?.task_due ?? 60;
+    const remindAt = new Date(new Date(dueDate).getTime() - reminderMinutes * 60 * 1000);
+
+    return {
+        message: `Task "${String(title || 'Task').trim()}" is due soon`,
+        remindAt,
+        deliveryChannels: {
+            inApp: user.preferences?.reminders?.defaultDeliveryChannels?.inApp ?? true,
+            email: user.preferences?.reminders?.defaultDeliveryChannels?.email ?? true,
+            push: user.preferences?.reminders?.defaultDeliveryChannels?.push ?? false,
+        },
+        targetId: taskId,
+        targetModel: 'Task',
+    };
+};
+
+const upsertTaskReminderForUser = async ({ userId, taskId, title, dueDate, createdBy, io }) => {
+    if (!userId || !taskId || !dueDate) return null;
+
+    const user = await User.findById(userId);
+    if (!user) return null;
+
+    const payload = buildTaskReminderPayload({ taskId, title, dueDate, user });
+    let reminder = await Reminder.findOne({ user: userId, targetId: taskId, targetModel: 'Task' });
+    const isNew = !reminder;
+
+    if (!reminder) {
+        reminder = new Reminder({
+            user: userId,
+            type: 'task_due',
+            targetId: payload.targetId,
+            targetModel: payload.targetModel,
+            message: payload.message,
+            deliveryChannels: payload.deliveryChannels,
+            remindAt: payload.remindAt,
+            createdBy: createdBy || userId,
+            isUserCreated: false,
+            repeatInterval: null,
+            isActive: true,
+        });
+    } else {
+        reminder.type = 'task_due';
+        reminder.message = payload.message;
+        reminder.deliveryChannels = payload.deliveryChannels;
+        reminder.remindAt = payload.remindAt;
+        reminder.status = 'pending';
+        reminder.snoozeUntil = null;
+        reminder.isActive = true;
+        reminder.createdBy = reminder.createdBy || createdBy || userId;
+    }
+
+    await reminder.save();
+    io?.to(`user:${userId}`).emit(isNew ? 'newReminder' : 'reminderUpdated', reminder);
+    return reminder;
+};
+
+export const syncTaskReminderInternal = async (req, res) => {
+    try {
+        const { userId, taskId, title, dueDate, createdBy } = req.body || {};
+        if (!userId || !taskId || !title || !dueDate) {
+            return res.status(400).json({ success: false, message: 'userId, taskId, title, and dueDate are required' });
+        }
+
+        const reminder = await upsertTaskReminderForUser({
+            userId,
+            taskId,
+            title,
+            dueDate,
+            createdBy,
+            io: req.io,
+        });
+
+        if (!reminder) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        return res.status(200).json({ success: true, reminder });
+    } catch (error) {
+        console.error('syncTaskReminderInternal error:', error.message);
+        return res.status(500).json({ success: false, message: 'Failed to sync task reminder' });
+    }
+};
+
+export const deleteTaskReminderInternal = async (req, res) => {
+    try {
+        const { userId, taskId } = req.body || {};
+        if (!userId || !taskId) {
+            return res.status(400).json({ success: false, message: 'userId and taskId are required' });
+        }
+
+        const reminder = await Reminder.findOneAndDelete({ user: userId, targetId: taskId, targetModel: 'Task' });
+        if (reminder) {
+            req.io?.to(`user:${userId}`).emit('reminderDeleted', String(reminder._id));
+        }
+
+        return res.json({ success: true, deleted: Boolean(reminder) });
+    } catch (error) {
+        console.error('deleteTaskReminderInternal error:', error.message);
+        return res.status(500).json({ success: false, message: 'Failed to delete task reminder' });
+    }
+};
+
 export const createReminder = async (req, res) => {
     try {
         validateReminderInput(req.body);

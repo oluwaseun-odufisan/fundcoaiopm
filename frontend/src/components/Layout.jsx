@@ -6,6 +6,7 @@ import { MessageCircle, X, Trash2, StickyNote, Minus, Send } from 'lucide-react'
 import axios from 'axios';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { io } from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL;
 const NAV_H   = 56; // matches h-14
@@ -65,6 +66,59 @@ const Layout = ({ onLogout, user: initialUser }) => {
     }
   }, [onLogout]);
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_URL) return undefined;
+
+    const socket = io(API_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    const getTaskId = (task) => String(task?._id || task?.id || '');
+
+    const upsertTask = (incomingTask) => {
+      const nextId = getTaskId(incomingTask);
+      if (!nextId) return;
+
+      setTasks((prev) => {
+        const index = prev.findIndex((task) => getTaskId(task) === nextId);
+        if (index === -1) return [incomingTask, ...prev];
+        const next = [...prev];
+        next[index] = { ...next[index], ...incomingTask };
+        return next;
+      });
+    };
+
+    const removeTask = (taskId) => {
+      const targetId = String(taskId || '');
+      if (!targetId) return;
+      setTasks((prev) => prev.filter((task) => getTaskId(task) !== targetId));
+    };
+
+    const handleTaskReviewed = ({ taskId, status }) => {
+      if (!taskId || !status) return;
+      setTasks((prev) => prev.map((task) => (
+        getTaskId(task) === String(taskId)
+          ? { ...task, submissionStatus: status }
+          : task
+      )));
+    };
+
+    socket.on('newTask', upsertTask);
+    socket.on('updateTask', upsertTask);
+    socket.on('deleteTask', removeTask);
+    socket.on('taskReviewed', handleTaskReviewed);
+
+    return () => {
+      socket.off('newTask', upsertTask);
+      socket.off('updateTask', upsertTask);
+      socket.off('deleteTask', removeTask);
+      socket.off('taskReviewed', handleTaskReviewed);
+      socket.disconnect();
+    };
+  }, []);
 
   /* ── Chat ──────────────────────────────────────────────────────────────── */
   const fetchChatHistory = useCallback(async () => {
@@ -137,7 +191,7 @@ const Layout = ({ onLogout, user: initialUser }) => {
 
         <main className="flex-1 px-4 sm:px-6 pb-24" style={{ paddingTop: NAV_H + 24 }}>
           <div className="max-w-screen-2xl mx-auto">
-            <Outlet context={{ user, tasks, tasksLoading, fetchTasks, error }} />
+            <Outlet context={{ user, tasks, tasksLoading, fetchTasks, error, onLogout }} />
           </div>
         </main>
       </div>

@@ -3,12 +3,171 @@ import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
 import { buildTeamQuery } from '../middleware/teamFilter.js';
 import { createNotification } from '../utils/notificationService.js';
+import {
+  deleteTaskReminderInUserBackend,
+  emitToUserBackend,
+  syncTaskReminderInUserBackend,
+} from '../utils/userRealtime.js';
+
+const getActorName = (user) => user?.fullName || user?.email || 'Admin';
+const getTaskId = (task) => String(task?._id || task?.id || '');
+const getUserId = (value) => String(value?._id || value || '');
+
+const buildTaskReminderDetails = ({ user, task }) => {
+  const reminderMinutes = user?.preferences?.reminders?.defaultReminderTimes?.task_due ?? 60;
+  const dueAt = new Date(task.dueDate);
+  const remindAt = new Date(dueAt.getTime() - reminderMinutes * 60 * 1000);
+
+  return {
+    remindAt,
+    message: `Task "${String(task.title || 'Task').trim()}" is due soon`,
+    deliveryChannels: {
+      inApp: user?.preferences?.reminders?.defaultDeliveryChannels?.inApp ?? true,
+      email: user?.preferences?.reminders?.defaultDeliveryChannels?.email ?? true,
+      push: user?.preferences?.reminders?.defaultDeliveryChannels?.push ?? false,
+    },
+  };
+};
+
+const emitTaskRealtime = async ({ event, userId, payload, io }) => {
+  const targetId = getUserId(userId);
+  if (!event || !targetId) return;
+
+  const room = `user:${targetId}`;
+  io?.to(room).emit(event, payload);
+  await emitToUserBackend({ event, data: payload, room });
+};
+
+const createTaskNotification = async ({ task, userId, title, body, status, actor, io, extraData = {}, authHeader = '' }) => {
+  const targetId = getUserId(userId);
+  const taskId = getTaskId(task);
+  if (!targetId || !taskId) return;
+
+  await createNotification({
+    userId: targetId,
+    type: 'task',
+    title,
+    body,
+    actorId: actor?._id || null,
+    actorName: getActorName(actor),
+    entityId: taskId,
+    entityType: 'Task',
+    data: { taskId, status, ...extraData },
+    io,
+    authHeader,
+  });
+};
+
+const createOrUpdateTaskReminder = async ({ task, userId, createdBy, io, authHeader = '' }) => {
+  const targetId = getUserId(userId);
+  const taskId = getTaskId(task);
+  if (!targetId || !taskId) return null;
+
+  if (!task?.dueDate) {
+    return deleteTaskReminder({ taskId, userId: targetId, io });
+  }
+
+  const user = await User.findById(targetId).lean();
+  if (!user) return null;
+
+  const { remindAt, message, deliveryChannels } = buildTaskReminderDetails({ user, task });
+  let reminder = await Reminder.findOne({ user: targetId, targetId: taskId, targetModel: 'Task' });
+  const isNew = !reminder;
+
+  if (!reminder) {
+    reminder = new Reminder({
+      user: targetId,
+      type: 'task_due',
+      targetId: taskId,
+      targetModel: 'Task',
+      message,
+      deliveryChannels,
+      remindAt,
+      createdBy: getUserId(createdBy) || targetId,
+      isUserCreated: false,
+      repeatInterval: null,
+      isActive: true,
+    });
+  } else {
+    reminder.type = 'task_due';
+    reminder.message = message;
+    reminder.deliveryChannels = deliveryChannels;
+    reminder.remindAt = remindAt;
+    reminder.status = 'pending';
+    reminder.snoozeUntil = null;
+    reminder.isActive = true;
+    reminder.createdBy = reminder.createdBy || getUserId(createdBy) || targetId;
+  }
+
+  await reminder.save();
+  const payload = reminder.toObject();
+  const event = isNew ? 'newReminder' : 'reminderUpdated';
+  const room = `user:${targetId}`;
+
+  io?.to(room).emit(event, payload);
+
+  const mirroredReminder = await syncTaskReminderInUserBackend({
+    userId: targetId,
+    taskId,
+    title: task.title,
+    dueDate: task.dueDate,
+    createdBy: getUserId(createdBy) || targetId,
+  }, authHeader);
+
+  if (!mirroredReminder) {
+    await emitToUserBackend({ event, data: payload, room });
+  }
+
+  return payload;
+};
+
+const deleteTaskReminder = async ({ taskId, userId, io, authHeader = '' }) => {
+  const targetId = getUserId(userId);
+  if (!targetId || !taskId) return false;
+
+  const reminder = await Reminder.findOneAndDelete({ user: targetId, targetId: taskId, targetModel: 'Task' }).lean();
+  const room = `user:${targetId}`;
+  if (reminder?._id) {
+    io?.to(room).emit('reminderDeleted', String(reminder._id));
+  }
+
+  const mirroredDeleted = await deleteTaskReminderInUserBackend({ userId: targetId, taskId: String(taskId) }, authHeader);
+  if (!mirroredDeleted && reminder?._id) {
+    await emitToUserBackend({ event: 'reminderDeleted', data: String(reminder._id), room });
+  }
+
+  return Boolean(reminder || mirroredDeleted);
+};
+
+const getTaskChangeList = (existingTask, nextTask, rawData = {}) => {
+  const changes = [];
+
+  if (rawData.title !== undefined && String(rawData.title || '').trim() !== String(existingTask.title || '').trim()) {
+    changes.push('title');
+  }
+  if (rawData.description !== undefined && String(rawData.description || '') !== String(existingTask.description || '')) {
+    changes.push('description');
+  }
+  if (rawData.priority !== undefined && String(rawData.priority || '') !== String(existingTask.priority || '')) {
+    changes.push('priority');
+  }
+  if (Object.prototype.hasOwnProperty.call(rawData, 'dueDate')) {
+    const before = existingTask.dueDate ? new Date(existingTask.dueDate).toISOString() : '';
+    const after = nextTask?.dueDate ? new Date(nextTask.dueDate).toISOString() : '';
+    if (before !== after) changes.push('due date');
+  }
+  if (rawData.checklist !== undefined) {
+    changes.push('checklist');
+  }
+
+  return changes;
+};
 
 // ── Get all tasks (team-filtered) ─────────────────────────────────────────────
 export const getAllTasks = async (req, res) => {
   try {
     const query = buildTeamQuery(req.teamMemberIds, 'owner');
-    const { status, priority, search, page = 1, limit = 50 } = req.query;
+    const { status, priority, search, ownerId, page = 1, limit = 50 } = req.query;
 
     if (status === 'completed') query.completed = true;
     else if (status === 'pending') query.completed = false;
@@ -19,11 +178,37 @@ export const getAllTasks = async (req, res) => {
     else if (status === 'approved') query.submissionStatus = 'approved';
     else if (status === 'rejected') query.submissionStatus = 'rejected';
 
+    if (ownerId) {
+      const ownerKey = String(ownerId);
+      if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(ownerKey)) {
+        return res.json({
+          success: true,
+          tasks: [],
+          total: 0,
+          pagination: { page: Number(page), limit: Number(limit), total: 0, pages: 0 },
+        });
+      }
+      query.owner = ownerKey;
+    }
+
     if (priority) query.priority = priority;
     if (search) {
+      const ownerSearchQuery = {
+        ...(req.teamMemberIds ? { _id: { $in: req.teamMemberIds } } : {}),
+        $or: [
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
+          { otherName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      };
+      const matchedUsers = await User.find(ownerSearchQuery).select('_id').lean();
+      const matchedOwnerIds = matchedUsers.map((user) => user._id);
+
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
+        ...(matchedOwnerIds.length ? [{ owner: { $in: matchedOwnerIds } }] : []),
       ];
     }
 
@@ -71,7 +256,6 @@ export const createTaskForUser = async (req, res) => {
     if (!title?.trim()) return res.status(400).json({ success: false, message: 'Title is required' });
     if (!ownerId) return res.status(400).json({ success: false, message: 'Owner user ID is required' });
 
-    // Verify ownerId is in admin's team (unless super admin)
     if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(String(ownerId))) {
       return res.status(403).json({ success: false, message: 'User is not in your team' });
     }
@@ -105,22 +289,25 @@ export const createTaskForUser = async (req, res) => {
       .populate('assignedBy', 'firstName lastName email')
       .lean();
 
-    // Emit socket event to user
-    if (req.io) {
-      req.io.to(`user:${ownerId}`).emit('newTask', populated);
-    }
-
-    await createNotification({
+    const actorName = getActorName(req.user);
+    await createOrUpdateTaskReminder({
+      task: saved,
       userId: ownerId,
-      type: 'task',
-      title: `New task assigned: ${task.title}`,
-      body: `Assigned by ${req.user.fullName || req.user.email}`,
-      actorId: req.user._id,
-      actorName: req.user.fullName || req.user.email,
-      entityId: task._id,
-      entityType: 'Task',
-      data: { taskId: String(task._id), status: 'assigned' },
+      createdBy: req.user._id,
       io: req.io,
+      authHeader: req.headers.authorization || '',
+    });
+
+    await emitTaskRealtime({ event: 'newTask', userId: ownerId, payload: populated, io: req.io });
+    await createTaskNotification({
+      task: saved,
+      userId: ownerId,
+      title: `New task assigned: ${task.title}`,
+      body: `Assigned by ${actorName}`,
+      status: 'assigned',
+      actor: req.user,
+      io: req.io,
+      authHeader: req.headers.authorization || '',
     });
 
     res.status(201).json({ success: true, task: populated });
@@ -129,15 +316,15 @@ export const createTaskForUser = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
-
-// ── Update task ───────────────────────────────────────────────────────────────
 export const updateTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
-    if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+    const existingTask = await Task.findById(req.params.id)
+      .populate('owner', 'firstName lastName email avatar')
+      .populate('assignedBy', 'firstName lastName email')
+      .lean();
+    if (!existingTask) return res.status(404).json({ success: false, message: 'Task not found' });
 
-    // Team filter check
-    if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(String(task.owner))) {
+    if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(getUserId(existingTask.owner))) {
       return res.status(403).json({ success: false, message: 'Task owner is not in your team' });
     }
 
@@ -145,7 +332,6 @@ export const updateTask = async (req, res) => {
     if (data.dueDate) data.dueDate = new Date(data.dueDate);
     if (data.dueDate === '' || data.dueDate === null) data.dueDate = undefined;
 
-    // Allow reassignment
     if (data.ownerId) {
       data.owner = data.ownerId;
       delete data.ownerId;
@@ -156,8 +342,66 @@ export const updateTask = async (req, res) => {
       .populate('assignedBy', 'firstName lastName email')
       .lean();
 
-    if (req.io) {
-      req.io.to(`user:${updated.owner._id || updated.owner}`).emit('updateTask', updated);
+    const previousOwnerId = getUserId(existingTask.owner);
+    const nextOwnerId = getUserId(updated.owner);
+    const actorName = getActorName(req.user);
+
+    if (previousOwnerId && previousOwnerId !== nextOwnerId) {
+      await deleteTaskReminder({ taskId: req.params.id, userId: previousOwnerId, io: req.io, authHeader: req.headers.authorization || '' });
+      await emitTaskRealtime({ event: 'deleteTask', userId: previousOwnerId, payload: req.params.id, io: req.io });
+      await createTaskNotification({
+        task: existingTask,
+        userId: previousOwnerId,
+        title: `Task reassigned: ${existingTask.title}`,
+        body: `${actorName} reassigned this task to another teammate.`,
+        status: 'reassigned_away',
+        actor: req.user,
+        io: req.io,
+        extraData: { nextOwnerId },
+        authHeader: req.headers.authorization || '',
+      });
+
+      await createOrUpdateTaskReminder({
+        task: updated,
+        userId: nextOwnerId,
+        createdBy: req.user._id,
+        io: req.io,
+        authHeader: req.headers.authorization || '',
+      });
+      await emitTaskRealtime({ event: 'newTask', userId: nextOwnerId, payload: updated, io: req.io });
+      await createTaskNotification({
+        task: updated,
+        userId: nextOwnerId,
+        title: `Task assigned: ${updated.title}`,
+        body: `Assigned by ${actorName}`,
+        status: 'assigned',
+        actor: req.user,
+        io: req.io,
+        extraData: { previousOwnerId },
+        authHeader: req.headers.authorization || '',
+      });
+    } else {
+      await createOrUpdateTaskReminder({
+        task: updated,
+        userId: nextOwnerId,
+        createdBy: req.user._id,
+        io: req.io,
+        authHeader: req.headers.authorization || '',
+      });
+      await emitTaskRealtime({ event: 'updateTask', userId: nextOwnerId, payload: updated, io: req.io });
+
+      const changes = getTaskChangeList(existingTask, updated, req.body || {});
+      await createTaskNotification({
+        task: updated,
+        userId: nextOwnerId,
+        title: `Task updated: ${updated.title}`,
+        body: changes.length ? `Changed ${changes.join(', ')}.` : `Updated by ${actorName}.`,
+        status: 'updated',
+        actor: req.user,
+        io: req.io,
+        extraData: { changes },
+        authHeader: req.headers.authorization || '',
+      });
     }
 
     res.json({ success: true, task: updated });
@@ -166,35 +410,39 @@ export const updateTask = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
-
-// ── Delete task ───────────────────────────────────────────────────────────────
 export const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.id).lean();
     if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-    if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(String(task.owner))) {
+    if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(getUserId(task.owner))) {
       return res.status(403).json({ success: false, message: 'Task owner is not in your team' });
     }
 
-    const ownerId = task.owner;
+    const ownerId = getUserId(task.owner);
     await Task.findByIdAndDelete(req.params.id);
-    await Reminder.deleteMany({ targetId: req.params.id, targetModel: 'Task' });
+    await deleteTaskReminder({ taskId: req.params.id, userId: ownerId, io: req.io, authHeader: req.headers.authorization || '' });
 
-    if (req.io) {
-      req.io.to(`user:${ownerId}`).emit('deleteTask', req.params.id);
-    }
+    await emitTaskRealtime({ event: 'deleteTask', userId: ownerId, payload: req.params.id, io: req.io });
+    await createTaskNotification({
+      task,
+      userId: ownerId,
+      title: `Task removed: ${task.title}`,
+      body: `Removed by ${getActorName(req.user)}`,
+      status: 'deleted',
+      actor: req.user,
+      io: req.io,
+      authHeader: req.headers.authorization || '',
+    });
 
     res.json({ success: true, message: 'Task deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to delete task' });
   }
 };
-
-// ── Approve/Reject task submission ────────────────────────────────────────────
 export const reviewTask = async (req, res) => {
   try {
-    const { action } = req.body; // 'approved' or 'rejected'
+    const { action } = req.body;
     if (!['approved', 'rejected'].includes(action)) {
       return res.status(400).json({ success: false, message: 'Action must be approved or rejected' });
     }
@@ -212,27 +460,28 @@ export const reviewTask = async (req, res) => {
       .populate('owner', 'firstName lastName email avatar')
       .lean();
 
-    if (req.io) {
-      req.io.to(`user:${task.owner}`).emit('updateTask', populated);
-      req.io.to(`user:${task.owner}`).emit('taskReviewed', {
+    await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: populated, io: req.io });
+    await emitTaskRealtime({
+      event: 'taskReviewed',
+      userId: task.owner,
+      payload: {
         taskId: task._id,
         title: task.title,
         status: action,
-        reviewedBy: req.user.fullName || req.user.email,
-      });
-    }
-
-    await createNotification({
-      userId: task.owner,
-      type: 'task',
-      title: `Task ${action}: ${task.title}`,
-      body: `Reviewed by ${req.user.fullName || req.user.email}`,
-      actorId: req.user._id,
-      actorName: req.user.fullName || req.user.email,
-      entityId: task._id,
-      entityType: 'Task',
-      data: { taskId: String(task._id), status: action },
+        reviewedBy: getActorName(req.user),
+      },
       io: req.io,
+    });
+
+    await createTaskNotification({
+      task,
+      userId: task.owner,
+      title: `Task ${action}: ${task.title}`,
+      body: `Reviewed by ${getActorName(req.user)}`,
+      status: action,
+      actor: req.user,
+      io: req.io,
+      authHeader: req.headers.authorization || '',
     });
 
     res.json({ success: true, task: populated });
@@ -241,8 +490,6 @@ export const reviewTask = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to review task' });
   }
 };
-
-// ── Add admin comment to task ─────────────────────────────────────────────────
 export const addTaskComment = async (req, res) => {
   try {
     const { content } = req.body;
@@ -259,21 +506,16 @@ export const addTaskComment = async (req, res) => {
       .populate('adminComments.user', 'firstName lastName avatar')
       .lean();
 
-    if (req.io) {
-      req.io.to(`user:${task.owner}`).emit('updateTask', populated);
-    }
-
-    await createNotification({
+    await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: populated, io: req.io });
+    await createTaskNotification({
+      task,
       userId: task.owner,
-      type: 'task',
       title: `New admin comment on ${task.title}`,
       body: content.trim(),
-      actorId: req.user._id,
-      actorName: req.user.fullName || req.user.email,
-      entityId: task._id,
-      entityType: 'Task',
-      data: { taskId: String(task._id), status: 'commented' },
+      status: 'commented',
+      actor: req.user,
       io: req.io,
+      authHeader: req.headers.authorization || '',
     });
 
     res.json({ success: true, task: populated });
@@ -281,8 +523,6 @@ export const addTaskComment = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to add comment' });
   }
 };
-
-// ── Bulk actions ──────────────────────────────────────────────────────────────
 export const bulkAction = async (req, res) => {
   try {
     const { taskIds, action, data } = req.body;
@@ -331,7 +571,19 @@ export const bulkAction = async (req, res) => {
 export const getTaskStats = async (req, res) => {
   try {
     const query = buildTeamQuery(req.teamMemberIds, 'owner');
+    const { ownerId } = req.query;
     const now = new Date();
+
+    if (ownerId) {
+      const ownerKey = String(ownerId);
+      if (req.teamMemberIds && !req.teamMemberIds.map(String).includes(ownerKey)) {
+        return res.json({
+          success: true,
+          stats: { total: 0, completed: 0, pending: 0, overdue: 0, submitted: 0, approved: 0, rejected: 0, highPri: 0 },
+        });
+      }
+      query.owner = ownerKey;
+    }
 
     const [total, completed, pending, overdue, submitted, approved, rejected, highPri] = await Promise.all([
       Task.countDocuments(query),

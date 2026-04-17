@@ -262,12 +262,25 @@ app.get('/', (req, res) => res.json({
 
 // Admin emit endpoint
 app.post('/api/emit', (req, res) => {
-    const { event, data } = req.body;
-    if (!event || !data) return res.status(400).json({ success: false, message: 'Event and data are required' });
-    io.emit(event, data);
-    res.json({ success: true, message: 'Event emitted' });
-});
+    const internalToken = String(req.headers['x-internal-token'] || '').trim();
+    const expectedToken = String(process.env.INTERNAL_API_TOKEN || process.env.JWT_SECRET || '').trim();
+    if (!expectedToken || internalToken !== expectedToken) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
 
+    const { event, data, room } = req.body || {};
+    if (!event || data === undefined) {
+        return res.status(400).json({ success: false, message: 'Event and data are required' });
+    }
+
+    if (room) {
+        io.to(String(room)).emit(event, data);
+    } else {
+        io.emit(event, data);
+    }
+
+    return res.json({ success: true, message: 'Event emitted' });
+});
 // Global error handler
 app.use((err, req, res, next) => {
     console.error('Server error:', err.stack);

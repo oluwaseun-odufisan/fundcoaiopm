@@ -129,6 +129,7 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
   console.log(`✅ Admin socket connected: ${socket.id}`);
   socket.join(`admin:${socket.user.id}`);
+  socket.join(`user:${socket.user.id}`);
   socket.on('disconnect', () => console.log(`❌ Admin socket disconnected: ${socket.id}`));
 });
 

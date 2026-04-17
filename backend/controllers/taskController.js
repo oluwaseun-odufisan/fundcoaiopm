@@ -2,6 +2,7 @@
 import Task from '../models/taskModel.js';
 import Reminder from '../models/reminderModel.js';
 import User from '../models/userModel.js';
+import { createNotification } from '../utils/notificationService.js';
 
 // Helper to create smart reminder after task creation / update
 const createOrUpdateTaskReminder = async (task, userId, io) => {
@@ -56,6 +57,25 @@ const TASK_POPULATE = [
     { path: 'assignedBy', select: 'firstName lastName email' },
     { path: 'adminComments.user', select: 'firstName lastName avatar role' },
 ];
+
+const getActorName = (user) => user?.fullName || user?.email || 'User';
+
+const notifyAssignedAdmin = async ({ task, req, title, body, status }) => {
+    if (!task?.assignedBy) return;
+
+    await createNotification({
+        userId: task.assignedBy,
+        type: 'task',
+        title,
+        body,
+        actorId: req.user?._id || null,
+        actorName: getActorName(req.user),
+        entityId: String(task._id),
+        entityType: 'Task',
+        data: { taskId: String(task._id), status },
+        io: req.io,
+    });
+};
 
 // CREATE TASK
 export const createTask = async (req, res) => {
@@ -181,14 +201,21 @@ export const submitTask = async (req, res) => {
         task.submissionStatus = 'submitted';
         const updated = await task.save();
         req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+
+        await notifyAssignedAdmin({
+            task: updated,
+            req,
+            title: `Task submitted: ${updated.title}`,
+            body: `${getActorName(req.user)} submitted this task for review.`,
+            status: 'submitted',
+        });
+
         res.json({ success: true, task: updated });
     } catch (err) {
         console.error('Error submitting task:', err.message);
         res.status(400).json({ success: false, message: err.message });
     }
 };
-
-// APPEAL TASK
 export const appealTask = async (req, res) => {
     try {
         const { appealStatus } = req.body;
@@ -200,14 +227,21 @@ export const appealTask = async (req, res) => {
         task.appealStatus = appealStatus;
         const updated = await task.save();
         req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
+
+        await notifyAssignedAdmin({
+            task: updated,
+            req,
+            title: `Task appeal updated: ${updated.title}`,
+            body: `${getActorName(req.user)} updated the appeal status to ${appealStatus}.`,
+            status: 'appeal',
+        });
+
         res.json({ success: true, task: updated });
     } catch (err) {
         console.error('Error appealing task:', err.message);
         res.status(400).json({ success: false, message: err.message });
     }
 };
-
-// DELETE A TASK
 export const deleteTask = async (req, res) => {
     try {
         const deleted = await Task.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
