@@ -72,8 +72,9 @@ const Layout = ({ onLogout, user: initialUser }) => {
     if (!token || !API_URL) return undefined;
 
     const socket = io(API_URL, {
-      auth: { token },
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
       transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
 
     const getTaskId = (task) => String(task?._id || task?.id || '');

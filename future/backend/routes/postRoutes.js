@@ -16,6 +16,7 @@ const POPULATE_USER = { path: 'user', select: 'firstName lastName otherName _id 
 const POPULATE_COMMENTS_USER = { path: 'comments.user', select: 'firstName lastName otherName _id avatar role' };
 
 const ALLOWED_REACTIONS = new Set(['like', 'love', 'haha', 'wow', 'sad', 'fire']);
+const ALLOWED_UPLOAD_MIME_PREFIXES = ['image/', 'video/'];
 
 const getActorName = (user) => {
   if (!user) return 'Someone';
@@ -378,8 +379,12 @@ router.post('/upload', authMiddleware, async (req, res) => {
   try {
     if (!req.files?.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
     const file = req.files.file;
+    const safeFileName = sanitize(file.name).replace(/\s+/g, '_') || 'upload';
     if (file.size > 50 * 1024 * 1024) return res.status(400).json({ success: false, message: 'File exceeds 50 MB' });
-    const cid = await uploadFileToIPFS(file.data, file.name, file.mimetype);
+    if (!ALLOWED_UPLOAD_MIME_PREFIXES.some((prefix) => String(file.mimetype || '').startsWith(prefix))) {
+      return res.status(400).json({ success: false, message: 'Unsupported media type' });
+    }
+    const cid = await uploadFileToIPFS(file.data, safeFileName, file.mimetype);
     const fileUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
     const contentType = file.mimetype.startsWith('image/') ? 'image'
       : file.mimetype.startsWith('video/') ? 'video' : 'application';

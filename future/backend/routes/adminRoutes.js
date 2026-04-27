@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import Admin from '../models/adminModel.js';
+import { ADMIN_JWT_SECRET } from '../config/security.js';
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ router.post('/verify', async (req, res) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+        const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
         const admin = await Admin.findById(decoded.id).select('role isActive');
         if (!admin || !admin.isActive) {
             return res.status(401).json({ success: false, message: 'Invalid or inactive admin account' });

@@ -747,12 +747,13 @@ const TeamChat = () => {
     useEffect(() => {
         if (!user) return;
         socket.current = io(SOCKET_URL, {
-            auth: { token: localStorage.getItem('token') },
+            auth: (cb) => cb({ token: localStorage.getItem('token') }),
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionAttempts: maxReconnectAttempts,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
+            withCredentials: true,
         });
         socket.current.on('connect', () => {
             reconnectAttempts.current = 0;

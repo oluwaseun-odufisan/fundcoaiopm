@@ -1,6 +1,7 @@
 import Room from '../models/roomModel.js';
 import User from '../models/userModel.js';
-import jwt from 'jsonwebtoken';
+import { verifyPlatformToken } from '../config/security.js';
+import { findUserByRefreshToken, getRefreshTokenFromCookieHeader } from '../utils/authSession.js';
 
 const DISCONNECT_GRACE_MS = 12000;
 
@@ -30,17 +31,25 @@ export const setupRoomSignaling = (io) => {
       const token =
         socket.handshake.auth?.token ||
         socket.handshake.headers?.authorization?.split(' ')[1];
-      if (!token) return next(new Error('Auth token required'));
+      let user = null;
+      let userId = null;
+      if (token) {
+        const { payload } = verifyPlatformToken(token);
+        userId = payload.id;
+        user = await User.findById(payload.id).select('firstName lastName fullName avatar isActive');
+      } else {
+        user = await findUserByRefreshToken(getRefreshTokenFromCookieHeader(socket.handshake.headers?.cookie));
+        userId = user?._id ? String(user._id) : null;
+      }
+      if (!userId) return next(new Error('Auth token required'));
+      socket.userId = userId;
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id;
-
-      const user = await User.findById(decoded.id).select('firstName lastName fullName avatar');
       if (!user) return next(new Error('User not found'));
+      if (!user.isActive) return next(new Error('Account inactive'));
 
       socket.user = {
-        id: decoded.id,
-        _id: decoded.id,
+        id: userId,
+        _id: userId,
         name: user.fullName?.trim() || `${user.firstName} ${user.lastName}`.trim(),
         avatar: user.avatar || '',
       };

@@ -5,6 +5,9 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import './index.css';
+import { installSensitiveStorageShim } from './security/sessionStorageShim.js';
+
+installSensitiveStorageShim();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

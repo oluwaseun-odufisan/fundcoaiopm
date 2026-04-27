@@ -252,8 +252,9 @@ const TeamChat = () => {
     if (!token) return undefined;
 
     const socket = io(USER_API_BASE, {
-      auth: { token },
+      auth: (cb) => cb({ token: localStorage.getItem('adminToken') }),
       transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
 
     const applyPresence = ({ userId, online, lastActive }) => {
@@ -925,4 +926,3 @@ const SelectableUsers = ({ users, selected, onToggle }) => (
 );
 
 export default TeamChat;
-

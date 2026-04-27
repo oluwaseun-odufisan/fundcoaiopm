@@ -205,8 +205,16 @@ export const NotificationProvider = ({ children }) => {
 
     refresh();
 
-    const userSocket = io(USER_API_BASE, { auth: { token }, transports: ['websocket', 'polling'] });
-    const adminSocket = io(API_BASE, { auth: { token }, transports: ['websocket', 'polling'] });
+    const userSocket = io(USER_API_BASE, {
+      auth: (cb) => cb({ token: localStorage.getItem('adminToken') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
+    const adminSocket = io(API_BASE, {
+      auth: (cb) => cb({ token: localStorage.getItem('adminToken') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
     const handleIncoming = () => refresh();
 
     userSocket.on('notification:new', handleIncoming);

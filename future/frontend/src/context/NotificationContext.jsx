@@ -4,7 +4,6 @@ import { io } from 'socket.io-client';
 
 const NotificationContext = createContext(null);
 const USER_API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4001';
-const ADMIN_API_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4002';
 const EMPTY_COUNTS = { total: 0, chat: 0, social: 0, tasks: 0, reminders: 0, meetings: 0, reports: 0, goals: 0, files: 0, system: 0 };
 
 const getToken = () => localStorage.getItem('token');
@@ -237,8 +236,11 @@ export const NotificationProvider = ({ children }) => {
 
     refresh();
 
-    const userSocket = io(USER_API_BASE, { auth: { token }, transports: ['websocket', 'polling'] });
-    const adminSocket = io(ADMIN_API_BASE, { auth: { token }, transports: ['websocket', 'polling'] });
+    const userSocket = io(USER_API_BASE, {
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
     const handleIncoming = (payload) => {
       if (payload?.type && payload?.title) {
         pushLiveNotification(makeLiveNotification(payload));
@@ -330,31 +332,20 @@ export const NotificationProvider = ({ children }) => {
     };
 
     userSocket.on('notification:new', handleIncoming);
-    adminSocket.on('notification:new', handleIncoming);
     userSocket.on('newTask', handleNewTask);
-    adminSocket.on('newTask', handleNewTask);
     userSocket.on('updateTask', handleUpdateTask);
-    adminSocket.on('updateTask', handleUpdateTask);
     userSocket.on('taskReviewed', handleTaskReviewed);
-    adminSocket.on('taskReviewed', handleTaskReviewed);
     userSocket.on('taskCommented', handleTaskCommented);
-    adminSocket.on('taskCommented', handleTaskCommented);
 
     const timer = setInterval(refresh, 30000);
     return () => {
       clearInterval(timer);
       userSocket.off('notification:new', handleIncoming);
-      adminSocket.off('notification:new', handleIncoming);
       userSocket.off('newTask', handleNewTask);
-      adminSocket.off('newTask', handleNewTask);
       userSocket.off('updateTask', handleUpdateTask);
-      adminSocket.off('updateTask', handleUpdateTask);
       userSocket.off('taskReviewed', handleTaskReviewed);
-      adminSocket.off('taskReviewed', handleTaskReviewed);
       userSocket.off('taskCommented', handleTaskCommented);
-      adminSocket.off('taskCommented', handleTaskCommented);
       userSocket.disconnect();
-      adminSocket.disconnect();
     };
   }, [pushLiveNotification, pushLiveTaskNotification, refresh]);
 

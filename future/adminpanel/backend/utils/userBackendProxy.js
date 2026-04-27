@@ -1,3 +1,5 @@
+import { USER_BACKEND_INTERNAL_TOKEN } from '../config/security.js';
+
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '');
 
 const resolveUserApiBase = () => {
@@ -9,7 +11,7 @@ const resolveUserApiBase = () => {
   if (explicitBase) return explicitBase;
 
   return (process.env.NODE_ENV || '').toLowerCase() === 'production'
-    ? 'https://negtm.onrender.com'
+    ? ''
     : 'http://127.0.0.1:4001';
 };
 
@@ -47,17 +49,29 @@ const buildTargetUrl = (originalUrl, sourceBasePath, baseUrl) => {
   return `${baseUrl}${nextPath}`;
 };
 
+const ALLOWED_HEADER_NAMES = new Set([
+  'authorization',
+  'content-type',
+  'accept',
+  'x-requested-with',
+]);
+
 const copyHeaders = (req, isMultipart, hasJsonBody) => {
   const headers = {};
   for (const [key, value] of Object.entries(req.headers || {})) {
     if (!value) continue;
     const lower = key.toLowerCase();
     if (lower === 'host' || lower === 'connection' || lower === 'content-length') continue;
+    if (!ALLOWED_HEADER_NAMES.has(lower)) continue;
     headers[key] = value;
   }
 
   if (hasJsonBody) {
     headers['content-type'] = req.headers['content-type'] || 'application/json';
+  }
+
+  if (USER_BACKEND_INTERNAL_TOKEN) {
+    headers['x-internal-token'] = USER_BACKEND_INTERNAL_TOKEN;
   }
 
   return headers;
@@ -119,4 +133,3 @@ export const createUserBackendProxy = (sourceBasePath) => async (req, res) => {
     message: 'Failed to reach shared service',
   });
 };
-

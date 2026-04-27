@@ -503,8 +503,9 @@ const Goals = () => {
   // ── Socket ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const socket = io(API_BASE_URL, {
-      auth: { token: localStorage.getItem('token') },
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
       transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
     socket.on('newGoal',     g  => { if (g?._id) setGoals(p => p.some(x => x._id === g._id) ? p : [g, ...p]); });
     socket.on('goalUpdated', g  => { if (g?._id) setGoals(p => p.map(x => x._id === g._id ? g : x)); });

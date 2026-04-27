@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+import { ADMIN_JWT_SECRET } from '../config/security.js';
 
 // ── Base auth: verifies token and attaches user to req ────────────────────────
 export const authMiddleware = async (req, res, next) => {
@@ -9,7 +8,7 @@ export const authMiddleware = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required' });
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');
     if (!user) return res.status(401).json({ success: false, message: 'User not found' });
     if (!user.isActive) return res.status(403).json({ success: false, message: 'Account is deactivated' });

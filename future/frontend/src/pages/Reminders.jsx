@@ -63,7 +63,10 @@ const Reminders = () => {
     // Socket
     useEffect(() => {
         if (!user || socketRef.current) return;
-        const socket = io(SOCKET_URL, { auth: { token: localStorage.getItem('token') } });
+        const socket = io(SOCKET_URL, {
+            auth: (cb) => cb({ token: localStorage.getItem('token') }),
+            withCredentials: true,
+        });
         socketRef.current = socket;
 
         socket.on('newReminder', (rem) => setReminders(prev => [rem, ...prev]));

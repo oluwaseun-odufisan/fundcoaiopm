@@ -556,7 +556,10 @@ const SocialFeed = () => {
 
   // ── Socket ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket = io(API, { auth: { token: localStorage.getItem('token') } });
+    const socket = io(API, {
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
+      withCredentials: true,
+    });
     socketRef.current = socket;
 
     socket.on('post:new', (post) => {

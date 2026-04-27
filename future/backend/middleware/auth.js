@@ -1,7 +1,5 @@
-import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
+import { verifyPlatformToken } from '../config/security.js';
 
 export default async function authMiddleware(req, res, next) {
     // GRAB THE BEARER TOKEN FROM AUTHORIZATION HEADER
@@ -16,11 +14,14 @@ export default async function authMiddleware(req, res, next) {
     // VERIFY AND ATTACH USER OBJECT
 
     try {
-        const payload = jwt.verify(token, JWT_SECRET);
+        const { payload } = verifyPlatformToken(token);
         const user = await User.findById(payload.id).select('-password');
 
         if (!user){
             return res.status(401).json({success:false, message: "User not found"});
+        }
+        if (!user.isActive) {
+            return res.status(403).json({ success: false, message: 'Account is deactivated' });
         }
 
         req.user = user;
