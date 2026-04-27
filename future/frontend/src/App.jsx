@@ -20,6 +20,7 @@ import SocialFeed from './pages/SocialFeed';
 import AiTools from './pages/AiTools';
 import Reminders from './pages/Reminders';
 import Goals from './pages/Goals';
+import Projects from './pages/Projects';
 import Appraisals from './pages/Appraisals';
 import Meeting from './pages/Meeting';
 import Training from './pages/Training';
@@ -120,6 +121,8 @@ const App = () => {
           <Route path="/ai-tools" element={<AiTools />} />
           <Route path="/reminders" element={<Reminders />} />
           <Route path="/goals" element={<Goals />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:projectId" element={<Projects />} />
           <Route path="/appraisals" element={<Appraisals />} />
           <Route path="/meeting" element={<Meeting />} />
           <Route path="/training" element={<Training />} />

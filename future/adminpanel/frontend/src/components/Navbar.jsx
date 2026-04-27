@@ -145,8 +145,8 @@ const Navbar = ({ onMenu }) => {
         borderColor: 'var(--c-border)',
       }}
     >
-      <div className="flex h-full items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-3">
+      <div className="flex h-full items-center justify-between gap-3 px-3 sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={onMenu}
@@ -156,11 +156,11 @@ const Navbar = ({ onMenu }) => {
             <Menu className="h-5 w-5" style={{ color: 'var(--c-text)' }} />
           </button>
 
-          <div>
-            <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.16em]" style={{ color: 'var(--c-text-faint)' }}>
+          <div className="min-w-0">
+            <p className="hidden text-[0.68rem] font-extrabold uppercase tracking-[0.16em] min-[430px]:block" style={{ color: 'var(--c-text-faint)' }}>
               FundCo Capital Managers
             </p>
-            <p className="text-xl font-black tracking-[-0.03em]" style={{ color: 'var(--c-text)', fontFamily: 'var(--font-display)' }}>
+            <p className="truncate text-lg font-black tracking-[-0.03em] sm:text-xl" style={{ color: 'var(--c-text)', fontFamily: 'var(--font-display)' }}>
               FundCo AI
             </p>
           </div>

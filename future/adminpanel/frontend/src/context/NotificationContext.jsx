@@ -15,6 +15,7 @@ const EMPTY_COUNTS = {
   meetings: 0,
   reminders: 0,
   goals: 0,
+  projects: 0,
   files: 0,
   system: 0,
 };
@@ -31,6 +32,7 @@ const toneFor = (type) => {
     case 'meeting': return 'info';
     case 'reminder': return 'info';
     case 'goal': return 'success';
+    case 'project': return 'brand';
     case 'file': return 'secondary';
     default: return 'neutral';
   }
@@ -38,6 +40,7 @@ const toneFor = (type) => {
 
 const routeFor = (notification) => {
   const data = notification?.data || {};
+  if (typeof data.route === 'string' && data.route.trim()) return data.route.trim();
   switch (notification?.type) {
     case 'chat': return '/team-chat';
     case 'social': return '/social';
@@ -46,6 +49,7 @@ const routeFor = (notification) => {
     case 'meeting': return data.roomId ? '/meetings' : '/meetings';
     case 'reminder': return '/reminders';
     case 'goal': return '/goals';
+    case 'project': return '/projects';
     case 'file': return '/files';
     default: return '/';
   }
@@ -174,6 +178,7 @@ export const NotificationProvider = ({ children }) => {
         meetings: toCount(unreadByType.meeting),
         reminders: Math.max(toCount(unreadByType.reminder), pendingReminders),
         goals: toCount(unreadByType.goal),
+        projects: toCount(unreadByType.project),
         files: toCount(unreadByType.file),
         system: toCount(unreadByType.system),
       };

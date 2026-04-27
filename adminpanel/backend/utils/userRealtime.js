@@ -1,3 +1,5 @@
+import { USER_BACKEND_INTERNAL_TOKEN } from '../config/security.js';
+
 const normalizeBase = (value) => String(value || '').trim().replace(/\/+$/, '');
 
 const resolveUserApiBase = () => {
@@ -9,12 +11,12 @@ const resolveUserApiBase = () => {
   if (explicitBase) return explicitBase;
 
   return (process.env.NODE_ENV || '').toLowerCase() === 'production'
-    ? 'https://negtm.onrender.com'
+    ? ''
     : 'http://127.0.0.1:4001';
 };
 
 const RAW_USER_API_BASE = normalizeBase(resolveUserApiBase());
-const INTERNAL_TOKEN = String(process.env.INTERNAL_API_TOKEN || process.env.JWT_SECRET || '').trim();
+const INTERNAL_TOKEN = String(USER_BACKEND_INTERNAL_TOKEN || '').trim();
 
 const getCandidateBases = (value) => {
   try {

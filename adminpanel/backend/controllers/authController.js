@@ -1,10 +1,12 @@
 import User from '../models/userModel.js';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
-const TOKEN_EXPIRES = '24h';
-const createToken = (userId) => jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRES });
+import {
+  clearRefreshCookie,
+  issueAdminSession,
+  revokeRefreshFamilyForAdmin,
+  revokeRefreshTokenFromRequest,
+  rotateAdminRefreshSession,
+} from '../utils/authSession.js';
 
 // ── Admin Login ───────────────────────────────────────────────────────────────
 export const adminLogin = async (req, res) => {
@@ -30,10 +32,12 @@ export const adminLogin = async (req, res) => {
     user.activityLogs.push({ action: 'admin_login', details: `Admin logged in from IP ${req.ip}` });
     await user.save();
 
-    const token = createToken(user._id);
+    const session = await issueAdminSession({ user, req, res });
     res.json({
       success: true,
-      token,
+      token: session.token,
+      accessTokenExpiresInSeconds: session.accessTokenExpiresInSeconds,
+      refreshSessionExpiresAt: session.refreshSessionExpiresAt,
       user: {
         id: user._id,
         firstName: user.firstName,
@@ -108,10 +112,38 @@ export const changeAdminPassword = async (req, res) => {
       details: `Admin changed password from IP ${req.ip}`,
     });
     await user.save();
+    await revokeRefreshFamilyForAdmin(req.user._id, 'password changed');
+    await issueAdminSession({ user: req.user, req, res });
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
     console.error('Admin password change error:', err.message);
     res.status(500).json({ success: false, message: 'Failed to update password' });
   }
+};
+
+export const refreshAdminSession = async (req, res) => {
+  try {
+    const session = await rotateAdminRefreshSession({ req, res });
+    res.json({
+      success: true,
+      token: session.token,
+      accessTokenExpiresInSeconds: session.accessTokenExpiresInSeconds,
+      refreshSessionExpiresAt: session.refreshSessionExpiresAt,
+      user: session.user,
+    });
+  } catch (err) {
+    clearRefreshCookie(res);
+    res.status(401).json({ success: false, message: err.message || 'Unable to refresh session' });
+  }
+};
+
+export const adminLogout = async (req, res) => {
+  try {
+    await revokeRefreshTokenFromRequest(req);
+  } catch (err) {
+    console.error('Admin logout revoke error:', err.message);
+  }
+  clearRefreshCookie(res);
+  res.json({ success: true, message: 'Logged out' });
 };

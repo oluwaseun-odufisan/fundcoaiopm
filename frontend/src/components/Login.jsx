@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { bootstrapUserSession, storeUserSession } from '../security/authClient.js';
 
 const API_URL    = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const INIT_FORM  = { email: '', password: '' };
@@ -22,22 +23,39 @@ const Login = ({ onSubmit, onSwitchMode }) => {
       (async () => {
         try {
           const { data } = await axios.get(`${API_URL}/api/user/me`, { headers: { Authorization: `Bearer ${token}` } });
-          if (data.success) { onSubmit?.({ token, userId, ...data.user }); toast.success('Welcome back!'); navigate('/'); }
+          if (data.success) { onSubmit?.({ token, user: data.user }); toast.success('Welcome back!'); navigate('/'); }
           else { localStorage.clear(); toast.error('Session invalid.'); }
         } catch { localStorage.clear(); }
       })();
+      return;
     }
+
+    bootstrapUserSession().then((restored) => {
+      if (!restored) return;
+      const refreshedToken = localStorage.getItem('token');
+      const rawUser = localStorage.getItem('currentUser');
+      if (!refreshedToken || !rawUser) return;
+      try {
+        onSubmit?.({ token: refreshedToken, user: JSON.parse(rawUser) });
+        navigate('/');
+      } catch {
+        localStorage.clear();
+      }
+    });
   }, [navigate, onSubmit]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await axios.post(`${API_URL}/api/user/login`, formData);
+      const { data } = await axios.post(
+        `${API_URL}/api/user/login`,
+        { ...formData, rememberMe },
+        { withCredentials: true }
+      );
       if (!data.success || !data.token) throw new Error(data.message || 'Login failed');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userId', data.user.id);
-      onSubmit?.({ token: data.token, userId: data.user.id, ...data.user });
+      storeUserSession({ token: data.token, user: data.user });
+      onSubmit?.({ token: data.token, user: data.user });
       toast.success('Login successful!');
       setFormData(INIT_FORM);
       setTimeout(() => navigate('/'), 800);

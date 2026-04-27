@@ -291,7 +291,7 @@ const PDFViewer = ({ url }) => (
 
 // ── Word doc viewer (mammoth DOCX → HTML, DOC → Google Viewer) ───────────────
 const DocViewer = ({ url, ext }) => {
-  const [html,    setHtml]    = useState('');
+  const [text,    setText]    = useState('');
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
@@ -301,8 +301,8 @@ const DocViewer = ({ url, ext }) => {
         try {
           const r   = await fetch(url);
           const buf = await r.arrayBuffer();
-          const res = await m.default.convertToHtml({ arrayBuffer: buf });
-          setHtml(res.value || '<p><em>Empty document</em></p>');
+          const res = await m.default.extractRawText({ arrayBuffer: buf });
+          setText((res.value || '').trim());
         } catch { setError('Could not render document. Use the Download button.'); }
         finally { setLoading(false); }
       }).catch(() => { setError('mammoth not installed.'); setLoading(false); });
@@ -322,9 +322,12 @@ const DocViewer = ({ url, ext }) => {
   if (loading) return <div className="h-48 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color:'var(--brand-primary)' }} /></div>;
   if (error)   return <FallbackViewer url={url} message={error} />;
   return (
-    <div className="max-h-[60vh] overflow-y-auto px-5 py-4 rounded-xl border prose prose-sm max-w-none"
+    <div
+      className="max-h-[60vh] overflow-y-auto px-5 py-4 rounded-xl border text-sm whitespace-pre-wrap break-words"
       style={{ borderColor:'var(--border-color)', color:'var(--text-primary)', backgroundColor:'var(--bg-subtle)', lineHeight:1.7 }}
-      dangerouslySetInnerHTML={{ __html: html }} />
+    >
+      {text || 'Empty document'}
+    </div>
   );
 };
 

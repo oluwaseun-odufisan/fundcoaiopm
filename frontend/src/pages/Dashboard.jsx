@@ -165,7 +165,10 @@ const Dashboard = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
 
   useEffect(() => {
-    const socket = io(USER_API_URL, { auth: { token: localStorage.getItem('token') } });
+    const socket = io(USER_API_URL, {
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
+      withCredentials: true,
+    });
     socket.on('newTask', (t) => { if (t.owner?._id === user?.id) setLocalTasks((p) => [...p, t]); });
     socket.on('updateTask', (t) => { if (t.owner?._id === user?.id) setLocalTasks((p) => p.map((x) => x._id === t._id ? t : x)); });
     socket.on('deleteTask', (tid) => setLocalTasks((p) => p.filter((x) => x._id !== tid)));

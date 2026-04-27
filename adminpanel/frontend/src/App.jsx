@@ -72,6 +72,7 @@ const AppRoutes = () => {
           <Route path="/users" element={<Suspense fallback={<Loader />}><Users /></Suspense>} />
           <Route path="/my-team" element={<Suspense fallback={<Loader />}><MyTeam /></Suspense>} />
           <Route path="/projects" element={<Suspense fallback={<Loader />}><Projects /></Suspense>} />
+          <Route path="/projects/:projectId" element={<Suspense fallback={<Loader />}><Projects /></Suspense>} />
           <Route path="/social" element={<Suspense fallback={<Loader />}><Social /></Suspense>} />
           <Route path="/team-chat" element={<Suspense fallback={<Loader />}><TeamChat /></Suspense>} />
           <Route path="/deck-prep" element={<Suspense fallback={<Loader />}><DeckPrep /></Suspense>} />

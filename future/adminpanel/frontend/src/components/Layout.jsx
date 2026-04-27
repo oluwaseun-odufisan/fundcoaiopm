@@ -24,7 +24,9 @@ const Layout = ({ children }) => {
     <div className="app-shell">
       <Navbar
         user={user}
+        collapsed={collapsed}
         onMenu={() => setMobileOpen(true)}
+        onToggleSidebar={() => setCollapsed((current) => !current)}
         onLogout={handleLogout}
       />
       <Sidebar
@@ -34,10 +36,9 @@ const Layout = ({ children }) => {
         collapsed={collapsed}
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        onToggleCollapse={() => setCollapsed((current) => !current)}
       />
       <main className="main-content" style={{ marginLeft: sideWidth, paddingTop: 'var(--topbar-h)' }}>
-        <div className="mx-auto max-w-[1720px] px-4 pb-8 pt-5 lg:px-6 lg:pb-10 lg:pt-6 xl:px-8">
+        <div className="mx-auto max-w-[1720px] px-3 pb-6 pt-4 sm:px-4 sm:pb-8 sm:pt-5 lg:px-6 lg:pb-10 lg:pt-6 xl:px-8">
           {children}
         </div>
       </main>

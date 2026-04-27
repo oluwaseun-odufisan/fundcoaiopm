@@ -13,10 +13,14 @@ const NAV_H   = 56; // matches h-14
 
 const Layout = ({ onLogout, user: initialUser }) => {
   const [user,         setUser]         = useState(initialUser);
+  const [isDesktop, setIsDesktop] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  ));
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) return false;
     return localStorage.getItem('sidebarExpanded') !== 'false';
   });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [tasks,        setTasks]        = useState([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [error,        setError]        = useState(null);
@@ -34,6 +38,20 @@ const Layout = ({ onLogout, user: initialUser }) => {
   useEffect(() => {
     localStorage.setItem('sidebarExpanded', isSidebarExpanded);
   }, [isSidebarExpanded]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const syncViewport = () => {
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      if (desktop) setMobileSidebarOpen(false);
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    return () => window.removeEventListener('resize', syncViewport);
+  }, []);
 
   /* ── User ──────────────────────────────────────────────────────────────── */
   const fetchCurrentUser = useCallback(async () => {
@@ -175,22 +193,26 @@ const Layout = ({ onLogout, user: initialUser }) => {
     return () => document.removeEventListener('keydown', fn);
   }, [isNoteOpen]);
 
-  const sidebarW = typeof window !== 'undefined' && window.innerWidth >= 1024
-    ? (isSidebarExpanded ? 240 : 64)
-    : 0;
+  const sidebarW = isDesktop ? (isSidebarExpanded ? 240 : 64) : 0;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-app)' }}>
-      <Sidebar user={user} isExpanded={isSidebarExpanded} onToggle={() => setIsSidebarExpanded((p) => !p)} />
+      <Sidebar
+        user={user}
+        isExpanded={isSidebarExpanded}
+        onToggle={() => setIsSidebarExpanded((p) => !p)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
 
       {/* Main column */}
       <div
         className="flex flex-col min-h-screen transition-[margin] duration-300"
         style={{ marginLeft: sidebarW }}
       >
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar user={user} onLogout={onLogout} onMenu={() => setMobileSidebarOpen(true)} />
 
-        <main className="flex-1 px-4 sm:px-6 pb-24" style={{ paddingTop: NAV_H + 24 }}>
+        <main className="flex-1 px-3 pb-24 pt-[4.25rem] sm:px-4 sm:pt-20 lg:px-6" style={{ minHeight: `calc(100vh - ${NAV_H}px)` }}>
           <div className="max-w-screen-2xl mx-auto">
             <Outlet context={{ user, tasks, tasksLoading, fetchTasks, error, onLogout }} />
           </div>

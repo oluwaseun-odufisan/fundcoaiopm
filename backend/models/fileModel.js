@@ -15,6 +15,7 @@ const fileSchema = new mongoose.Schema({
   deleted:     { type: Boolean, default: false },
   deletedAt:   { type: Date,    default: null },
   shareLink:   { type: String,  default: null },
+  shareTokenHash: { type: String, default: null },
   shareExpires:{ type: Date,    default: null },
 }, { timestamps: true });
 

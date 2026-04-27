@@ -15,7 +15,7 @@ const resolveAdminApiBase = () => {
 };
 
 const RAW_ADMIN_API_BASE = normalizeBase(resolveAdminApiBase());
-const INTERNAL_TOKEN = String(process.env.INTERNAL_API_TOKEN || process.env.JWT_SECRET || '').trim();
+const INTERNAL_TOKEN = String(process.env.INTERNAL_API_TOKEN || '').trim();
 
 const getCandidateBases = (value) => {
   try {

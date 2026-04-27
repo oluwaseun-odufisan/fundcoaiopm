@@ -118,6 +118,7 @@ body {
   background: var(--c-bg);
   color: var(--c-text);
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 button,
@@ -447,8 +448,28 @@ a {
 }
 
 @media (max-width: 1024px) {
+  html {
+    zoom: 100%;
+  }
+
   .main-content {
     margin-left: 0 !important;
   }
 }
 
+@media (max-width: 640px) {
+  :root {
+    --topbar-h: 4.15rem;
+    --sidebar-w: min(20rem, calc(100vw - 0.75rem));
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .surface-panel,
+  .surface-card,
+  .card {
+    border-radius: 0.95rem;
+  }
+}

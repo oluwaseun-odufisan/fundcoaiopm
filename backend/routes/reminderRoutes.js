@@ -12,14 +12,14 @@ import {
     dismissReminder,
     updatePreferences,
 } from '../controllers/reminderController.js';
+import { INTERNAL_API_TOKEN } from '../config/security.js';
 
 const router = express.Router();
-const INTERNAL_TOKEN = String(process.env.INTERNAL_API_TOKEN || process.env.JWT_SECRET || '').trim();
 const ADMIN_ROLES = ['team-lead', 'executive', 'admin'];
 
 const internalOnly = (req, res, next) => {
     const token = String(req.headers['x-internal-token'] || '').trim();
-    if (!INTERNAL_TOKEN || token !== INTERNAL_TOKEN) {
+    if (!INTERNAL_API_TOKEN || token !== INTERNAL_API_TOKEN) {
         return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     return next();

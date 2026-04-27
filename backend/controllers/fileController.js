@@ -4,10 +4,13 @@ import Folder from '../models/folderModel.js';
 import Task   from '../models/taskModel.js';
 import { uploadFileToIPFS } from '../pinning/pinata.js';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const ALLOWED_TYPES  = new Set(['pdf','docx','doc','jpg','jpeg','png','mp4','webm','xls','xlsx','ppt','pptx','txt','csv','zip']);
 const MAX_FILE_SIZE  = 25  * 1024 * 1024;        // 25 MB per file
 const TOTAL_STORAGE  = 2   * 1024 * 1024 * 1024; // 2 GB per user
+const FILE_GATEWAY_BASE = String(process.env.FILE_GATEWAY_URL || 'https://gateway.pinata.cloud/ipfs').trim().replace(/\/+$/, '');
+const createShareTokenHash = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 
 // ── Storage guard ─────────────────────────────────────────────────────────────
 const checkStorage = async (userId, addBytes) => {
@@ -50,31 +53,35 @@ export const uploadFiles = async (req, res) => {
     const totalSize = req.files.reduce((s, f) => s + f.size, 0);
     await checkStorage(req.user._id, totalSize);
 
-    const results = await Promise.allSettled(req.files.map(async file => {
+    const saved = [];
+    const failed = [];
+
+    for (const file of req.files) {
       const ext = file.originalname.split('.').pop().toLowerCase();
-      if (!ALLOWED_TYPES.has(ext))  throw new Error(`Unsupported type: .${ext}`);
-      if (file.size > MAX_FILE_SIZE) throw new Error(`${file.originalname} exceeds 25 MB`);
+      try {
+        if (!ALLOWED_TYPES.has(ext)) throw new Error(`Unsupported type: .${ext}`);
+        if (file.size > MAX_FILE_SIZE) throw new Error(`${file.originalname} exceeds 25 MB`);
 
-      const cid = await uploadFileToIPFS(file.buffer, file.originalname, file.mimetype);
+        const cid = await uploadFileToIPFS(file.buffer, file.originalname, file.mimetype);
 
-      const doc = await File.create({
-        fileName:  file.originalname,
-        cid,
-        size:      file.size,
-        type:      ext,
-        owner:     req.user._id,
-        folderId:  folderId || null,
-        taskId:    taskId   || null,
-        taskTitle,
-        tags:      tagArray,
-      });
+        const doc = await File.create({
+          fileName:  file.originalname,
+          cid,
+          size:      file.size,
+          type:      ext,
+          owner:     req.user._id,
+          folderId:  folderId || null,
+          taskId:    taskId   || null,
+          taskTitle,
+          tags:      tagArray,
+        });
 
-      if (taskId) await Task.findByIdAndUpdate(taskId, { $addToSet: { files: doc._id } });
-      return doc;
-    }));
-
-    const saved   = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-    const failed  = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
+        if (taskId) await Task.findByIdAndUpdate(taskId, { $addToSet: { files: doc._id } });
+        saved.push(doc);
+      } catch (error) {
+        failed.push(error?.message || `Failed to upload ${file.originalname}`);
+      }
+    }
 
     if (!saved.length) return res.status(400).json({ success: false, message: 'All uploads failed', errors: failed });
 
@@ -103,7 +110,16 @@ export const getFiles = async (req, res) => {
     }
     if (starred === 'true') query.starred = true;
     if (taskId)  query.taskId = taskId;
-    if (tags)    query.tags   = { $all: JSON.parse(tags) };
+    if (tags) {
+      try {
+        const parsedTags = JSON.parse(tags);
+        if (Array.isArray(parsedTags) && parsedTags.length) {
+          query.tags = { $all: parsedTags };
+        }
+      } catch {
+        return res.status(400).json({ success: false, message: 'Invalid tags filter' });
+      }
+    }
 
     const sortDir = { createdAt: -1, name: 1, size: -1 }[sort] ?? -1;
     const sortKey = sort === 'name' ? 'fileName' : sort === 'size' ? 'size' : 'createdAt';
@@ -212,15 +228,44 @@ export const moveFiles = async (req, res) => {
 // ── Share file ────────────────────────────────────────────────────────────────
 export const shareFile = async (req, res) => {
   try {
-    const { expiresInDays = 7 } = req.body;
+    const requestedDays = Number(req.body?.expiresInDays || 7);
+    const expiresInDays = Math.min(Math.max(requestedDays, 1), 30);
     const file = await File.findOne({ _id: req.params.id, owner: req.user._id });
     if (!file) return res.status(404).json({ success: false, message: 'File not found' });
 
-    const shareLink    = `https://gateway.pinata.cloud/ipfs/${file.cid}`;
+    const rawToken = crypto.randomBytes(24).toString('hex');
+    const shareLink = `${String(process.env.BASE_URL || '').replace(/\/+$/, '')}/api/files/share/${rawToken}`;
     const shareExpires = new Date(Date.now() + expiresInDays * 86400000);
-    await File.findByIdAndUpdate(file._id, { shareLink, shareExpires });
+    await File.findByIdAndUpdate(file._id, {
+      shareLink,
+      shareTokenHash: createShareTokenHash(rawToken),
+      shareExpires,
+    });
     res.json({ success: true, shareLink, shareExpires });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
+export const getSharedFile = async (req, res) => {
+  try {
+    const shareToken = String(req.params.token || '').trim();
+    if (!shareToken) {
+      return res.status(400).json({ success: false, message: 'Invalid share token' });
+    }
+
+    const file = await File.findOne({
+      shareTokenHash: createShareTokenHash(shareToken),
+      deleted: false,
+      shareExpires: { $gt: new Date() },
+    }).lean();
+
+    if (!file) {
+      return res.status(404).json({ success: false, message: 'Shared file not found or link expired' });
+    }
+
+    return res.redirect(`${FILE_GATEWAY_BASE}/${file.cid}`);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to access shared file' });
+  }
 };
 
 // ── Update tags ───────────────────────────────────────────────────────────────

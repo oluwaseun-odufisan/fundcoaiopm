@@ -24,6 +24,7 @@ const getMessagePreview = ({ content, fileName, fileUrl }) => {
     if (fileUrl) return 'Sent an attachment';
     return 'Sent a message';
 };
+const ALLOWED_CHAT_UPLOAD_MIME_PREFIXES = ['image/', 'video/', 'audio/', 'application/', 'text/'];
 
 const buildMentions = (mentions = [], chatMembers = [], senderId) => {
     const memberSet = new Set((chatMembers || []).map((memberId) => String(memberId)));
@@ -581,6 +582,9 @@ export const uploadChatFile = async (req, res) => {
         const file = req.files.file;
         if (file.size > 50 * 1024 * 1024) {
             return res.status(400).json({ success: false, message: 'File size exceeds 50MB' });
+        }
+        if (!ALLOWED_CHAT_UPLOAD_MIME_PREFIXES.some((prefix) => String(file.mimetype || '').startsWith(prefix))) {
+            return res.status(400).json({ success: false, message: 'Unsupported file type' });
         }
         const buffer = file.data;
         const fileName = sanitizeHtml(file.name, { allowedTags: [], allowedAttributes: {} });

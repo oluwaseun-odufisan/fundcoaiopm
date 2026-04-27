@@ -17,6 +17,7 @@ import {
   updateTags,
   associateTask,
   getStorageUsage,
+  getSharedFile,
 } from '../controllers/fileController.js';
 import {
   createFolder,
@@ -28,10 +29,11 @@ import {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB per file
+  limits: { fileSize: 25 * 1024 * 1024, files: 10 }, // 25 MB per file
 });
 
 const router = express.Router();
+router.get('/share/:token', getSharedFile);
 router.use(authMiddleware);
 
 // ── Static / specific routes first ───────────────────────────────────────────

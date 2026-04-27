@@ -432,11 +432,12 @@ const VideoRoom = ({ embeddedUser = null, onLogout: onLogoutProp = null }) => {
     setLocalStream(stream);
 
     const socket = socketIO(`${API_BASE_URL}/room`, {
-      auth: { token },
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      withCredentials: true,
     });
     socketRef.current = socket;
 

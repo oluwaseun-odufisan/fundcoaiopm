@@ -4,10 +4,17 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import fileUpload from 'express-fileupload';
 import cron from 'node-cron';
 import { connectDB } from './config/db.js';
+import {
+    ALLOWED_SOCKET_EMIT_EVENTS,
+    assertFutureBackendSecurityEnv,
+    INTERNAL_API_TOKEN,
+    verifyPlatformToken,
+} from './config/security.js';
+import { findUserByRefreshToken, getRefreshTokenFromCookieHeader } from './utils/authSession.js';
+import { applySecurityHeaders, requestSecurityContext } from './middleware/securityHeaders.js';
 
 import userRouter from './routes/userRoute.js';
 import taskRouter from './routes/taskRoutes.js';
@@ -19,6 +26,7 @@ import postRouter from './routes/postRoutes.js';
 import reminderRouter from './routes/reminderRoutes.js';
 import goalRouter from './routes/goalRoutes.js';
 import performanceRouter from './routes/performanceRoutes.js';
+import projectRouter from './routes/projectRoutes.js';
 import meetingRouter from './routes/meetingRoutes.js';
 import learningRouter from './routes/learningRoutes.js';
 import feedbackRouter from './routes/feedbackRoutes.js';
@@ -44,12 +52,16 @@ import './models/meetingModel.js';
 import './models/learningMaterialModel.js';
 import './models/feedbackModel.js';
 import './models/notificationModel.js';
+import './models/refreshTokenModel.js';
+import './models/projectModel.js';
 import Room from './models/roomModel.js';
 
 import { setupRoomSignaling } from './socket/roomSignaling.js';
 
 const app = express();
 const httpServer = createServer(app);
+assertFutureBackendSecurityEnv();
+app.set('trust proxy', 1);
 
 // ─────────────────────────────────────────────────────────────
 // PORT — comes ONLY from .env
@@ -122,13 +134,27 @@ app.use(cors({
     credentials: true,
 }));
 
+app.use(requestSecurityContext);
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // File upload middleware
-app.use('/api/chats', fileUpload());
-app.use('/api/bot', fileUpload());
-app.use('/api/posts', fileUpload());
+const sharedUploadOptions = {
+    limits: {
+        fileSize: 50 * 1024 * 1024,
+        files: 5,
+    },
+    abortOnLimit: true,
+    safeFileNames: true,
+    preserveExtension: 10,
+    parseNested: true,
+    createParentPath: false,
+    useTempFiles: false,
+};
+app.use('/api/chats', fileUpload(sharedUploadOptions));
+app.use('/api/bot', fileUpload(sharedUploadOptions));
+app.use('/api/posts', fileUpload(sharedUploadOptions));
 
 // Routes
 app.use('/api/user',        userRouter);
@@ -142,6 +168,7 @@ app.use('/api/posts',       postRouter);
 app.use('/api/reminders',   reminderRouter);
 app.use('/api/goals',       goalRouter);
 app.use('/api/performance', performanceRouter);
+app.use('/api/projects',    projectRouter);
 app.use('/api/grok',        grokRouter);
 app.use('/api/meetings',    meetingRouter);
 app.use('/api/learning',    learningRouter);
@@ -151,27 +178,22 @@ app.use('/api/feedback',    feedbackRouter);
 app.use('/api/rooms',       roomRouter);
 app.use('/api/notifications', notificationRouter);
 
-// Environment variable validation
-const requiredEnvVars = [
-    'MONGO_URI', 'JWT_SECRET', 'WIT_AI_TOKEN', 'PINATA_API_KEY',
-    'PINATA_SECRET_API_KEY', 'PINATA_JWT', 'BASE_URL', 'FRONTEND_URL',
-    'EMAIL_USER', 'EMAIL_PASS', 'FIREBASE_CREDENTIALS', 'GROK_API_KEY', 'PORT',
-];
-const missingEnvVars = requiredEnvVars.filter(v => !process.env[v]);
-if (missingEnvVars.length > 0) {
-    console.error(`❌ Missing required environment variables: ${missingEnvVars.join(', ')}`);
-    process.exit(1);
-}
-
-// ─────────────────────────────────────────────────────────────
 // Socket.IO Auth
 io.use(async (socket, next) => {
     try {
         const token = socket.handshake.auth?.token ||
             socket.handshake.headers?.authorization?.split(' ')[1];
-        if (!token) return next(new Error('Authentication token required'));
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.user = { id: decoded.id, email: decoded.email };
+        let user = null;
+
+        if (token) {
+            const { payload } = verifyPlatformToken(token);
+            user = await User.findById(payload.id).select('_id email isActive');
+        } else {
+            user = await findUserByRefreshToken(getRefreshTokenFromCookieHeader(socket.handshake.headers?.cookie));
+        }
+
+        if (!user || !user.isActive) return next(new Error('Account inactive'));
+        socket.user = { id: String(user._id), email: user.email || '' };
         next();
     } catch (error) {
         next(new Error('Authentication failed'));
@@ -206,13 +228,6 @@ io.on('connection', async (socket) => {
         if (chatId && userId) socket.to(chatId).emit('typing', { chatId, userId, isTyping });
     });
 
-    // ── Posts (namespaced events: post:new, post:updated, post:deleted) ───
-    // These are emitted server-side via req.io in postRoutes.js.
-    // Clients can also push post events for broadcasting:
-    socket.on('post:new',     (post)   => socket.broadcast.emit('post:new', post));
-    socket.on('post:updated', (post)   => socket.broadcast.emit('post:updated', post));
-    socket.on('post:deleted', (data)   => socket.broadcast.emit('post:deleted', data));
-
     // ── Reminders ─────────────────────────────────────────────
     socket.on('newReminder',      (r) => io.to(`user:${socket.user.id}`).emit('newReminder', r));
     socket.on('reminderUpdated',  (r) => io.to(`user:${socket.user.id}`).emit('reminderUpdated', r));
@@ -222,17 +237,6 @@ io.on('connection', async (socket) => {
     socket.on('newGoal',     (g) => io.to(`user:${socket.user.id}`).emit('newGoal', g));
     socket.on('goalUpdated', (g) => io.to(`user:${socket.user.id}`).emit('goalUpdated', g));
     socket.on('goalDeleted', (id)=> io.to(`user:${socket.user.id}`).emit('goalDeleted', id));
-
-    // ── Meetings ──────────────────────────────────────────────
-    socket.on('newMeeting',           (m)  => io.emit('newMeeting', m));
-    socket.on('meetingUpdated',       (m)  => io.emit('meetingUpdated', m));
-    socket.on('meetingDeleted',       (id) => io.emit('meetingDeleted', id));
-    socket.on('newMeetingInvitation', (d)  => io.to(`user:${d.participantId}`).emit('newMeetingInvitation', d));
-
-    // ── Room signaling (handled by setupRoomSignaling) ─────────
-    socket.on('roomInvitation', (data) => {
-        if (data.userId) io.to(`user:${data.userId}`).emit('roomInvitation', data);
-    });
 
     socket.on('error',      (err)    => console.error('Socket error:', err.message));
     socket.on('disconnect', async (reason) => {
@@ -263,21 +267,25 @@ app.get('/', (req, res) => res.json({
 // Admin emit endpoint
 app.post('/api/emit', (req, res) => {
     const internalToken = String(req.headers['x-internal-token'] || '').trim();
-    const expectedToken = String(process.env.INTERNAL_API_TOKEN || process.env.JWT_SECRET || '').trim();
-    if (!expectedToken || internalToken !== expectedToken) {
+    if (!INTERNAL_API_TOKEN || internalToken !== INTERNAL_API_TOKEN) {
         return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     const { event, data, room } = req.body || {};
-    if (!event || data === undefined) {
-        return res.status(400).json({ success: false, message: 'Event and data are required' });
+    if (!event || data === undefined || !room) {
+        return res.status(400).json({ success: false, message: 'Event, room, and data are required' });
     }
 
-    if (room) {
-        io.to(String(room)).emit(event, data);
-    } else {
-        io.emit(event, data);
+    if (!ALLOWED_SOCKET_EMIT_EVENTS.has(String(event))) {
+        return res.status(400).json({ success: false, message: 'Event not allowed' });
     }
+
+    const roomName = String(room).trim();
+    if (!/^user:[a-f\d]{24}$/i.test(roomName) && !/^admin:[a-f\d]{24}$/i.test(roomName)) {
+        return res.status(400).json({ success: false, message: 'Room not allowed' });
+    }
+
+    io.to(roomName).emit(String(event), data);
 
     return res.json({ success: true, message: 'Event emitted' });
 });
@@ -323,3 +331,7 @@ async function startServer() {
 
 export { app, io };
 if (process.env.NODE_ENV !== 'test') startServer();
+
+
+
+

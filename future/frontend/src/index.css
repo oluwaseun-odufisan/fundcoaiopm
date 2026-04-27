@@ -65,6 +65,7 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 /* ─── Utility classes using CSS vars ─────────────────────────────────────── */
@@ -134,4 +135,20 @@ textarea::placeholder {
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   box-shadow: 0 1px 4px var(--shadow-color);
+}
+
+@media (max-width: 1024px) {
+  html {
+    zoom: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .card {
+    border-radius: 0.9rem;
+  }
 }

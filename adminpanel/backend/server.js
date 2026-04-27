@@ -5,6 +5,12 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './config/db.js';
+import {
+  ADMIN_JWT_SECRET,
+  assertFutureAdminSecurityEnv,
+} from './config/security.js';
+import { applySecurityHeaders } from './middleware/securityHeaders.js';
+import { findAdminByRefreshToken, getRefreshTokenFromCookieHeader } from './utils/authSession.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -21,6 +27,7 @@ import learningRoutes from './routes/learningRoutes.js';
 import meetingRoutes from './routes/meetingRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import sharedProxyRoutes from './routes/sharedProxyRoutes.js';
+import User from './models/userModel.js';
 
 // Models (register with mongoose)
 import './models/userModel.js';
@@ -34,9 +41,12 @@ import './models/reminderModel.js';
 import './models/learningMaterialModel.js';
 import './models/roomModel.js';
 import './models/notificationModel.js';
+import './models/refreshTokenModel.js';
 
 const app = express();
 const httpServer = createServer(app);
+assertFutureAdminSecurityEnv();
+app.set('trust proxy', 1);
 
 const port = parseInt(process.env.ADMIN_PORT || '4002', 10);
 console.log(`Starting Admin server on port: ${port}`);
@@ -98,6 +108,7 @@ app.use(cors({
   credentials: true,
 }));
 
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -121,9 +132,15 @@ app.use('/api/admin/shared', sharedProxyRoutes);
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
-    if (!token) return next(new Error('Auth required'));
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.user = { id: decoded.id };
+    let user = null;
+    if (token) {
+      const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+      user = await User.findById(decoded.id).select('_id isActive');
+    } else {
+      user = await findAdminByRefreshToken(getRefreshTokenFromCookieHeader(socket.handshake.headers?.cookie));
+    }
+    if (!user || !user.isActive) return next(new Error('Account inactive'));
+    socket.user = { id: String(user._id) };
     next();
   } catch { next(new Error('Auth failed')); }
 });

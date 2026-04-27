@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, ChevronDown, ExternalLink, LogOut, Mail, Menu, Moon, RefreshCw, Settings, Sun, X } from 'lucide-react';
+import { Bell, CheckCheck, ChevronDown, ExternalLink, LogOut, Mail, Menu, Moon, RefreshCw, Settings, Sun } from 'lucide-react';
 import { ThemeContext } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext.jsx';
 
@@ -90,13 +90,14 @@ const NotificationDropdown = ({ items, total, loading, lastUpdated, onRefresh, o
   </div>
 );
 
-const Navbar = ({ user = {}, onLogout }) => {
+const Navbar = ({ user = {}, onLogout, onMenu }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
   const navigate = useNavigate();
   const { items, counts, loading, lastUpdated, refresh, markRead, markAllRead, markTypeRead } = useNotifications();
   const dropdownRef = useRef(null);
   const mobileRef = useRef(null);
   const notificationRef = useRef(null);
+  const mobileNotificationRef = useRef(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -109,7 +110,9 @@ const Navbar = ({ user = {}, onLogout }) => {
     const closeMenus = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setDropdownOpen(false);
       if (mobileRef.current && !mobileRef.current.contains(event.target)) setMobileOpen(false);
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) setNotificationOpen(false);
+      const insideDesktopNotification = notificationRef.current?.contains(event.target);
+      const insideMobileNotification = mobileNotificationRef.current?.contains(event.target);
+      if (!insideDesktopNotification && !insideMobileNotification) setNotificationOpen(false);
     };
     document.addEventListener('mousedown', closeMenus);
     return () => document.removeEventListener('mousedown', closeMenus);
@@ -146,7 +149,7 @@ const Navbar = ({ user = {}, onLogout }) => {
   );
 
   const mobileMenu = useMemo(() => (
-    <div className="absolute right-0 top-11 z-50 w-72 overflow-hidden rounded-2xl border shadow-xl" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+    <div className="absolute right-0 top-11 z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border shadow-xl" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
       <div className="flex items-center gap-3 border-b px-4 py-4" style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'var(--border-color)' }}>
         {user.avatar ? <img src={user.avatar} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full font-bold text-white" style={{ backgroundColor: 'var(--brand-primary)' }}>{initial}</div>}
         <div className="min-w-0">
@@ -185,11 +188,21 @@ const Navbar = ({ user = {}, onLogout }) => {
 
   return (
     <header className="fixed top-0 left-0 w-full z-[60] border-b" style={{ backgroundColor: 'var(--navbar-bg)', borderColor: 'rgba(255,255,255,0.08)' }}>
-      <div className="flex items-center justify-between px-4 sm:px-6 h-14 max-w-screen-2xl mx-auto">
-        <button onClick={() => navigate('/')} className="flex items-center gap-3 flex-shrink-0 group" aria-label="Dashboard">
-          <img src="/Fundco.svg" alt="FundCo" className="h-8 w-auto object-contain brightness-0 invert opacity-90 group-hover:opacity-100 transition-opacity" />
-          <span className="hidden sm:block text-xs font-semibold tracking-widest uppercase" style={{ color: 'rgba(255,255,255,0.4)' }}>Capital Managers</span>
-        </button>
+      <div className="mx-auto flex h-14 max-w-screen-2xl items-center justify-between gap-3 px-3 sm:px-4 lg:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onMenu}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/6 text-white transition-colors hover:bg-white/10 lg:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <button onClick={() => navigate('/')} className="flex min-w-0 items-center gap-2 sm:gap-3 flex-shrink-0 group" aria-label="Dashboard">
+            <img src="/Fundco.svg" alt="FundCo" className="h-7 w-auto shrink-0 object-contain brightness-0 invert opacity-90 transition-opacity group-hover:opacity-100 sm:h-8" />
+            <span className="hidden text-[11px] font-semibold uppercase tracking-[0.22em] sm:block max-[420px]:hidden" style={{ color: 'rgba(255,255,255,0.4)' }}>Capital Managers</span>
+          </button>
+        </div>
         <div className="hidden md:flex items-center gap-1.5">
           <div className="relative">
             <button onClick={() => setEmailOpen((open) => !open)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium" style={{ color: 'rgba(255,255,255,0.65)' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
@@ -235,9 +248,22 @@ const Navbar = ({ user = {}, onLogout }) => {
             ) : null}
           </div>
         </div>
-        <div ref={mobileRef} className="md:hidden relative">
-          <button onClick={() => setMobileOpen((open) => !open)} className="p-2 rounded-lg" style={{ color: 'rgba(255,255,255,0.8)' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Menu">
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        <div ref={mobileRef} className="md:hidden relative flex shrink-0 items-center gap-1">
+          <div ref={mobileNotificationRef} className="relative">
+            <button onClick={() => setNotificationOpen((open) => !open)} className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/12 bg-white/6" style={{ color: 'rgba(255,255,255,0.82)' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Open notifications">
+              <Bell className="w-5 h-5" />
+              {total > 0 ? <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black text-white" style={{ height: 18, backgroundColor: '#ef4444' }}>{total > 99 ? '99+' : total}</span> : null}
+            </button>
+            {notificationOpen ? <NotificationDropdown items={items} total={total} loading={loading} lastUpdated={lastUpdated} onRefresh={refresh} onMarkAll={markAllRead} onSelect={handleSelectNotification} /> : null}
+          </div>
+          <button onClick={() => setMobileOpen((open) => !open)} className="flex h-9 min-w-9 items-center justify-center rounded-xl border border-white/12 bg-white/6 px-2.5" style={{ color: 'rgba(255,255,255,0.82)' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut} aria-label="Account menu">
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20" />
+            ) : (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                {initial}
+              </span>
+            )}
           </button>
           {mobileOpen ? mobileMenu : null}
         </div>

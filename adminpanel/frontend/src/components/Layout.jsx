@@ -38,7 +38,7 @@ const Layout = ({ children }) => {
         onClose={() => setMobileOpen(false)}
       />
       <main className="main-content" style={{ marginLeft: sideWidth, paddingTop: 'var(--topbar-h)' }}>
-        <div className="mx-auto max-w-[1720px] px-4 pb-8 pt-5 lg:px-6 lg:pb-10 lg:pt-6 xl:px-8">
+        <div className="mx-auto max-w-[1720px] px-3 pb-6 pt-4 sm:px-4 sm:pb-8 sm:pt-5 lg:px-6 lg:pb-10 lg:pt-6 xl:px-8">
           {children}
         </div>
       </main>

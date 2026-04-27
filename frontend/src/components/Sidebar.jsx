@@ -4,7 +4,7 @@ import {
   List, CheckCircle, Menu, Info, X, LayoutDashboard, Clock,
   Calendar, MessageSquare, File, FileText, CreditCard, Sparkles,
   AlertCircle, Bell, Target, Award, Video, BookOpen, Instagram,
-  ChevronRight, ChevronLeft,
+  ChevronRight, ChevronLeft, LineChart, Presentation, MessageCircle, FolderKanban,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import axios from 'axios';
@@ -13,8 +13,7 @@ import { useNotifications } from '../context/NotificationContext.jsx';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const UNREAD_POSTS_KEY = 'socialFeedUnreadCount';
 
-const Sidebar = ({ user, isExpanded, onToggle }) => {
-  const [mobileOpen,        setMobileOpen]        = useState(false);
+const Sidebar = ({ user, isExpanded, onToggle, mobileOpen = false, onCloseMobile }) => {
   const [chatUnreadTotal,   setChatUnreadTotal]   = useState(0);
   const [socialUnreadTotal, setSocialUnreadTotal] = useState(() => {
     const s = localStorage.getItem(UNREAD_POSTS_KEY);
@@ -29,6 +28,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
   const taskBadge = counts.tasks || 0;
   const reminderBadge = counts.reminders || 0;
   const meetingBadge = counts.meetings || 0;
+  const projectBadge = counts.projects || 0;
+  const goalBadge = counts.goals || 0;
+  const reportBadge = counts.reports || 0;
+  const fileBadge = counts.files || 0;
 
   /* ── Fetch unread counts ─────────────────────────────────────────────── */
   const fetchUnreadTotal = useCallback(async () => {
@@ -77,25 +80,30 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
+  const closeMobile = useCallback(() => {
+    onCloseMobile?.();
+  }, [onCloseMobile]);
+
   const menuItems = [
     { text: 'Dashboard',      path: '/',                   icon: LayoutDashboard },
     { text: 'Pending Tasks',  path: '/pending',            icon: List },
     { text: 'Assigned', path: '/assigned',           icon: AlertCircle,     badge: taskBadge },
     { text: 'Completed',      path: '/complete',           icon: CheckCircle },
-    { text: 'Analytics',       path: '/analytics',           icon: Calendar },
+    { text: 'Analytics',      path: '/analytics',          icon: LineChart },
     { text: 'Calendar',       path: '/calendar',           icon: Calendar },
-    { text: 'Goals',          path: '/goals',              icon: Target },
+    { text: 'Projects',       path: '/projects',           icon: FolderKanban,    badge: projectBadge },
+    { text: 'Goals',          path: '/goals',              icon: Target,          badge: goalBadge },
     { text: 'Reminders',      path: '/reminders',          icon: Bell,           badge: reminderBadge },
     { text: 'Team Chat',      path: '/team-chat',          icon: MessageSquare,  badge: chatBadge },
     { text: 'Meeting',        path: '/meetroom',           icon: Video,          badge: meetingBadge },
     { text: 'Social Feed',    path: '/social-feed',        icon: Instagram,      badge: socialBadge },
     { text: 'AI Tools',       path: '/ai-tools',           icon: Sparkles },
-    { text: 'File Storage',   path: '/file-storage',       icon: File },
-    { text: 'Reports',        path: '/reports',            icon: FileText },
+    { text: 'File Storage',   path: '/file-storage',       icon: File,            badge: fileBadge },
+    { text: 'Reports',        path: '/reports',            icon: FileText,        badge: reportBadge },
     { text: 'Performance',    path: '/performance',        icon: CreditCard },
-    { text: 'Deck Prep',      path: '/document-converter', icon: FileText },
+    { text: 'Deck Prep',      path: '/document-converter', icon: Presentation },
     { text: 'Training',       path: '/training',           icon: BookOpen },
-    { text: 'Feedback',       path: '/feedback',           icon: BookOpen },
+    { text: 'Feedback',       path: '/feedback',           icon: MessageCircle },
   ];
 
   /* ── Single nav item ─────────────────────────────────────────────────── */
@@ -107,7 +115,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
         <NavLink
           to={path}
           title={!show ? text : undefined}
-          onClick={() => isMobile && setMobileOpen(false)}
+          onClick={() => isMobile && closeMobile()}
           className={({ isActive }) =>
             `flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all relative group
             ${show ? 'px-3' : 'px-2 justify-center'}
@@ -240,9 +248,9 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
       </aside>
 
       {/* ── Mobile hamburger ───────────────────────────────────────────── */}
-      {!mobileOpen && (
+      {false && !mobileOpen && (
         <button
-          onClick={() => setMobileOpen(true)}
+          onClick={() => onCloseMobile?.()}
           className="lg:hidden fixed top-3.5 left-4 z-[65] p-2 rounded-xl border shadow-sm transition-colors"
           style={{
             backgroundColor: 'var(--brand-primary)',
@@ -252,9 +260,9 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />
-          {chatUnreadTotal > 0 && (
+          {totalBadge > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-              {chatUnreadTotal > 9 ? '9+' : chatUnreadTotal}
+              {totalBadge > 9 ? '9+' : totalBadge}
             </span>
           )}
         </button>
@@ -265,10 +273,10 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
         className={`lg:hidden fixed inset-0 z-[64] transition-opacity duration-300 ${mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+        <div className="absolute inset-0 bg-black/50" onClick={closeMobile} />
         {/* Drawer */}
         <div
-          className={`absolute top-0 left-0 w-72 h-full flex flex-col transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          className={`absolute top-0 left-0 h-full w-[min(20rem,calc(100vw-0.75rem))] flex flex-col transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
           style={{ backgroundColor: 'var(--sidebar-bg)' }}
         >
           {/* Header */}
@@ -287,7 +295,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
               </div>
             </div>
             <button
-              onClick={() => setMobileOpen(false)}
+              onClick={closeMobile}
               className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Close menu"
             >

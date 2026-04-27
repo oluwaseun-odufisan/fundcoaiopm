@@ -2,9 +2,21 @@
 import OpenAI from 'openai';
 import GrokChat from '../models/grokModel.js';
 import { createRequire } from 'module';
+import { extractPdfTextFromBuffer } from '../utils/pdfTextExtractor.js';
 const require = createRequire(import.meta.url);
 const mammoth = require('mammoth');
 const XLSX    = require('xlsx');
+
+// Hard cap on text extracted from a single attachment to avoid blowing past
+// the model's context window. Grok-4 supports a large window but we keep
+// per-file content bounded so multiple files can coexist in one request.
+const MAX_PDF_CHARS = 120_000;
+const MAX_PER_FILE_CHARS = 200_000;
+
+const truncate = (text, max) =>
+  text.length > max
+    ? text.slice(0, max) + `\n\n[…truncated ${text.length - max} characters…]`
+    : text;
 
 const openai = new OpenAI({
   apiKey:  process.env.GROK_API_KEY,
@@ -61,27 +73,51 @@ const processFiles = async (files, lastMessage) => {
 
   for (const file of files) {
     const mime = file.mimetype || file.mime || '';
+    const name = file.originalname || 'attachment';
     try {
       if (mime.startsWith('image/')) {
         contentParts.push({
           type: 'image_url',
           image_url: { url: `data:${mime};base64,${file.buffer.toString('base64')}` },
         });
+      } else if (mime === 'application/pdf' || /\.pdf$/i.test(name)) {
+        const parsed = await extractPdfTextFromBuffer(file.buffer);
+        const text = (parsed.fullText || parsed.rawText || '').trim();
+        if (!text) {
+          contentParts.push({
+            type: 'text',
+            text: `📎 PDF "${name}" appears to contain no extractable text (it may be a scanned/image-only PDF). Ask the user to provide a text-based PDF or run OCR first.`,
+          });
+        } else {
+          contentParts.push({
+            type: 'text',
+            text: `📄 PDF "${name}" (${parsed.pages || '?'} pages):\n\n${truncate(text, MAX_PDF_CHARS)}`,
+          });
+        }
       } else if (mime.startsWith('text/')) {
-        contentParts.push({ type: 'text', text: `📄 Attached: "${file.originalname}"\n\n${file.buffer.toString('utf-8')}` });
-      } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        contentParts.push({
+          type: 'text',
+          text: `📄 Attached: "${name}"\n\n${truncate(file.buffer.toString('utf-8'), MAX_PER_FILE_CHARS)}`,
+        });
+      } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || /\.docx$/i.test(name)) {
         const result = await mammoth.extractRawText({ buffer: file.buffer });
-        contentParts.push({ type: 'text', text: `📄 Word doc "${file.originalname}":\n\n${result.value}` });
-      } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        contentParts.push({
+          type: 'text',
+          text: `📄 Word doc "${name}":\n\n${truncate(result.value || '', MAX_PER_FILE_CHARS)}`,
+        });
+      } else if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx?$/i.test(name)) {
         const wb = XLSX.read(file.buffer, { type: 'buffer' });
         let text = '';
         wb.SheetNames.forEach(s => { text += `Sheet "${s}":\n${XLSX.utils.sheet_to_txt(wb.Sheets[s])}\n\n`; });
-        contentParts.push({ type: 'text', text: `📊 Excel "${file.originalname}":\n\n${text}` });
+        contentParts.push({
+          type: 'text',
+          text: `📊 Excel "${name}":\n\n${truncate(text, MAX_PER_FILE_CHARS)}`,
+        });
       } else {
-        contentParts.push({ type: 'text', text: `📎 File attached: "${file.originalname}" (${mime}) — note: binary content not directly readable.` });
+        contentParts.push({ type: 'text', text: `📎 File attached: "${name}" (${mime}) — note: binary content not directly readable.` });
       }
     } catch (e) {
-      contentParts.push({ type: 'text', text: `⚠️ Could not process "${file.originalname}": ${e.message}` });
+      contentParts.push({ type: 'text', text: `⚠️ Could not process "${name}": ${e.message}` });
     }
   }
   return contentParts;

@@ -10,7 +10,36 @@ const documentSchema = new mongoose.Schema({
   originalFileId: { // Reference to fileModel _id (uploaded PDF)
     type: mongoose.Schema.Types.ObjectId,
     ref: 'File',
-    required: true,
+    default: null,
+  },
+  sourceFileName: {
+    type: String,
+    default: '',
+  },
+  sourceMimeType: {
+    type: String,
+    default: 'application/pdf',
+  },
+  sourceSize: {
+    type: Number,
+    default: 0,
+  },
+  sourcePages: {
+    type: Number,
+    default: 0,
+  },
+  sourceWordCount: {
+    type: Number,
+    default: 0,
+  },
+  sourceCharCount: {
+    type: Number,
+    default: 0,
+  },
+  ingestMode: {
+    type: String,
+    enum: ['library-file', 'direct-upload'],
+    default: 'library-file',
   },
   fullText: { // Raw full text from PDF
     type: String,

@@ -20,6 +20,7 @@ import SocialFeed from './pages/SocialFeed';
 import AiTools from './pages/AiTools';
 import Reminders from './pages/Reminders';
 import Goals from './pages/Goals';
+import Projects from './pages/Projects';
 import Appraisals from './pages/Appraisals';
 import Meeting from './pages/Meeting';
 import Training from './pages/Training';
@@ -29,16 +30,41 @@ import MeetingLobby from './pages/MeetingLobby';
 import VideoRoom from './pages/VideoRoom';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext.jsx';
+import {
+  bootstrapUserSession,
+  logoutUserSession,
+  readStoredUser,
+  userAuthEvents,
+} from './security/authClient.js';
 
 // ← NEW: Lazy load the heavy report page
 const ReportGeneration = lazy(() => import('./pages/ReportGeneration'));
 
 const App = () => {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(() => {
-    const stored = localStorage.getItem('currentUser');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const syncSession = async () => {
+      await bootstrapUserSession();
+      if (!active) return;
+      setCurrentUser(readStoredUser());
+      setAuthReady(true);
+    };
+
+    syncSession();
+
+    const handleAuthChange = () => setCurrentUser(readStoredUser());
+    window.addEventListener(userAuthEvents.AUTH_CHANGE_EVENT, handleAuthChange);
+
+    return () => {
+      active = false;
+      window.removeEventListener(userAuthEvents.AUTH_CHANGE_EVENT, handleAuthChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -49,19 +75,16 @@ const App = () => {
   }, [currentUser]);
 
   const handleAuthSubmit = (data) => {
-    const user = {
-      email: data.email,
-      name: data.name || 'User',
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random`,
-    };
+    const user = data?.user || readStoredUser();
     setCurrentUser(user);
     navigate('/', { replace: true });
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    setCurrentUser(null);
-    navigate('/login', { replace: true });
+    logoutUserSession().finally(() => {
+      setCurrentUser(null);
+      navigate('/login', { replace: true });
+    });
   };
 
   const ProtectedLayout = () => (
@@ -73,6 +96,11 @@ const App = () => {
   return (
     <ThemeProvider>
       <NotificationProvider currentUser={currentUser}>
+      {!authReady ? (
+        <div className="flex min-h-screen items-center justify-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Loading session...
+        </div>
+      ) : (
       <Routes>
         <Route path="/login" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Login onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/signup')} /></div>} />
         <Route path="/signup" element={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"><Signup onSubmit={handleAuthSubmit} onSwitchMode={() => navigate('/login')} /></div>} />
@@ -93,6 +121,8 @@ const App = () => {
           <Route path="/ai-tools" element={<AiTools />} />
           <Route path="/reminders" element={<Reminders />} />
           <Route path="/goals" element={<Goals />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:projectId" element={<Projects />} />
           <Route path="/appraisals" element={<Appraisals />} />
           <Route path="/meeting" element={<Meeting />} />
           <Route path="/training" element={<Training />} />
@@ -120,6 +150,7 @@ const App = () => {
 
         <Route path="*" element={<Navigate to={currentUser ? '/' : '/login'} replace />} />
       </Routes>
+      )}
       </NotificationProvider>
     </ThemeProvider>
   );

@@ -20,10 +20,50 @@ import userApi from '../utils/userApi.js';
 import { EmptyState, LoadingScreen, Modal, PageHeader, Panel, StatCard, StatusPill } from '../components/ui.jsx';
 
 const THEMES = {
+  consulting: { label: 'Consulting', bg: 'F7F8FA', accent: '12355B', text: '102033', subtext: '5B6B7D', surface: 'E7EDF4' },
   professional: { label: 'Professional', bg: '1E293B', accent: '312783', text: 'F8FAFC', subtext: 'CBD5E1', surface: '334155' },
   clean: { label: 'Clean', bg: 'F8FAFC', accent: '312783', text: '142033', subtext: '475569', surface: 'E2E8F0' },
   ocean: { label: 'Ocean', bg: '0C1445', accent: '36A9E1', text: 'E0F2FE', subtext: 'BAE6FD', surface: '102A68' },
   slate: { label: 'Slate', bg: '111827', accent: '15734F', text: 'F9FAFB', subtext: 'D1D5DB', surface: '243244' },
+};
+const getDocumentFileName = (entry) => entry?.originalFileId?.fileName || entry?.sourceFileName || 'Untitled presentation';
+const getSlideType = (slide) => slide?.layout || slide?.type || 'bullets';
+const getSlideCards = (slide) => (Array.isArray(slide?.cards) && slide.cards.length
+  ? slide.cards.slice(0, 4)
+  : (slide?.bullets || []).slice(0, 4).map((item, index) => ({
+      title: `Point ${index + 1}`,
+      body: item,
+      metric: '',
+    })));
+const getTimelineItems = (slide) => (Array.isArray(slide?.timeline) && slide.timeline.length
+  ? slide.timeline.slice(0, 5)
+  : (slide?.bullets || []).slice(0, 5).map((item, index) => ({
+      label: `Phase ${index + 1}`,
+      detail: item,
+    })));
+const getProcessSteps = (slide) => (Array.isArray(slide?.processSteps) && slide.processSteps.length
+  ? slide.processSteps.slice(0, 5)
+  : (slide?.bullets || []).slice(0, 5));
+const getChartData = (slide) => {
+  if (slide?.chart?.categories?.length && slide?.chart?.series?.length) return slide.chart;
+  if (slide?.stats?.length >= 2) {
+    const numericStats = slide.stats
+      .map((item) => ({
+        label: item.label || 'Metric',
+        value: Number(String(item.value || '').replace(/[^0-9.-]/g, '')),
+      }))
+      .filter((item) => Number.isFinite(item.value))
+      .slice(0, 6);
+    if (numericStats.length >= 2) {
+      return {
+        type: 'column',
+        title: slide.title || 'Key data points',
+        categories: numericStats.map((item) => item.label),
+        series: [{ name: 'Value', values: numericStats.map((item) => item.value) }],
+      };
+    }
+  }
+  return null;
 };
 
 const xml = (value = '') =>
@@ -128,17 +168,29 @@ const normalizeDeck = (deck) => {
   const slides = Array.isArray(deck?.slides) ? deck.slides : [];
   return {
     title: deck?.title || 'Admin Presentation',
+    theme: deck?.theme || 'consulting',
     slides: slides.length
       ? slides.map((slide, index) => ({
           id: slide.id || index + 1,
-          type: slide.type || 'bullets',
+          type: getSlideType(slide),
+          layout: slide.layout || getSlideType(slide),
           title: slide.title || `Slide ${index + 1}`,
           subtitle: slide.subtitle || '',
+          objective: slide.objective || '',
+          keyMessage: slide.keyMessage || '',
           bullets: Array.isArray(slide.bullets) ? slide.bullets.filter(Boolean) : [],
+          leftTitle: slide.leftTitle || '',
           leftContent: slide.leftContent || '',
+          rightTitle: slide.rightTitle || '',
           rightContent: slide.rightContent || '',
           quote: slide.quote || '',
           attribution: slide.attribution || '',
+          stats: Array.isArray(slide.stats) ? slide.stats.filter((item) => item && (item.value || item.label)) : [],
+          cards: Array.isArray(slide.cards) ? slide.cards.filter((item) => item && (item.title || item.body || item.metric)) : [],
+          timeline: Array.isArray(slide.timeline) ? slide.timeline.filter((item) => item && (item.label || item.detail)) : [],
+          processSteps: Array.isArray(slide.processSteps) ? slide.processSteps.filter(Boolean) : [],
+          visualElements: Array.isArray(slide.visualElements) ? slide.visualElements.filter(Boolean) : [],
+          chart: slide.chart || getChartData(slide),
           note: slide.note || '',
         }))
       : [{
@@ -146,6 +198,7 @@ const normalizeDeck = (deck) => {
           type: 'title',
           title: deck?.title || 'Admin Presentation',
           subtitle: 'Generated from Deck Prep',
+          layout: 'title',
           bullets: [],
         }],
   };
@@ -189,9 +242,13 @@ const textBox = (id, x, y, w, h, paragraphs, options = {}) => `
 const slideShapes = (slide, index, theme) => {
   const idBase = index * 20 + 3;
   const title = slide.title || `Slide ${index + 1}`;
+  const slideType = getSlideType(slide);
   const bullets = slide.bullets?.length ? slide.bullets : ['Key point', 'Supporting detail', 'Recommended next step'];
+  const cards = getSlideCards(slide);
+  const timeline = getTimelineItems(slide);
+  const processSteps = getProcessSteps(slide);
 
-  if (slide.type === 'title') {
+  if (slideType === 'title') {
     return [
       shape(idBase, 0, 0, 13.333, 2.4, theme.accent),
       textBox(idBase + 1, 0.75, 0.55, 11.85, 1.05, [paragraph(title, { color: 'FFFFFF', size: 34, bold: true, align: 'ctr' })]),
@@ -199,7 +256,7 @@ const slideShapes = (slide, index, theme) => {
     ].join('');
   }
 
-  if (slide.type === 'section') {
+  if (slideType === 'section') {
     return [
       shape(idBase, 0, 0, 0.18, 7.5, theme.accent),
       textBox(idBase + 1, 0.75, 1.7, 11.6, 1.0, [paragraph('SECTION', { color: theme.subtext, size: 11, bold: true })]),
@@ -208,7 +265,7 @@ const slideShapes = (slide, index, theme) => {
     ].join('');
   }
 
-  if (slide.type === 'quote') {
+  if (slideType === 'quote') {
     return [
       shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
       textBox(idBase + 1, 1.0, 1.35, 11.3, 2.4, [paragraph(slide.quote || title, { color: theme.text, size: 24, italic: true, align: 'ctr' })]),
@@ -216,14 +273,112 @@ const slideShapes = (slide, index, theme) => {
     ].join('');
   }
 
-  if (slide.type === 'two-column') {
+  if (slideType === 'two-column') {
     return [
       shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
       textBox(idBase + 1, 0.6, 0.45, 12.1, 0.7, [paragraph(title, { color: theme.text, size: 24, bold: true })]),
       shape(idBase + 2, 0.65, 1.45, 5.75, 4.75, theme.surface),
       shape(idBase + 3, 6.9, 1.45, 5.75, 4.75, theme.surface),
-      textBox(idBase + 4, 0.9, 1.8, 5.25, 3.9, [paragraph(slide.leftContent || 'Left column content', { color: theme.subtext, size: 15 })]),
-      textBox(idBase + 5, 7.15, 1.8, 5.25, 3.9, [paragraph(slide.rightContent || 'Right column content', { color: theme.subtext, size: 15 })]),
+      textBox(idBase + 4, 0.9, 1.7, 5.0, 0.45, [paragraph(slide.leftTitle || 'Left', { color: theme.text, size: 14, bold: true })]),
+      textBox(idBase + 5, 7.15, 1.7, 5.0, 0.45, [paragraph(slide.rightTitle || 'Right', { color: theme.text, size: 14, bold: true })]),
+      textBox(idBase + 6, 0.9, 2.2, 5.25, 3.5, [paragraph(slide.leftContent || 'Left column content', { color: theme.subtext, size: 15 })]),
+      textBox(idBase + 7, 7.15, 2.2, 5.25, 3.5, [paragraph(slide.rightContent || 'Right column content', { color: theme.subtext, size: 15 })]),
+    ].join('');
+  }
+
+  if (slideType === 'comparison') {
+    return [
+      shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
+      textBox(idBase + 1, 0.65, 0.45, 12, 0.75, [paragraph(title, { color: theme.text, size: 24, bold: true })]),
+      shape(idBase + 2, 0.75, 1.55, 5.9, 4.3, theme.surface),
+      shape(idBase + 3, 6.8, 1.55, 5.9, 4.3, 'EDF4FB'),
+      textBox(idBase + 4, 1.0, 1.82, 5.35, 0.35, [paragraph(slide.leftTitle || 'Current state', { color: theme.subtext, size: 12, bold: true })]),
+      textBox(idBase + 5, 7.05, 1.82, 5.35, 0.35, [paragraph(slide.rightTitle || 'Recommended state', { color: theme.accent, size: 12, bold: true })]),
+      textBox(idBase + 6, 1.0, 2.25, 5.35, 2.95, [paragraph(slide.leftContent || 'Current position', { color: theme.text, size: 15 })]),
+      textBox(idBase + 7, 7.05, 2.25, 5.35, 2.95, [paragraph(slide.rightContent || 'Recommended position', { color: theme.text, size: 15 })]),
+    ].join('');
+  }
+
+  if (slideType === 'cards') {
+    return [
+      shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
+      textBox(idBase + 1, 0.65, 0.45, 12, 0.75, [paragraph(title, { color: theme.text, size: 24, bold: true })]),
+      ...cards.slice(0, 4).flatMap((card, cardIndex) => {
+        const x = 0.75 + (cardIndex % 2) * 6.2;
+        const y = 1.7 + Math.floor(cardIndex / 2) * 2.05;
+        const shapeId = idBase + 10 + cardIndex * 4;
+        return [
+          shape(shapeId, x, y, 5.65, 1.7, cardIndex % 2 === 0 ? theme.surface : 'EDF4FB'),
+          textBox(shapeId + 1, x + 0.2, y + 0.16, 0.9, 0.22, [paragraph(card.metric || `0${cardIndex + 1}`, { color: theme.accent, size: 11, bold: true })]),
+          textBox(shapeId + 2, x + 0.2, y + 0.45, 5.2, 0.28, [paragraph(card.title, { color: theme.text, size: 16, bold: true })]),
+          textBox(shapeId + 3, x + 0.2, y + 0.84, 5.2, 0.58, [paragraph(card.body, { color: theme.subtext, size: 12 })]),
+        ];
+      }),
+    ].join('');
+  }
+
+  if (slideType === 'timeline') {
+    return [
+      shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
+      textBox(idBase + 1, 0.65, 0.45, 12, 0.75, [paragraph(title, { color: theme.text, size: 24, bold: true })]),
+      shape(idBase + 2, 1.0, 3.15, 11.0, 0.03, theme.accent),
+      ...timeline.slice(0, 4).flatMap((item, itemIndex) => {
+        const x = 1.0 + itemIndex * 3.35;
+        const shapeId = idBase + 10 + itemIndex * 4;
+        return [
+          shape(shapeId, x + 0.18, 3.0, 0.22, 0.22, theme.accent),
+          textBox(shapeId + 1, x - 0.08, 2.45, 0.9, 0.3, [paragraph(item.label, { color: theme.text, size: 10, bold: true, align: 'ctr' })]),
+          textBox(shapeId + 2, x - 0.3, 3.45, 1.35, 0.95, [paragraph(item.detail, { color: theme.subtext, size: 10, align: 'ctr' })]),
+        ];
+      }),
+    ].join('');
+  }
+
+  if (slideType === 'process') {
+    return [
+      shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
+      textBox(idBase + 1, 0.65, 0.45, 12, 0.75, [paragraph(title, { color: theme.text, size: 24, bold: true })]),
+      ...processSteps.slice(0, 4).flatMap((step, stepIndex) => {
+        const w = 3.0;
+        const x = 0.75 + stepIndex * 3.15;
+        const shapeId = idBase + 10 + stepIndex * 4;
+        return [
+          shape(shapeId, x, 2.55, w, 1.6, theme.surface),
+          textBox(shapeId + 1, x + 0.18, 2.8, w - 0.36, 0.22, [paragraph(`STEP ${stepIndex + 1}`, { color: theme.accent, size: 9, bold: true })]),
+          textBox(shapeId + 2, x + 0.18, 3.18, w - 0.36, 0.48, [paragraph(step, { color: theme.text, size: 14, bold: true, align: 'ctr' })]),
+          ...(stepIndex < Math.min(processSteps.length, 4) - 1 ? [textBox(shapeId + 3, x + 2.92, 3.07, 0.22, 0.24, [paragraph('→', { color: theme.accent, size: 18, bold: true, align: 'ctr' })])] : []),
+        ];
+      }),
+    ].join('');
+  }
+
+  if (slideType === 'data') {
+    const stats = slide.stats?.length
+      ? slide.stats.slice(0, 4)
+      : bullets.slice(0, 4).map((item) => ({ value: '', label: item }));
+    const statWidth = 2.65;
+    return [
+      shape(idBase, 0, 0, 13.333, 0.08, theme.accent),
+      textBox(idBase + 1, 0.65, 0.45, 12, 0.8, [paragraph(title, { color: theme.text, size: 25, bold: true })]),
+      textBox(idBase + 2, 0.65, 1.2, 12, 0.45, [paragraph(slide.subtitle || 'Key figures from the source document', { color: theme.subtext, size: 14 })]),
+      ...stats.flatMap((stat, statIndex) => {
+        const x = 0.75 + (statIndex % 2) * (statWidth + 0.55) + (statIndex >= 2 ? 0 : 0);
+        const y = statIndex < 2 ? 2.05 : 4.3;
+        const shapeId = idBase + 10 + statIndex * 3;
+        return [
+          shape(shapeId, x, y, statWidth, 1.5, theme.surface),
+          textBox(shapeId + 1, x + 0.2, y + 0.18, statWidth - 0.4, 0.55, [paragraph(stat.value || 'Key data', { color: theme.text, size: 21, bold: true, align: 'ctr' })]),
+          textBox(shapeId + 2, x + 0.2, y + 0.78, statWidth - 0.4, 0.45, [paragraph(stat.label || 'Metric', { color: theme.subtext, size: 12, align: 'ctr' })]),
+        ];
+      }),
+    ].join('');
+  }
+
+  if (slideType === 'closing') {
+    return [
+      shape(idBase, 0, 0, 13.333, 0.1, theme.accent),
+      textBox(idBase + 1, 0.75, 0.7, 11.8, 0.8, [paragraph(title, { color: theme.text, size: 28, bold: true, align: 'ctr' })]),
+      textBox(idBase + 2, 1.35, 1.85, 10.8, 4.4, bullets.slice(0, 6).map((item) => paragraph(item, { color: theme.subtext, size: 18, bullet: true }))),
     ].join('');
   }
 
@@ -249,7 +404,7 @@ const slideXml = (slide, index, theme) => `<?xml version="1.0" encoding="UTF-8" 
 
 const buildPptxBlob = (deck, themeName) => {
   const normalized = normalizeDeck(deck);
-  const theme = THEMES[themeName] || THEMES.professional;
+  const theme = THEMES[themeName] || THEMES.consulting;
   const slideOverrides = normalized.slides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('');
   const slideIds = normalized.slides.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 2}"/>`).join('');
   const slideRels = normalized.slides.map((_, index) => `<Relationship Id="rId${index + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${index + 1}.xml"/>`).join('');
@@ -328,11 +483,20 @@ const downloadBlob = (blob, filename) => {
 };
 
 const safeFileName = (value) => `${String(value || 'presentation').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'presentation'}.pptx`;
+const downloadPlainText = (text, value) => {
+  const blob = new Blob([text || ''], { type: 'text/plain;charset=utf-8' });
+  downloadBlob(blob, safeFileName(value).replace(/\.pptx$/i, '.txt'));
+};
 const cardStyle = { background: 'var(--c-panel-subtle)', borderColor: 'var(--c-border)' };
 
 const SlideVisual = ({ slide, themeName, active = false, onClick }) => {
-  const theme = THEMES[themeName] || THEMES.professional;
+  const theme = THEMES[themeName] || THEMES.consulting;
+  const slideType = getSlideType(slide);
   const bullets = slide?.bullets?.length ? slide.bullets : [];
+  const stats = slide?.stats?.length ? slide.stats.slice(0, 4) : [];
+  const cards = getSlideCards(slide);
+  const timeline = getTimelineItems(slide);
+  const processSteps = getProcessSteps(slide);
   return (
     <button
       type="button"
@@ -349,14 +513,66 @@ const SlideVisual = ({ slide, themeName, active = false, onClick }) => {
         <div className="mb-3 h-1.5 w-16 rounded-full" style={{ background: `#${theme.accent}` }} />
         <p className="line-clamp-2 text-sm font-black leading-tight">{slide?.title || 'Untitled slide'}</p>
         {slide?.subtitle ? <p className="mt-1 line-clamp-1 text-xs" style={{ color: `#${theme.subtext}` }}>{slide.subtitle}</p> : null}
-        <div className="mt-3 space-y-1.5">
-          {bullets.slice(0, 4).map((bullet, index) => (
-            <div key={`${bullet}-${index}`} className="flex gap-2 text-[11px]" style={{ color: `#${theme.subtext}` }}>
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `#${theme.accent}` }} />
-              <span className="line-clamp-1">{bullet}</span>
-            </div>
-          ))}
-        </div>
+        {slideType === 'comparison' ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[{ title: slide.leftTitle || 'Current', body: slide.leftContent }, { title: slide.rightTitle || 'Recommended', body: slide.rightContent }].map((item, index) => (
+              <div key={index} className="rounded-lg px-2 py-2" style={{ background: index === 0 ? `#${theme.surface}` : '#edf4fb' }}>
+                <p className="text-[10px] font-black uppercase tracking-[0.08em]" style={{ color: index === 0 ? `#${theme.subtext}` : `#${theme.accent}` }}>{item.title}</p>
+                <p className="mt-1 line-clamp-4 text-[10px]" style={{ color: `#${theme.text}` }}>{item.body}</p>
+              </div>
+            ))}
+          </div>
+        ) : slideType === 'cards' ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {cards.slice(0, 4).map((card, index) => (
+              <div key={index} className="rounded-lg px-2 py-2" style={{ background: `#${theme.surface}` }}>
+                <p className="text-[10px] font-black" style={{ color: `#${theme.accent}` }}>{card.metric || `0${index + 1}`}</p>
+                <p className="mt-1 line-clamp-1 text-[11px] font-black" style={{ color: `#${theme.text}` }}>{card.title}</p>
+                <p className="mt-1 line-clamp-2 text-[10px]" style={{ color: `#${theme.subtext}` }}>{card.body}</p>
+              </div>
+            ))}
+          </div>
+        ) : slideType === 'timeline' ? (
+          <div className="mt-3 flex items-start justify-between gap-2">
+            {timeline.slice(0, 4).map((item, index) => (
+              <div key={index} className="flex-1 text-center">
+                <div className="mx-auto h-2.5 w-2.5 rounded-full" style={{ background: `#${theme.accent}` }} />
+                <p className="mt-1 text-[10px] font-black" style={{ color: `#${theme.text}` }}>{item.label}</p>
+                <p className="mt-1 line-clamp-2 text-[10px]" style={{ color: `#${theme.subtext}` }}>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : slideType === 'process' ? (
+          <div className="mt-3 flex items-center gap-2">
+            {processSteps.slice(0, 4).map((step, index) => (
+              <React.Fragment key={index}>
+                <div className="flex-1 rounded-lg px-2 py-2" style={{ background: `#${theme.surface}` }}>
+                  <p className="text-[10px] font-black" style={{ color: `#${theme.accent}` }}>STEP {index + 1}</p>
+                  <p className="mt-1 line-clamp-3 text-[10px]" style={{ color: `#${theme.text}` }}>{step}</p>
+                </div>
+                {index < Math.min(processSteps.length, 4) - 1 ? <span className="text-sm font-black" style={{ color: `#${theme.accent}` }}>→</span> : null}
+              </React.Fragment>
+            ))}
+          </div>
+        ) : slideType === 'data' && stats.length ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {stats.map((stat, index) => (
+              <div key={`${stat.value}-${index}`} className="rounded-lg px-2 py-2" style={{ background: `#${theme.surface}` }}>
+                <p className="text-xs font-black" style={{ color: `#${theme.text}` }}>{stat.value || 'Data'}</p>
+                <p className="mt-1 line-clamp-2 text-[10px]" style={{ color: `#${theme.subtext}` }}>{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-1.5">
+            {bullets.slice(0, 4).map((bullet, index) => (
+              <div key={`${bullet}-${index}`} className="flex gap-2 text-[11px]" style={{ color: `#${theme.subtext}` }}>
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `#${theme.accent}` }} />
+                <span className="line-clamp-1">{bullet}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </button>
   );
@@ -371,11 +587,11 @@ const DeckPrep = () => {
   const [pptJson, setPptJson] = useState(null);
   const [fullText, setFullText] = useState('');
   const [extractedText, setExtractedText] = useState('');
-  const [theme, setTheme] = useState('professional');
+  const [theme, setTheme] = useState('consulting');
   const [slideCount, setSlideCount] = useState(12);
   const [audience, setAudience] = useState('business');
-  const [extractPrompt, setExtractPrompt] = useState('Extract the key ideas, headings, summaries, tables, risks, metrics, and recommendations. Group the content by topic.');
-  const [pptPrompt, setPptPrompt] = useState('Create an executive-ready presentation with a clear title slide, concise sections, evidence-backed bullets, and a practical closing slide.');
+  const [extractPrompt, setExtractPrompt] = useState('Read the full document like a strategist and presentation editor. Preserve the meaning, identify audience and purpose, extract the strongest arguments and data, group related content into a clean story, and structure the text into presentation-ready sections instead of raw paragraphs.');
+  const [pptPrompt, setPptPrompt] = useState('Design a consulting-style presentation with a compelling title slide, clear story flow, concise executive messaging, strong slide objectives, and smart visual layouts. Use comparisons, timelines, cards, process diagrams, and data-focused slides whenever they communicate better than bullets.');
   const [busy, setBusy] = useState('');
   const [activeSlide, setActiveSlide] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -399,6 +615,14 @@ const DeckPrep = () => {
     fetchHistory();
   }, [fetchHistory]);
 
+  const persistFullText = useCallback(async (id = documentId, nextText = fullText) => {
+    if (!id) return;
+    await userApi.post('/api/documents/save-text', {
+      documentId: id,
+      fullText: nextText,
+    });
+  }, [documentId, fullText]);
+
   const withBusy = async (label, task) => {
     setBusy(label);
     try {
@@ -414,16 +638,16 @@ const DeckPrep = () => {
   const uploadDocument = async () => {
     if (!file) throw new Error('Choose a PDF first');
     const formData = new FormData();
-    formData.append('files', file);
-    const upload = await userApi.post('/api/files/upload', formData, {
+    formData.append('file', file);
+    const upload = await userApi.post('/api/documents/upload-pdf', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    const uploadedFile = upload.data.files?.[0] || upload.data.file || upload.data.uploaded?.[0];
-    if (!uploadedFile?._id) throw new Error('The upload succeeded, but no file id was returned');
-    const created = await userApi.post('/api/documents', { fileId: uploadedFile._id });
-    const doc = created.data.document || created.data.doc;
+    const doc = upload.data.document || upload.data.doc;
     if (!doc?._id) throw new Error('Document conversion session could not be created');
     setDocumentId(doc._id);
+    setFullText(upload.data.fullText || '');
+    setExtractedText('');
+    setPptJson(null);
     await fetchHistory();
     return doc._id;
   };
@@ -432,7 +656,13 @@ const DeckPrep = () => {
 
   const quickConvert = () => withBusy('Generating presentation', async () => {
     const id = await ensureDocument();
-    const { data } = await userApi.post('/api/documents/quick-convert', { documentId: id, slideCount, theme, audience });
+    const { data } = await userApi.post('/api/documents/quick-convert', {
+      documentId: id,
+      slideCount,
+      theme,
+      audience,
+      sourceText: fullText.trim() || undefined,
+    });
     setPptJson(data.pptJson);
     setFullText(data.fullText || '');
     setExtractedText(data.extractedText || '');
@@ -441,17 +671,21 @@ const DeckPrep = () => {
     await fetchHistory();
   });
 
-  const rawExtract = () => withBusy('Extracting document text', async () => {
+  const rawExtract = () => withBusy('Extracting full document text', async () => {
     const id = await ensureDocument();
-    const { data } = await userApi.post('/api/documents/raw-extract', { documentId: id });
+    const { data } = await userApi.post('/api/documents/pdf-to-text', { documentId: id });
     setFullText(data.fullText || '');
-    toast.success('Document text extracted');
+    toast.success(`Extracted ${data.wordCount?.toLocaleString() || 0} words`);
     await fetchHistory();
   });
 
   const structureText = () => withBusy('Structuring document content', async () => {
     const id = await ensureDocument();
-    const { data } = await userApi.post('/api/documents/extract', { documentId: id, prompt: extractPrompt });
+    const { data } = await userApi.post('/api/documents/extract', {
+      documentId: id,
+      prompt: extractPrompt,
+      fullText,
+    });
     setExtractedText(data.extractedText || '');
     toast.success('Content structured');
     await fetchHistory();
@@ -459,10 +693,25 @@ const DeckPrep = () => {
 
   const generateDeck = () => withBusy('Building slide deck', async () => {
     const id = await ensureDocument();
-    const { data } = await userApi.post('/api/documents/generate-ppt', { documentId: id, prompt: pptPrompt, slideCount, theme });
+    const { data } = await userApi.post('/api/documents/generate-ppt', {
+      documentId: id,
+      prompt: pptPrompt,
+      slideCount,
+      theme,
+      audience,
+      fullText,
+      sourceText: extractedText.trim() || fullText.trim() || undefined,
+    });
     setPptJson(data.pptJson);
     setActiveSlide(0);
     toast.success(`${data.pptJson?.slides?.length || 0} slides created`);
+    await fetchHistory();
+  });
+
+  const saveFullText = () => withBusy('Saving extracted text', async () => {
+    if (!documentId) throw new Error('Load a document first');
+    await persistFullText(documentId, fullText);
+    toast.success('Text saved');
     await fetchHistory();
   });
 
@@ -500,6 +749,7 @@ const DeckPrep = () => {
   });
 
   const loadHistoryItem = (item) => {
+    setFile(null);
     setDocumentId(item._id);
     setFullText(item.fullText || '');
     setExtractedText(item.extractedText || '');
@@ -546,6 +796,9 @@ const DeckPrep = () => {
     if (!next.name.toLowerCase().endsWith('.pdf')) return toast.error('Please choose a PDF file');
     setFile(next);
     setDocumentId(null);
+    setFullText('');
+    setExtractedText('');
+    setPptJson(null);
   };
 
   return (
@@ -555,7 +808,7 @@ const DeckPrep = () => {
         actions={
           <>
             <button type="button" className="btn-secondary" onClick={fetchHistory}><RefreshCw className="h-4 w-4" />Refresh</button>
-            <button type="button" className="btn-primary" onClick={quickConvert} disabled={Boolean(busy) || (!file && !documentId)}><Sparkles className="h-4 w-4" />Quick Convert</button>
+            <button type="button" className="btn-primary" onClick={quickConvert} disabled={Boolean(busy) || (!file && !documentId)}>Quick Convert</button>
           </>
         }
       />
@@ -571,7 +824,7 @@ const DeckPrep = () => {
         <div className="space-y-5">
           <Panel
             title="Document Intake"
-            subtitle="Start from a searchable PDF, then choose quick conversion or the guided path."
+            subtitle="Start from a searchable PDF. Extract full text first when you need a clean reviewable source before slide generation."
             action={<StatusPill tone={documentId ? 'success' : file ? 'warning' : 'neutral'}>{documentId ? 'Document ready' : file ? 'Pending upload' : 'Awaiting PDF'}</StatusPill>}
           >
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -641,12 +894,16 @@ const DeckPrep = () => {
                 <div className="rounded-[1.25rem] border p-4" style={cardStyle}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-black" style={{ color: 'var(--c-text)' }}>1. Raw extraction</h3>
-                      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>Read the full PDF text before structuring it.</p>
+                      <h3 className="font-black" style={{ color: 'var(--c-text)' }}>1. Full text extraction</h3>
+                      <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>Convert the PDF directly into structured text first. This avoids model summaries and avoids binary-file parsing failures.</p>
                     </div>
                     <button type="button" className="btn-secondary" onClick={rawExtract} disabled={Boolean(busy) || (!file && !documentId)}><FileText className="h-4 w-4" />Extract</button>
                   </div>
-                  <textarea value={fullText} onChange={(event) => setFullText(event.target.value)} rows={7} className="input-base mt-4 resize-y font-mono text-xs" placeholder="Extracted PDF text appears here." />
+                  <textarea value={fullText} onChange={(event) => setFullText(event.target.value)} rows={9} className="input-base mt-4 resize-y text-sm" style={{ fontFamily: 'Georgia, \"Source Serif Pro\", serif', lineHeight: 1.7 }} placeholder="Full document text appears here." />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className="btn-secondary min-h-0 px-3 py-2 text-xs" onClick={saveFullText} disabled={Boolean(busy) || !documentId}><Check className="h-3.5 w-3.5" />Save text</button>
+                    <button type="button" className="btn-secondary min-h-0 px-3 py-2 text-xs" onClick={() => downloadPlainText(fullText, deck.title || file?.name || 'deckprep-text')} disabled={!fullText}><Download className="h-3.5 w-3.5" />Download .txt</button>
+                  </div>
                 </div>
 
                 <div className="rounded-[1.25rem] border p-4" style={cardStyle}>
@@ -655,7 +912,7 @@ const DeckPrep = () => {
                       <h3 className="font-black" style={{ color: 'var(--c-text)' }}>2. Structure content</h3>
                       <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>Shape the document into presentation-ready sections.</p>
                     </div>
-                    <button type="button" className="btn-secondary" onClick={structureText} disabled={Boolean(busy) || (!file && !documentId)}><Wand2 className="h-4 w-4" />Structure</button>
+                    <button type="button" className="btn-secondary" onClick={structureText} disabled={Boolean(busy) || (!file && !documentId)}>Structure</button>
                   </div>
                   <textarea value={extractPrompt} onChange={(event) => setExtractPrompt(event.target.value)} rows={4} className="input-base mt-4 resize-y text-sm" />
                 </div>
@@ -664,7 +921,7 @@ const DeckPrep = () => {
               <div className="space-y-4">
                 <div className="rounded-[1.25rem] border p-4" style={cardStyle}>
                   <h3 className="font-black" style={{ color: 'var(--c-text)' }}>Structured notes</h3>
-                  <textarea value={extractedText} onChange={(event) => setExtractedText(event.target.value)} rows={9} className="input-base mt-4 resize-y text-sm" placeholder="AI structured notes appear here." />
+                  <textarea value={extractedText} onChange={(event) => setExtractedText(event.target.value)} rows={9} className="input-base mt-4 resize-y text-sm" placeholder="Presentation-ready outline appears here." />
                 </div>
                 <div className="rounded-[1.25rem] border p-4" style={cardStyle}>
                   <div className="flex items-start justify-between gap-3">
@@ -672,7 +929,7 @@ const DeckPrep = () => {
                       <h3 className="font-black" style={{ color: 'var(--c-text)' }}>3. Generate slides</h3>
                       <p className="mt-1 text-sm leading-6" style={{ color: 'var(--c-text-muted)' }}>Create an editable deck from the structured content.</p>
                     </div>
-                    <button type="button" className="btn-primary" onClick={generateDeck} disabled={Boolean(busy) || (!file && !documentId)}><Sparkles className="h-4 w-4" />Generate</button>
+                    <button type="button" className="btn-primary" onClick={generateDeck} disabled={Boolean(busy) || (!file && !documentId)}>Generate</button>
                   </div>
                   <textarea value={pptPrompt} onChange={(event) => setPptPrompt(event.target.value)} rows={4} className="input-base mt-4 resize-y text-sm" />
                 </div>
@@ -709,8 +966,8 @@ const DeckPrep = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="label" htmlFor="slideType">Slide type</label>
-                    <select id="slideType" value={active?.type || 'bullets'} onChange={(event) => updateSlide({ type: event.target.value })} className="input-base">
-                      {['title', 'section', 'bullets', 'two-column', 'quote', 'closing'].map((item) => <option key={item} value={item}>{item}</option>)}
+                    <select id="slideType" value={active?.type || 'bullets'} onChange={(event) => updateSlide({ type: event.target.value, layout: event.target.value })} className="input-base">
+                      {['title', 'section', 'bullets', 'two-column', 'comparison', 'cards', 'timeline', 'process', 'quote', 'data', 'closing'].map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   </div>
                   <div>
@@ -748,7 +1005,7 @@ const DeckPrep = () => {
               icon={Presentation}
               title="No deck generated yet"
               description="Use Quick Convert or the guided builder to create an editable presentation."
-              action={<button type="button" className="btn-primary" onClick={quickConvert} disabled={Boolean(busy) || (!file && !documentId)}><Sparkles className="h-4 w-4" />Quick Convert</button>}
+              action={<button type="button" className="btn-primary" onClick={quickConvert} disabled={Boolean(busy) || (!file && !documentId)}>Quick Convert</button>}
             />
           )}
         </div>
@@ -767,7 +1024,7 @@ const DeckPrep = () => {
                 <button type="button" className="w-full text-left" onClick={() => loadHistoryItem(item)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black" style={{ color: 'var(--c-text)' }}>{item.pptJson?.title || item.originalFileId?.fileName || 'Untitled presentation'}</p>
+                      <p className="truncate text-sm font-black" style={{ color: 'var(--c-text)' }}>{item.pptJson?.title || getDocumentFileName(item)}</p>
                       <p className="mt-1 text-xs" style={{ color: 'var(--c-text-muted)' }}>
                         {item.pptJson?.slides?.length || 0} slides{item.createdAt ? `, ${new Date(item.createdAt).toLocaleDateString()}` : ''}
                       </p>

@@ -348,7 +348,7 @@ const AIGenerator = ({ user, tasks, onSaved }) => {
 
   return (
     <div className="space-y-6">
-      <SectionHeading icon={Sparkles}>AI Report Generator</SectionHeading>
+      <SectionHeading>AI Report Generator</SectionHeading>
 
       {/* Config row */}
       <div className="rounded-2xl border p-6 space-y-5"

@@ -53,9 +53,10 @@ const Meeting = () => {
     fetchMeetings();
     fetchUsers();
     socket.current = io(SOCKET_URL, {
-      auth: { token: localStorage.getItem('token') },
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      withCredentials: true,
     });
     socket.current.on('connect', () => {
       console.log('Socket connected');
