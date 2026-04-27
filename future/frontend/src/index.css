@@ -54,7 +54,6 @@ html.dark {
 html {
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
-  zoom: 80%;                    /* kept from your original */
 }
 
 body {

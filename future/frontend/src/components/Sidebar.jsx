@@ -4,7 +4,7 @@ import {
   List, CheckCircle, Menu, Info, X, LayoutDashboard, Clock,
   Calendar, MessageSquare, File, FileText, CreditCard, Sparkles,
   AlertCircle, Bell, Target, Award, Video, BookOpen, Instagram,
-  ChevronRight, ChevronLeft,
+  ChevronRight, ChevronLeft, LineChart, Presentation, MessageCircle,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import axios from 'axios';
@@ -82,7 +82,7 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'Pending Tasks',  path: '/pending',            icon: List },
     { text: 'Assigned', path: '/assigned',           icon: AlertCircle,     badge: taskBadge },
     { text: 'Completed',      path: '/complete',           icon: CheckCircle },
-    { text: 'Analytics',       path: '/analytics',           icon: Calendar },
+    { text: 'Analytics',      path: '/analytics',          icon: LineChart },
     { text: 'Calendar',       path: '/calendar',           icon: Calendar },
     { text: 'Goals',          path: '/goals',              icon: Target },
     { text: 'Reminders',      path: '/reminders',          icon: Bell,           badge: reminderBadge },
@@ -93,9 +93,9 @@ const Sidebar = ({ user, isExpanded, onToggle }) => {
     { text: 'File Storage',   path: '/file-storage',       icon: File },
     { text: 'Reports',        path: '/reports',            icon: FileText },
     { text: 'Performance',    path: '/performance',        icon: CreditCard },
-    { text: 'Deck Prep',      path: '/document-converter', icon: FileText },
+    { text: 'Deck Prep',      path: '/document-converter', icon: Presentation },
     { text: 'Training',       path: '/training',           icon: BookOpen },
-    { text: 'Feedback',       path: '/feedback',           icon: BookOpen },
+    { text: 'Feedback',       path: '/feedback',           icon: MessageCircle },
   ];
 
   /* ── Single nav item ─────────────────────────────────────────────────── */

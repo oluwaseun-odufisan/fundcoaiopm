@@ -53,31 +53,35 @@ export const uploadFiles = async (req, res) => {
     const totalSize = req.files.reduce((s, f) => s + f.size, 0);
     await checkStorage(req.user._id, totalSize);
 
-    const results = await Promise.allSettled(req.files.map(async file => {
+    const saved = [];
+    const failed = [];
+
+    for (const file of req.files) {
       const ext = file.originalname.split('.').pop().toLowerCase();
-      if (!ALLOWED_TYPES.has(ext))  throw new Error(`Unsupported type: .${ext}`);
-      if (file.size > MAX_FILE_SIZE) throw new Error(`${file.originalname} exceeds 25 MB`);
+      try {
+        if (!ALLOWED_TYPES.has(ext)) throw new Error(`Unsupported type: .${ext}`);
+        if (file.size > MAX_FILE_SIZE) throw new Error(`${file.originalname} exceeds 25 MB`);
 
-      const cid = await uploadFileToIPFS(file.buffer, file.originalname, file.mimetype);
+        const cid = await uploadFileToIPFS(file.buffer, file.originalname, file.mimetype);
 
-      const doc = await File.create({
-        fileName:  file.originalname,
-        cid,
-        size:      file.size,
-        type:      ext,
-        owner:     req.user._id,
-        folderId:  folderId || null,
-        taskId:    taskId   || null,
-        taskTitle,
-        tags:      tagArray,
-      });
+        const doc = await File.create({
+          fileName:  file.originalname,
+          cid,
+          size:      file.size,
+          type:      ext,
+          owner:     req.user._id,
+          folderId:  folderId || null,
+          taskId:    taskId   || null,
+          taskTitle,
+          tags:      tagArray,
+        });
 
-      if (taskId) await Task.findByIdAndUpdate(taskId, { $addToSet: { files: doc._id } });
-      return doc;
-    }));
-
-    const saved   = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-    const failed  = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
+        if (taskId) await Task.findByIdAndUpdate(taskId, { $addToSet: { files: doc._id } });
+        saved.push(doc);
+      } catch (error) {
+        failed.push(error?.message || `Failed to upload ${file.originalname}`);
+      }
+    }
 
     if (!saved.length) return res.status(400).json({ success: false, message: 'All uploads failed', errors: failed });
 

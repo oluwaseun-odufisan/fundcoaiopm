@@ -11,14 +11,28 @@ import {
   Upload, FileText, Zap, Edit2, Loader2, Download, AlertCircle, Plus, Trash2,
   ChevronLeft, ChevronRight, Sparkles, Layers, LayoutTemplate, RefreshCw, X,
   Check, ArrowRight, Settings2, Wand2, PresentationIcon, AlignLeft, Quote,
-  Columns2, Home, HistoryIcon,
+  Columns2, Home, HistoryIcon, BarChart3,
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
+const downloadPlainText = (text, baseName = 'deckprep-text') => {
+  const safeName = String(baseName || 'deckprep-text').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'deckprep-text';
+  const blob = new Blob([text || ''], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${safeName}.txt`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+const getDocumentFileName = (entry) => entry?.originalFileId?.fileName || entry?.sourceFileName || 'Untitled';
 
 // ── Themes ───────────────────────────────────────────────────────────────────
 const THEMES = {
+  consulting: { label: 'Consulting', bg: 'f7f8fa', accent: '12355b', text: '102033', subtext: '5b6b7d', titleText: 'ffffff', sectionBg: 'e7edf4', preview: ['#f7f8fa', '#12355b'] },
   professional: { label: 'Professional', bg: '1e293b', accent: '312783', text: 'f8fafc', subtext: '94a3b8', titleText: 'ffffff', sectionBg: '0f172a', preview: ['#1e293b', '#312783'] },
   clean: { label: 'Clean', bg: 'f8fafc', accent: '312783', text: '1e293b', subtext: '64748b', titleText: 'ffffff', sectionBg: 'e2e8f0', preview: ['#f8fafc', '#312783'] },
   ocean: { label: 'Ocean', bg: '0c1445', accent: '36a9e1', text: 'e0f2fe', subtext: '7dd3fc', titleText: '0c1445', sectionBg: '0d2060', preview: ['#0c1445', '#36a9e1'] },
@@ -26,14 +40,75 @@ const THEMES = {
   coral: { label: 'Coral', bg: 'fff7ed', accent: 'dc2626', text: '1c1917', subtext: '78716c', titleText: 'ffffff', sectionBg: 'fef2f2', preview: ['#fff7ed', '#dc2626'] },
 };
 
-const slideIcons = { title: Home, section: Layers, bullets: AlignLeft, 'two-column': Columns2, quote: Quote, closing: Check };
+const slideIcons = {
+  title: Home,
+  section: Layers,
+  bullets: AlignLeft,
+  'two-column': Columns2,
+  comparison: Columns2,
+  timeline: HistoryIcon,
+  process: ArrowRight,
+  cards: LayoutTemplate,
+  quote: Quote,
+  data: BarChart3,
+  closing: Check,
+};
+
+const getSlideType = (slide) => slide?.layout || slide?.type || 'bullets';
+const getSlideCards = (slide) => (Array.isArray(slide?.cards) && slide.cards.length
+  ? slide.cards.slice(0, 4)
+  : (slide?.bullets || []).slice(0, 4).map((item, index) => ({
+      title: `Point ${index + 1}`,
+      body: item,
+      metric: '',
+    })));
+const getTimelineItems = (slide) => (Array.isArray(slide?.timeline) && slide.timeline.length
+  ? slide.timeline.slice(0, 5)
+  : (slide?.bullets || []).slice(0, 5).map((item, index) => ({
+      label: `Phase ${index + 1}`,
+      detail: item,
+    })));
+const getProcessSteps = (slide) => (Array.isArray(slide?.processSteps) && slide.processSteps.length
+  ? slide.processSteps.slice(0, 5)
+  : (slide?.bullets || []).slice(0, 5));
+const getChartData = (slide) => {
+  if (slide?.chart?.categories?.length && slide?.chart?.series?.length) return slide.chart;
+  if (slide?.stats?.length >= 2) {
+    const numericStats = slide.stats
+      .map((item) => ({
+        label: item.label || 'Metric',
+        value: Number(String(item.value || '').replace(/[^0-9.-]/g, '')),
+      }))
+      .filter((item) => Number.isFinite(item.value))
+      .slice(0, 6);
+    if (numericStats.length >= 2) {
+      return {
+        type: 'column',
+        title: slide.title || 'Key data points',
+        categories: numericStats.map((item) => item.label),
+        series: [{ name: 'Value', values: numericStats.map((item) => item.value) }],
+      };
+    }
+  }
+  return null;
+};
 
 // ── SlidePreview ─────────────────────────────────────────────────────────────
 const SlidePreview = ({ slide, theme, scale = 1, isActive = false, onClick }) => {
-  const t = THEMES[theme] || THEMES.professional;
+  const t = THEMES[theme] || THEMES.consulting;
   const W = 640, H = 360;
-  const isTitle = slide.type === 'title', isSection = slide.type === 'section';
-  const isQuote = slide.type === 'quote', isTwoCol = slide.type === 'two-column';
+  const type = getSlideType(slide);
+  const isTitle = type === 'title', isSection = type === 'section';
+  const isQuote = type === 'quote', isTwoCol = type === 'two-column';
+  const isComparison = type === 'comparison', isCards = type === 'cards';
+  const isTimeline = type === 'timeline', isProcess = type === 'process';
+  const isData = type === 'data';
+  const cards = getSlideCards(slide);
+  const timeline = getTimelineItems(slide);
+  const processSteps = getProcessSteps(slide);
+  const chart = getChartData(slide);
+  const chartValues = chart?.series?.[0]?.values || [];
+  const maxChartValue = chartValues.length ? Math.max(...chartValues, 1) : 1;
   return (
     <div onClick={onClick} style={{
       width: W * scale, height: H * scale, backgroundColor: `#${t.bg}`,
@@ -79,7 +154,87 @@ const SlidePreview = ({ slide, theme, scale = 1, isActive = false, onClick }) =>
           ))}
         </div>
       </div>}
-      {!isTitle && !isSection && !isQuote && !isTwoCol && <div style={{
+      {isComparison && <div style={{ position: 'absolute', inset: 0, padding: `${16 * scale}px ${18 * scale}px` }}>
+        <div style={{ color: `#${t.text}`, fontWeight: 800, fontSize: 14 * scale, marginBottom: 10 * scale }}>{slide.title}</div>
+        <div style={{ display: 'flex', gap: 10 * scale }}>
+          {[{ title: slide.leftTitle || 'Current state', body: slide.leftContent }, { title: slide.rightTitle || 'Recommended state', body: slide.rightContent }].map((column, index) => (
+            <div key={index} style={{ flex: 1, backgroundColor: index === 0 ? `#${t.sectionBg}` : 'rgba(18,53,91,.08)', borderRadius: 8 * scale, padding: 10 * scale }}>
+              <div style={{ color: `#${t.accent}`, fontSize: 9 * scale, fontWeight: 800, marginBottom: 6 * scale }}>{column.title}</div>
+              <div style={{ color: `#${t.subtext}`, fontSize: 9.5 * scale, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{(column.body || '').slice(0, 140)}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+      {isCards && <div style={{ position: 'absolute', inset: 0, padding: `${16 * scale}px ${18 * scale}px` }}>
+        <div style={{ color: `#${t.text}`, fontWeight: 800, fontSize: 14 * scale, marginBottom: 10 * scale }}>{slide.title}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 * scale }}>
+          {cards.slice(0, 4).map((card, index) => (
+            <div key={index} style={{ backgroundColor: `#${t.sectionBg}`, borderRadius: 8 * scale, padding: 8 * scale, minHeight: 86 * scale }}>
+              <div style={{ color: `#${t.accent}`, fontSize: 9 * scale, fontWeight: 800, marginBottom: 4 * scale }}>{card.metric || `0${index + 1}`}</div>
+              <div style={{ color: `#${t.text}`, fontSize: 10.5 * scale, fontWeight: 800, marginBottom: 4 * scale }}>{card.title}</div>
+              <div style={{ color: `#${t.subtext}`, fontSize: 9.2 * scale, lineHeight: 1.35 }}>{card.body}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+      {isTimeline && <div style={{ position: 'absolute', inset: 0, padding: `${18 * scale}px ${18 * scale}px` }}>
+        <div style={{ color: `#${t.text}`, fontWeight: 800, fontSize: 14 * scale, marginBottom: 18 * scale }}>{slide.title}</div>
+        <div style={{ position: 'relative', marginTop: 20 * scale }}>
+          <div style={{ position: 'absolute', top: 16 * scale, left: 18 * scale, right: 18 * scale, height: 2 * scale, backgroundColor: `#${t.accent}`, opacity: 0.35 }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 * scale }}>
+            {timeline.slice(0, 4).map((item, index) => (
+              <div key={index} style={{ width: `${100 / Math.max(4, timeline.length)}%`, textAlign: 'center' }}>
+                <div style={{ width: 16 * scale, height: 16 * scale, borderRadius: '50%', backgroundColor: `#${t.accent}`, margin: '0 auto 8px' }} />
+                <div style={{ color: `#${t.text}`, fontSize: 9 * scale, fontWeight: 800, marginBottom: 4 * scale }}>{item.label}</div>
+                <div style={{ color: `#${t.subtext}`, fontSize: 8.8 * scale, lineHeight: 1.3 }}>{item.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>}
+      {isProcess && <div style={{ position: 'absolute', inset: 0, padding: `${16 * scale}px ${18 * scale}px` }}>
+        <div style={{ color: `#${t.text}`, fontWeight: 800, fontSize: 14 * scale, marginBottom: 14 * scale }}>{slide.title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 * scale }}>
+          {processSteps.slice(0, 4).map((step, index) => (
+            <React.Fragment key={index}>
+              <div style={{ flex: 1, backgroundColor: `#${t.sectionBg}`, borderRadius: 8 * scale, padding: 10 * scale, minHeight: 76 * scale }}>
+                <div style={{ color: `#${t.accent}`, fontSize: 8 * scale, fontWeight: 800, marginBottom: 4 * scale }}>STEP {index + 1}</div>
+                <div style={{ color: `#${t.text}`, fontSize: 10 * scale, fontWeight: 700, lineHeight: 1.35 }}>{step}</div>
+              </div>
+              {index < Math.min(processSteps.length, 4) - 1 && <div style={{ color: `#${t.accent}`, fontSize: 18 * scale, fontWeight: 800 }}>→</div>}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>}
+      {isData && <div style={{ position: 'absolute', inset: 0, padding: `${16 * scale}px ${18 * scale}px` }}>
+        <div style={{ color: `#${t.text}`, fontWeight: 800, fontSize: 14 * scale, marginBottom: 8 * scale }}>{slide.title}</div>
+        {chart?.categories?.length ? (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 * scale, height: 145 * scale, marginTop: 6 * scale }}>
+            {chart.categories.slice(0, 4).map((label, index) => {
+              const value = chartValues[index] || 0;
+              const height = Math.max(18 * scale, (value / maxChartValue) * 92 * scale);
+              return (
+                <div key={index} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ height: 96 * scale, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <div style={{ width: 28 * scale, height, backgroundColor: `#${t.accent}`, borderRadius: `${6 * scale}px ${6 * scale}px 0 0` }} />
+                  </div>
+                  <div style={{ color: `#${t.subtext}`, fontSize: 8.5 * scale, marginTop: 6 * scale, lineHeight: 1.25 }}>{label}</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 * scale }}>
+            {(slide.stats || []).slice(0, 4).map((stat, index) => (
+              <div key={index} style={{ backgroundColor: `#${t.sectionBg}`, borderRadius: 8 * scale, padding: 10 * scale }}>
+                <div style={{ color: `#${t.accent}`, fontSize: 12 * scale, fontWeight: 900, marginBottom: 4 * scale }}>{stat.value}</div>
+                <div style={{ color: `#${t.subtext}`, fontSize: 9 * scale, lineHeight: 1.3 }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>}
+      {!isTitle && !isSection && !isQuote && !isTwoCol && !isComparison && !isCards && !isTimeline && !isProcess && !isData && <div style={{
         position: 'absolute', inset: 0,
         padding: `${14 * scale}px ${32 * scale}px ${20 * scale}px`
       }}>
@@ -99,55 +254,485 @@ const SlidePreview = ({ slide, theme, scale = 1, isActive = false, onClick }) =>
 };
 
 // ── PPTX Export ───────────────────────────────────────────────────────────────
+// Slide canvas: 13.333 × 7.5 in (16:9 wide). All measurements in inches.
+const SLIDE_W = 13.333;
+const SLIDE_H = 7.5;
+const MARGIN_X = 0.7;
+const FOOT_Y = SLIDE_H - 0.45;
+const FONT_HEAD = 'Aptos Display';
+const FONT_BODY = 'Aptos';
+
 const exportToPPTX = async (pptJson, theme) => {
   const PptxGenJS = (await import('pptxgenjs')).default;
-  const t = THEMES[theme] || THEMES.professional;
+  const t = THEMES[theme] || THEMES.consulting;
   const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_16x9';
+  pptx.layout = 'LAYOUT_WIDE';
   pptx.title = pptJson.title || 'Presentation';
-  for (const slide of pptJson.slides) {
+  pptx.author = 'FundCo Capital Managers';
+  pptx.company = 'FundCo Capital Managers';
+
+  const totalSlides = pptJson.slides.length;
+  const deckTitle = pptJson.title || 'Presentation';
+
+  const drawFooter = (s, idx) => {
+    s.addShape(pptx.shapes.LINE, {
+      x: MARGIN_X, y: FOOT_Y - 0.05, w: SLIDE_W - MARGIN_X * 2, h: 0,
+      line: { color: t.accent, width: 0.5, transparency: 70 },
+    });
+    s.addText(deckTitle, {
+      x: MARGIN_X, y: FOOT_Y, w: 6, h: 0.3,
+      fontFace: FONT_BODY, fontSize: 9, color: t.subtext, transparency: 30, margin: 0,
+    });
+    s.addText(`${idx + 1} / ${totalSlides}`, {
+      x: SLIDE_W - MARGIN_X - 1.2, y: FOOT_Y, w: 1.2, h: 0.3,
+      fontFace: FONT_BODY, fontSize: 9, color: t.subtext, transparency: 30, align: 'right', margin: 0,
+    });
+  };
+
+  const addObjectiveBand = (s, slide) => {
+    const objective = String(slide.objective || '').trim();
+    const keyMessage = String(slide.keyMessage || '').trim();
+    if (!objective && !keyMessage) return;
+    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+      x: SLIDE_W - 4.65, y: 0.78, w: 3.95, h: 0.78,
+      rectRadius: 0.06,
+      fill: { color: t.sectionBg || 'E7EDF4' }, line: { color: t.sectionBg || 'E7EDF4' },
+    });
+    s.addText(objective ? 'SLIDE OBJECTIVE' : 'KEY MESSAGE', {
+      x: SLIDE_W - 4.4, y: 0.95, w: 3.3, h: 0.14,
+      fontFace: FONT_BODY, fontSize: 8, bold: true, color: t.accent, charSpacing: 3, margin: 0,
+    });
+    s.addText(objective || keyMessage, {
+      x: SLIDE_W - 4.4, y: 1.12, w: 3.25, h: 0.26,
+      fontFace: FONT_BODY, fontSize: 10.5, bold: true, color: t.text, margin: 0,
+    });
+  };
+
+  const addKeyMessageCallout = (s, slide, x, y, w = 3.2) => {
+    if (!slide.keyMessage) return;
+    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+      x, y, w, h: 0.78,
+      rectRadius: 0.05,
+      fill: { color: t.sectionBg || 'E7EDF4' }, line: { color: t.sectionBg || 'E7EDF4' },
+    });
+    s.addText('Key message', {
+      x: x + 0.18, y: y + 0.12, w: w - 0.36, h: 0.16,
+      fontFace: FONT_BODY, fontSize: 8, bold: true, color: t.accent, charSpacing: 2, margin: 0,
+    });
+    s.addText(slide.keyMessage, {
+      x: x + 0.18, y: y + 0.29, w: w - 0.36, h: 0.32,
+      fontFace: FONT_BODY, fontSize: 11.5, bold: true, color: t.text, margin: 0,
+    });
+  };
+
+  for (let idx = 0; idx < pptJson.slides.length; idx++) {
+    const slide = pptJson.slides[idx];
+    const slideType = getSlideType(slide);
     const s = pptx.addSlide();
     s.background = { color: t.bg };
-    if (slide.type === 'title') {
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 2.8, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText(slide.title || '', { x: 0.6, y: 0.5, w: 8.8, h: 1.6, color: t.titleText, fontSize: 36, bold: true, align: 'center', valign: 'middle', margin: 0 });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 1, y: 3.2, w: 8, h: 1.2, color: t.subtext, fontSize: 18, align: 'center', margin: 0 });
-    } else if (slide.type === 'section') {
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 0.18, h: 5.625, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText('SECTION', { x: 0.5, y: 1.4, w: 9, h: 0.4, color: t.subtext, fontSize: 11, bold: true, charSpacing: 6, margin: 0 });
-      s.addText(slide.title || '', { x: 0.5, y: 1.9, w: 9, h: 2, color: t.text, fontSize: 32, bold: true, margin: 0 });
-      if (slide.subtitle) s.addText(slide.subtitle, { x: 0.5, y: 4.1, w: 9, h: 0.9, color: t.subtext, fontSize: 16, margin: 0 });
-    } else if (slide.type === 'quote') {
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText('\u201C', { x: 0.5, y: 0.3, w: 1.5, h: 1.5, color: t.accent, fontSize: 80, bold: true, margin: 0 });
-      s.addText(slide.quote || slide.title || '', { x: 0.8, y: 1.2, w: 8.4, h: 2.8, color: t.text, fontSize: 20, italic: true, align: 'center', valign: 'middle', margin: 0 });
-      if (slide.attribution) s.addText(`— ${slide.attribution}`, { x: 0.8, y: 4.5, w: 8.4, h: 0.6, color: t.subtext, fontSize: 13, align: 'center', margin: 0 });
-    } else if (slide.type === 'two-column') {
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText(slide.title || '', { x: 0.5, y: 0.2, w: 9, h: 0.8, color: t.text, fontSize: 20, bold: true, margin: 0 });
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0.4, y: 1.2, w: 4.2, h: 3.8, fill: { color: t.sectionBg }, line: { color: t.accent, pt: 1 } });
-      s.addText(slide.leftContent || '', { x: 0.6, y: 1.35, w: 3.8, h: 3.5, color: t.subtext, fontSize: 14, valign: 'top', margin: 0 });
-      s.addShape(pptx.shapes.RECTANGLE, { x: 5.4, y: 1.2, w: 4.2, h: 3.8, fill: { color: t.sectionBg }, line: { color: t.accent, pt: 1 } });
-      s.addText(slide.rightContent || '', { x: 5.6, y: 1.35, w: 3.8, h: 3.5, color: t.subtext, fontSize: 14, valign: 'top', margin: 0 });
-    } else if (slide.type === 'closing') {
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText('KEY TAKEAWAYS', { x: 0.5, y: 0.3, w: 9, h: 0.4, color: t.subtext, fontSize: 11, bold: true, charSpacing: 6, margin: 0 });
-      s.addText(slide.title || 'Thank You', { x: 0.5, y: 0.85, w: 9, h: 1, color: t.text, fontSize: 26, bold: true, margin: 0 });
-      if (slide.bullets?.length) {
-        const items = slide.bullets.map((b, i) => ({ text: b, options: { bullet: { code: '25CF', color: t.accent }, color: t.subtext, fontSize: 16, breakLine: i < slide.bullets.length - 1 } }));
-        s.addText(items, { x: 0.6, y: 2.0, w: 8.8, h: 3.2, valign: 'top', margin: 0 });
+    if (slide.note) s.addNotes(slide.note);
+
+    if (slideType === 'title') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: 0, y: 0, w: 4.6, h: SLIDE_H,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: 0.7, y: SLIDE_H - 1.2, w: 0.6, h: 0.06,
+        fill: { color: t.titleText }, line: { color: t.titleText },
+      });
+      s.addText('PRESENTED BY', {
+        x: 0.7, y: SLIDE_H - 1.55, w: 3.5, h: 0.3,
+        fontFace: FONT_BODY, fontSize: 10, bold: true, color: t.titleText, charSpacing: 4, transparency: 30, margin: 0,
+      });
+      s.addText('FundCo Capital Managers', {
+        x: 0.7, y: SLIDE_H - 1.0, w: 3.5, h: 0.45,
+        fontFace: FONT_HEAD, fontSize: 14, bold: true, color: t.titleText, margin: 0,
+      });
+      s.addText(slide.title || deckTitle, {
+        x: 5.0, y: 2.4, w: SLIDE_W - 5.5, h: 2.0,
+        fontFace: FONT_HEAD, fontSize: 44, bold: true, color: t.text, valign: 'top', margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: 5.0, y: 4.5, w: SLIDE_W - 5.5, h: 1.0,
+        fontFace: FONT_BODY, fontSize: 18, color: t.subtext, valign: 'top', margin: 0,
+      });
+    } else if (slideType === 'section') {
+      const num = String(idx + 1).padStart(2, '0');
+      s.addText(num, {
+        x: MARGIN_X, y: 1.1, w: 3.0, h: 1.6,
+        fontFace: FONT_HEAD, fontSize: 96, bold: true, color: t.accent, transparency: 25, margin: 0,
+      });
+      s.addText('SECTION', {
+        x: MARGIN_X, y: 2.9, w: 3.0, h: 0.3,
+        fontFace: FONT_BODY, fontSize: 11, bold: true, color: t.subtext, charSpacing: 6, margin: 0,
+      });
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 3.3, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 3.5, w: SLIDE_W - MARGIN_X * 2, h: 1.6,
+        fontFace: FONT_HEAD, fontSize: 40, bold: true, color: t.text, valign: 'top', margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: MARGIN_X, y: 5.2, w: SLIDE_W - MARGIN_X * 2, h: 1.0,
+        fontFace: FONT_BODY, fontSize: 17, color: t.subtext, valign: 'top', margin: 0,
+      });
+      drawFooter(s, idx);
+    } else if (slideType === 'quote') {
+      s.addText('\u201C', {
+        x: MARGIN_X, y: 0.7, w: 1.5, h: 2.0,
+        fontFace: 'Georgia', fontSize: 160, bold: true, color: t.accent, transparency: 30, margin: 0,
+      });
+      s.addText(slide.quote || slide.title || '', {
+        x: MARGIN_X + 0.4, y: 2.2, w: SLIDE_W - MARGIN_X * 2 - 0.4, h: 3.0,
+        fontFace: FONT_HEAD, fontSize: 28, italic: true, color: t.text, valign: 'top', margin: 0,
+      });
+      if (slide.attribution) {
+        s.addShape(pptx.shapes.RECTANGLE, {
+          x: MARGIN_X + 0.4, y: 5.5, w: 0.4, h: 0.04,
+          fill: { color: t.accent }, line: { color: t.accent },
+        });
+        s.addText(slide.attribution, {
+          x: MARGIN_X + 0.95, y: 5.4, w: 6, h: 0.4,
+          fontFace: FONT_BODY, fontSize: 14, bold: true, color: t.subtext, margin: 0,
+        });
       }
+      drawFooter(s, idx);
+    } else if (slideType === 'two-column') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: SLIDE_W - MARGIN_X * 2, h: 0.7,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: MARGIN_X, y: 1.6, w: SLIDE_W - MARGIN_X * 2, h: 0.4,
+        fontFace: FONT_BODY, fontSize: 14, color: t.subtext, margin: 0,
+      });
+      const colY = 2.3;
+      const colH = SLIDE_H - colY - 0.8;
+      const gap = 0.4;
+      const colW = (SLIDE_W - MARGIN_X * 2 - gap) / 2;
+      const cols = [
+        { title: slide.leftTitle, body: slide.leftContent, x: MARGIN_X },
+        { title: slide.rightTitle, body: slide.rightContent, x: MARGIN_X + colW + gap },
+      ];
+      cols.forEach((c) => {
+        s.addShape(pptx.shapes.RECTANGLE, {
+          x: c.x, y: colY, w: colW, h: colH,
+          fill: { color: t.sectionBg }, line: { color: t.sectionBg },
+        });
+        s.addShape(pptx.shapes.RECTANGLE, {
+          x: c.x, y: colY, w: colW, h: 0.08,
+          fill: { color: t.accent }, line: { color: t.accent },
+        });
+        if (c.title) s.addText(c.title, {
+          x: c.x + 0.3, y: colY + 0.25, w: colW - 0.6, h: 0.5,
+          fontFace: FONT_HEAD, fontSize: 16, bold: true, color: t.text, margin: 0,
+        });
+        s.addText(c.body || '', {
+          x: c.x + 0.3, y: colY + (c.title ? 0.85 : 0.35), w: colW - 0.6, h: colH - (c.title ? 1.1 : 0.6),
+          fontFace: FONT_BODY, fontSize: 14, color: t.subtext, valign: 'top', margin: 0, paraSpaceAfter: 4,
+        });
+      });
+      drawFooter(s, idx);
+    } else if (slideType === 'comparison') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: 7.4, h: 0.75,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: MARGIN_X, y: 1.62, w: 7.2, h: 0.35,
+        fontFace: FONT_BODY, fontSize: 14, color: t.subtext, margin: 0,
+      });
+      const colY = 2.2;
+      const colH = 3.9;
+      const gap = 0.42;
+      const colW = (SLIDE_W - MARGIN_X * 2 - gap) / 2;
+      [
+        { title: slide.leftTitle || 'Current state', body: slide.leftContent || 'Current position', x: MARGIN_X, fill: t.sectionBg || 'E7EDF4' },
+        { title: slide.rightTitle || 'Recommended state', body: slide.rightContent || 'Recommended position', x: MARGIN_X + colW + gap, fill: 'EDF4FB' },
+      ].forEach((column, columnIndex) => {
+        s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+          x: column.x, y: colY, w: colW, h: colH,
+          rectRadius: 0.05,
+          fill: { color: column.fill }, line: { color: column.fill },
+        });
+        s.addText(column.title, {
+          x: column.x + 0.28, y: colY + 0.24, w: colW - 0.56, h: 0.35,
+          fontFace: FONT_BODY, fontSize: 12, bold: true, color: columnIndex === 0 ? t.subtext : t.accent, charSpacing: 1.5, margin: 0,
+        });
+        s.addText(column.body, {
+          x: column.x + 0.28, y: colY + 0.68, w: colW - 0.56, h: colH - 1.0,
+          fontFace: FONT_BODY, fontSize: 15, color: t.text, valign: 'top', margin: 0, breakLine: false,
+        });
+      });
+      addKeyMessageCallout(s, slide, MARGIN_X, 6.35, 4.5);
+      drawFooter(s, idx);
+    } else if (slideType === 'cards') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: 7.4, h: 0.75,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      const cards = getSlideCards(slide);
+      const gap = 0.28;
+      const cardW = (SLIDE_W - MARGIN_X * 2 - gap) / 2;
+      const cardH = 1.62;
+      cards.slice(0, 4).forEach((card, cardIndex) => {
+        const x = MARGIN_X + (cardIndex % 2) * (cardW + gap);
+        const y = 2.1 + Math.floor(cardIndex / 2) * (cardH + 0.3);
+        s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+          x, y, w: cardW, h: cardH,
+          rectRadius: 0.05,
+          fill: { color: cardIndex % 2 === 0 ? (t.sectionBg || 'E7EDF4') : 'EDF4FB' },
+          line: { color: cardIndex % 2 === 0 ? (t.sectionBg || 'E7EDF4') : 'EDF4FB' },
+        });
+        s.addText(card.metric || `0${cardIndex + 1}`, {
+          x: x + 0.22, y: y + 0.18, w: 0.9, h: 0.24,
+          fontFace: FONT_BODY, fontSize: 11, bold: true, color: t.accent, margin: 0,
+        });
+        s.addText(card.title, {
+          x: x + 0.22, y: y + 0.5, w: cardW - 0.44, h: 0.28,
+          fontFace: FONT_HEAD, fontSize: 16, bold: true, color: t.text, margin: 0,
+        });
+        s.addText(card.body, {
+          x: x + 0.22, y: y + 0.82, w: cardW - 0.44, h: 0.58,
+          fontFace: FONT_BODY, fontSize: 12.5, color: t.subtext, valign: 'top', margin: 0,
+        });
+      });
+      drawFooter(s, idx);
+    } else if (slideType === 'timeline') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: 7.4, h: 0.75,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      const items = getTimelineItems(slide).slice(0, 5);
+      s.addShape(pptx.shapes.LINE, {
+        x: 1.2, y: 3.6, w: 10.9, h: 0,
+        line: { color: t.accent, width: 1.1, transparency: 25 },
+      });
+      items.forEach((item, itemIndex) => {
+        const x = 1.1 + itemIndex * (10.2 / Math.max(items.length - 1, 1));
+        s.addShape(pptx.shapes.ELLIPSE, {
+          x, y: 3.36, w: 0.34, h: 0.34,
+          fill: { color: t.accent }, line: { color: t.accent },
+        });
+        s.addText(item.label, {
+          x: x - 0.25, y: 2.7, w: 1.0, h: 0.32,
+          fontFace: FONT_BODY, fontSize: 11, bold: true, color: t.text, align: 'center', margin: 0,
+        });
+        s.addText(item.detail, {
+          x: x - 0.55, y: 3.95, w: 1.6, h: 1.1,
+          fontFace: FONT_BODY, fontSize: 11.5, color: t.subtext, align: 'center', valign: 'top', margin: 0,
+        });
+      });
+      drawFooter(s, idx);
+    } else if (slideType === 'process') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: 7.4, h: 0.75,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      const steps = getProcessSteps(slide).slice(0, 4);
+      const gap = 0.2;
+      const stepW = (SLIDE_W - MARGIN_X * 2 - gap * Math.max(steps.length - 1, 0)) / Math.max(steps.length, 1);
+      steps.forEach((step, stepIndex) => {
+        const x = MARGIN_X + stepIndex * (stepW + gap);
+        s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+          x, y: 2.6, w: stepW, h: 1.7,
+          rectRadius: 0.05,
+          fill: { color: t.sectionBg || 'E7EDF4' }, line: { color: t.sectionBg || 'E7EDF4' },
+        });
+        s.addText(`STEP ${stepIndex + 1}`, {
+          x: x + 0.18, y: 2.8, w: stepW - 0.36, h: 0.18,
+          fontFace: FONT_BODY, fontSize: 9, bold: true, color: t.accent, charSpacing: 2, margin: 0,
+        });
+        s.addText(step, {
+          x: x + 0.18, y: 3.1, w: stepW - 0.36, h: 0.72,
+          fontFace: FONT_HEAD, fontSize: 15, bold: true, color: t.text, valign: 'mid', margin: 0,
+        });
+        if (stepIndex < steps.length - 1) {
+          s.addText('\u2192', {
+            x: x + stepW - 0.02, y: 3.15, w: 0.24, h: 0.3,
+            fontFace: FONT_HEAD, fontSize: 18, bold: true, color: t.accent, align: 'center', margin: 0,
+          });
+        }
+      });
+      drawFooter(s, idx);
+    } else if (slideType === 'data') {
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: SLIDE_W - MARGIN_X * 2, h: 0.7,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: MARGIN_X, y: 1.6, w: SLIDE_W - MARGIN_X * 2, h: 0.4,
+        fontFace: FONT_BODY, fontSize: 14, color: t.subtext, margin: 0,
+      });
+      const chart = getChartData(slide);
+      const stats = (slide.stats?.length ? slide.stats : (slide.bullets || []).map((b) => ({ value: '', label: b }))).slice(0, 4);
+      if (chart?.categories?.length && chart?.series?.[0]?.values?.length) {
+        const values = chart.series[0].values.slice(0, 5);
+        const categories = chart.categories.slice(0, values.length);
+        const maxValue = Math.max(...values, 1);
+        const chartX = 0.95;
+        const chartY = 2.35;
+        const chartW = 7.15;
+        const baseY = 5.55;
+        const slot = chartW / Math.max(values.length, 1);
+        s.addShape(pptx.shapes.LINE, {
+          x: chartX, y: baseY, w: chartW, h: 0,
+          line: { color: t.subtext, width: 0.6, transparency: 35 },
+        });
+        values.forEach((value, valueIndex) => {
+          const barH = Math.max(0.45, (value / maxValue) * 2.3);
+          const x = chartX + valueIndex * slot + slot * 0.22;
+          const width = slot * 0.42;
+          s.addShape(pptx.shapes.RECTANGLE, {
+            x, y: baseY - barH, w: width, h: barH,
+            fill: { color: t.accent }, line: { color: t.accent },
+          });
+          s.addText(String(value), {
+            x: x - 0.05, y: baseY - barH - 0.28, w: width + 0.1, h: 0.2,
+            fontFace: FONT_BODY, fontSize: 9, bold: true, color: t.text, align: 'center', margin: 0,
+          });
+          s.addText(categories[valueIndex], {
+            x: x - 0.15, y: baseY + 0.1, w: width + 0.3, h: 0.45,
+            fontFace: FONT_BODY, fontSize: 9, color: t.subtext, align: 'center', margin: 0,
+          });
+        });
+        addKeyMessageCallout(s, slide, 9.15, 2.35, 3.35);
+        if (chart.insight) {
+          s.addText(chart.insight, {
+            x: 9.15, y: 3.35, w: 3.35, h: 0.9,
+            fontFace: FONT_BODY, fontSize: 14, color: t.subtext, valign: 'top', margin: 0,
+          });
+        }
+      } else {
+        const statY = 2.4;
+        const statH = 3.6;
+        const sgap = 0.3;
+        const statW = (SLIDE_W - MARGIN_X * 2 - sgap * (Math.max(stats.length, 1) - 1)) / Math.max(stats.length, 1);
+        stats.forEach((stat, i) => {
+          const x = MARGIN_X + i * (statW + sgap);
+          s.addShape(pptx.shapes.RECTANGLE, {
+            x, y: statY, w: statW, h: statH,
+            fill: { color: t.sectionBg || 'E7EDF4' }, line: { color: t.sectionBg || 'E7EDF4' },
+          });
+          s.addShape(pptx.shapes.RECTANGLE, {
+            x, y: statY, w: 0.1, h: statH,
+            fill: { color: t.accent }, line: { color: t.accent },
+          });
+          s.addText(stat.value || '\u2014', {
+            x: x + 0.3, y: statY + 0.6, w: statW - 0.6, h: 1.6,
+            fontFace: FONT_HEAD, fontSize: 44, bold: true, color: t.accent, valign: 'top', margin: 0,
+          });
+          s.addText(stat.label || '', {
+            x: x + 0.3, y: statY + 2.2, w: statW - 0.6, h: 1.2,
+            fontFace: FONT_BODY, fontSize: 13, color: t.subtext, valign: 'top', margin: 0,
+          });
+        });
+      }
+      drawFooter(s, idx);
+    } else if (slideType === 'closing') {
+      s.addText('KEY TAKEAWAYS', {
+        x: MARGIN_X, y: 0.7, w: SLIDE_W - MARGIN_X * 2, h: 0.3,
+        fontFace: FONT_BODY, fontSize: 11, bold: true, color: t.accent, charSpacing: 6, margin: 0,
+      });
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 1.1, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      s.addText(slide.title || 'Thank You', {
+        x: MARGIN_X, y: 1.3, w: SLIDE_W - MARGIN_X * 2, h: 0.9,
+        fontFace: FONT_HEAD, fontSize: 32, bold: true, color: t.text, margin: 0,
+      });
+      if (slide.bullets?.length) {
+        const items = slide.bullets.map((b, i) => ({
+          text: `${i + 1}. ${b}`,
+          options: { color: t.text, fontFace: FONT_BODY, fontSize: 18, breakLine: i < slide.bullets.length - 1, paraSpaceAfter: 8 },
+        }));
+        s.addText(items, {
+          x: MARGIN_X, y: 2.5, w: SLIDE_W - MARGIN_X * 2, h: 4.0,
+          valign: 'top', margin: 0,
+        });
+      }
+      drawFooter(s, idx);
     } else {
-      // Default bullets
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: t.accent }, line: { color: t.accent } });
-      s.addText(slide.title || '', { x: 0.5, y: 0.25, w: 9, h: 0.85, color: t.text, fontSize: 22, bold: true, margin: 0 });
-      s.addShape(pptx.shapes.RECTANGLE, { x: 0.5, y: 1.15, w: 9, h: 0.03, fill: { color: t.accent }, line: { color: t.accent } });
+      s.addShape(pptx.shapes.RECTANGLE, {
+        x: MARGIN_X, y: 0.7, w: 0.5, h: 0.06,
+        fill: { color: t.accent }, line: { color: t.accent },
+      });
+      addObjectiveBand(s, slide);
+      s.addText(slide.title || '', {
+        x: MARGIN_X, y: 0.9, w: SLIDE_W - MARGIN_X * 2, h: 0.85,
+        fontFace: FONT_HEAD, fontSize: 28, bold: true, color: t.text, margin: 0,
+      });
+      if (slide.subtitle) s.addText(slide.subtitle, {
+        x: MARGIN_X, y: 1.7, w: SLIDE_W - MARGIN_X * 2, h: 0.4,
+        fontFace: FONT_BODY, fontSize: 14, color: t.subtext, margin: 0,
+      });
+      const bulletsTop = slide.subtitle ? 2.2 : 1.9;
+      const bulletsHeight = FOOT_Y - bulletsTop - 0.2;
       if (slide.bullets?.length) {
-        const items = slide.bullets.map((b, i) => ({ text: b, options: { bullet: { code: '25CF', color: t.accent }, color: t.subtext, fontSize: 16, breakLine: i < slide.bullets.length - 1 } }));
-        s.addText(items, { x: 0.6, y: 1.35, w: 8.8, h: 3.8, valign: 'top', margin: 0 });
+        const items = slide.bullets.map((b, i) => ({
+          text: b,
+          options: {
+            bullet: { code: '25A0', color: t.accent },
+            color: t.text, fontFace: FONT_BODY, fontSize: 18,
+            breakLine: i < slide.bullets.length - 1, paraSpaceAfter: 10, indent: 18,
+          },
+        }));
+        s.addText(items, {
+          x: MARGIN_X, y: bulletsTop, w: SLIDE_W - MARGIN_X * 2, h: bulletsHeight,
+          valign: 'top', margin: 0,
+        });
       }
+      if (slide.visualElements?.length) {
+        const chips = slide.visualElements.slice(0, 4);
+        chips.forEach((chip, chipIndex) => {
+          const chipX = MARGIN_X + chipIndex * 1.45;
+          s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+            x: chipX, y: 6.2, w: 1.22, h: 0.34,
+            rectRadius: 0.03,
+            fill: { color: t.sectionBg || 'E7EDF4' }, line: { color: t.sectionBg || 'E7EDF4' },
+          });
+          s.addText(chip, {
+            x: chipX + 0.08, y: 6.28, w: 1.06, h: 0.14,
+            fontFace: FONT_BODY, fontSize: 8.5, bold: true, color: t.accent, align: 'center', margin: 0,
+          });
+        });
+      }
+      drawFooter(s, idx);
     }
-    s.addText(String(slide.id || ''), { x: 9.2, y: 5.3, w: 0.6, h: 0.25, color: t.subtext, fontSize: 9, align: 'right', margin: 0, transparency: 50 });
   }
   await pptx.writeFile({ fileName: `${(pptJson.title || 'Presentation').replace(/[^a-z0-9]/gi, '_')}.pptx` });
 };
@@ -245,7 +830,7 @@ const SlideEditor = ({ slide, onUpdate, onRegenerate, onDelete, onAddSlide, isRe
       <div>
         <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Slide Type</label>
         <select value={local.type} onChange={e => upd('type', e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
-          {['title', 'section', 'bullets', 'two-column', 'quote', 'closing'].map(tp => (
+          {['title', 'section', 'bullets', 'two-column', 'comparison', 'cards', 'timeline', 'process', 'quote', 'data', 'closing'].map(tp => (
             <option key={tp} value={tp}>{tp.charAt(0).toUpperCase() + tp.slice(1).replace('-', ' ')}</option>
           ))}
         </select>
@@ -277,11 +862,11 @@ const DeckPrep = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const [regenIdx, setRegenIdx] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
-  const [theme, setTheme] = useState('professional');
+  const [theme, setTheme] = useState('consulting');
   const [slideCount, setSlideCount] = useState(12);
   const [audience, setAudience] = useState('business');
-  const [extractPrompt, setExtractPrompt] = useState('Extract key points, headings, summaries, tables, and meaningful insights. Group by topic.');
-  const [pptPrompt, setPptPrompt] = useState('Generate a professional presentation. First slide = compelling title. Last slide = key takeaways.');
+  const [extractPrompt, setExtractPrompt] = useState('Read the full document like a strategist and presentation editor. Preserve the real meaning, identify audience and purpose, extract the strongest arguments and data, group content into a clear narrative, and structure the text into presentation-ready sections instead of raw paragraphs.');
+  const [pptPrompt, setPptPrompt] = useState('Design a consulting-style presentation with a compelling title slide, clear story flow, concise executive messaging, strong slide objectives, and smart visual layouts. Use comparisons, timelines, cards, process diagrams, and data-focused slides whenever they communicate better than bullets.');
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
@@ -289,6 +874,15 @@ const DeckPrep = () => {
 
   const load = (msg) => { setLoading(true); setLoadingMsg(msg); setError(''); };
   const done = () => { setLoading(false); setLoadingMsg(''); };
+
+  const persistFullText = useCallback(async (documentId = docId, nextText = fullText) => {
+    if (!documentId) return;
+    await axios.post(
+      `${API}/api/documents/save-text`,
+      { documentId, fullText: nextText },
+      { headers: headers() }
+    );
+  }, [docId, fullText]);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -340,11 +934,17 @@ const DeckPrep = () => {
     setError('');
     try {
       const fd = new FormData();
-      fd.append('files', f);
-      const up = await axios.post(`${API}/api/files/upload`, fd, { headers: headers() });
-      const fid = up.data.files[0]._id;
-      const cr = await axios.post(`${API}/api/documents`, { fileId: fid }, { headers: headers() });
+      fd.append('file', f);
+      const cr = await axios.post(`${API}/api/documents/upload-pdf`, fd, {
+        headers: {
+          ...headers(),
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       setDocId(cr.data.document._id);
+      setFullText(cr.data.fullText || '');
+      setExtractedText('');
+      setPptJson(null);
       toast.success('PDF ready!');
       return cr.data.document._id;
     } catch (e) {
@@ -364,7 +964,13 @@ const DeckPrep = () => {
     if (file && !docId) { id = await uploadPDF(file); if (!id) { done(); return; } }
     setLoadingMsg('AI is reading and building your presentation…');
     try {
-      const r = await axios.post(`${API}/api/documents/quick-convert`, { documentId: id, slideCount, theme, audience }, { headers: headers() });
+      const r = await axios.post(`${API}/api/documents/quick-convert`, {
+        documentId: id,
+        slideCount,
+        theme,
+        audience,
+        sourceText: fullText.trim() || undefined,
+      }, { headers: headers() });
       setPptJson(r.data.pptJson); setFullText(r.data.fullText || ''); setActiveSlide(0); setMode('editor'); fetchHistory();
       toast.success(`${r.data.pptJson.slides.length} slides generated!`);
     } catch (e) { setError(e.response?.data?.message || 'Quick convert failed'); toast.error('Failed'); }
@@ -372,18 +978,89 @@ const DeckPrep = () => {
   };
 
   const handleRawExtract = async () => {
-    load('Extracting PDF text with AI…');
+    load('Reading the PDF…');
     try {
-      const r = await axios.post(`${API}/api/documents/raw-extract`, { documentId: docId }, { headers: headers() });
-      setFullText(r.data.fullText); setStep(3); toast.success('Text extracted!');
-    } catch (e) { setError(e.response?.data?.message || 'Extraction failed'); }
+      const r = await axios.post(`${API}/api/documents/pdf-to-text`, { documentId: docId }, { headers: headers() });
+      setFullText(r.data.fullText); setStep(3);
+      toast.success(`Extracted ${r.data.wordCount?.toLocaleString() || ''} words from ${r.data.pages || '?'} page${r.data.pages === 1 ? '' : 's'}`);
+    } catch (e) { setError(e.response?.data?.message || 'Extraction failed'); toast.error(e.response?.data?.message || 'Extraction failed'); }
     finally { done(); }
+  };
+
+  // PDF Reader mode: deterministic full extraction, then user picks the next step.
+  const handlePdfToText = async () => {
+    if (!file && !docId) return toast.error('Upload a PDF first');
+    load('Uploading PDF…');
+    let id = docId;
+    if (file && !docId) {
+      id = await uploadPDF(file);
+      if (!id) { done(); return; }
+    }
+    setLoadingMsg('Extracting full text…');
+    try {
+      const r = await axios.post(`${API}/api/documents/pdf-to-text`, { documentId: id }, { headers: headers() });
+      setFullText(r.data.fullText);
+      setMode('reader');
+      toast.success(`Extracted ${r.data.wordCount?.toLocaleString() || ''} words from ${r.data.pages || '?'} page${r.data.pages === 1 ? '' : 's'}`);
+      fetchHistory();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Extraction failed');
+      toast.error(e.response?.data?.message || 'Extraction failed');
+    } finally { done(); }
+  };
+
+  // From Reader → Quick Convert (re-uses the cached fullText on the server).
+  const handleReaderToQuick = async () => {
+    if (!docId) return toast.error('No document loaded');
+    load('Building your presentation from the extracted text…');
+    try {
+      const r = await axios.post(`${API}/api/documents/quick-convert`,
+        {
+          documentId: docId,
+          slideCount,
+          theme,
+          audience,
+          sourceText: fullText.trim() || undefined,
+        }, { headers: headers() });
+      setPptJson(r.data.pptJson); setActiveSlide(0); setMode('editor'); fetchHistory();
+      toast.success(`${r.data.pptJson.slides.length} slides generated!`);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Generation failed');
+      toast.error(e.response?.data?.message || 'Generation failed');
+    } finally { done(); }
+  };
+
+  // From Reader → Guided Builder (skip upload + extract since we already have text).
+  const handleReaderToGuided = () => {
+    if (!docId) return toast.error('No document loaded');
+    setMode('guided');
+    setStep(4);
+    toast.success('Continue with the AI-Guided Builder');
+  };
+
+  // Persist user edits to full text back to the server, so subsequent
+  // generation steps use the edited version.
+  const handleReaderSave = async () => {
+    if (!docId) return;
+    setAutoSaving(true);
+    try {
+      await persistFullText(docId, fullText);
+      toast.success('Saved');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Save failed');
+    } finally {
+      setAutoSaving(false);
+    }
   };
 
   const handleMeaningfulExtract = async () => {
     load('AI is structuring content…');
     try {
-      const r = await axios.post(`${API}/api/documents/extract`, { documentId: docId, prompt: extractPrompt }, { headers: headers() });
+      const r = await axios.post(`${API}/api/documents/extract`, {
+        documentId: docId,
+        prompt: extractPrompt,
+        fullText,
+      }, { headers: headers() });
       setExtractedText(r.data.extractedText); setStep(5); toast.success('Content structured!');
     } catch (e) { setError(e.response?.data?.message || 'Failed'); }
     finally { done(); }
@@ -392,7 +1069,15 @@ const DeckPrep = () => {
   const handleGeneratePPT = async () => {
     load('AI is building your slides…');
     try {
-      const r = await axios.post(`${API}/api/documents/generate-ppt`, { documentId: docId, prompt: pptPrompt, slideCount, theme }, { headers: headers() });
+      const r = await axios.post(`${API}/api/documents/generate-ppt`, {
+        documentId: docId,
+        prompt: pptPrompt,
+        slideCount,
+        theme,
+        audience,
+        fullText,
+        sourceText: extractedText.trim() || fullText.trim() || undefined,
+      }, { headers: headers() });
       setPptJson(r.data.pptJson); setActiveSlide(0); setMode('editor'); fetchHistory();
       toast.success(`${r.data.pptJson.slides.length} slides created!`);
     } catch (e) { setError(e.response?.data?.message || 'Failed'); }
@@ -427,9 +1112,12 @@ const DeckPrep = () => {
   };
 
   const loadFromHistory = (h) => {
+    setFile(null);
     setDocId(h._id); setFullText(h.fullText || ''); setExtractedText(h.extractedText || '');
     if (h.pptJson) { setPptJson(h.pptJson); setMode('editor'); setActiveSlide(0); }
-    else { setMode('guided'); setStep(h.fullText ? 4 : 2); }
+    else if (h.extractedText) { setMode('guided'); setStep(5); }
+    else if (h.fullText) { setMode('reader'); }
+    else { setMode('guided'); setStep(2); }
     toast.success('Loaded!');
   };
 
@@ -480,7 +1168,7 @@ const DeckPrep = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-3" style={{ color: 'var(--text-primary)' }}>
-            <span className="text-3xl">📊</span> FundCo DeckPrep AI
+             FundCo DeckPrep AI
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Convert PDFs into polished PowerPoint presentations</p>
         </div>
@@ -493,15 +1181,19 @@ const DeckPrep = () => {
         </button>}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {[
-          { key: 'quick', icon: Zap, title: 'Quick Convert', desc: 'Upload a PDF and get a complete polished presentation in one click. AI reads, structures, and designs everything.', tags: ['PDF Upload', 'AI Extraction', 'Auto Slides', 'PPTX Export'], color: 'var(--brand-primary)', bg: 'var(--brand-light)' },
-          { key: 'guided', icon: Wand2, title: 'AI-Guided Builder', desc: 'Full control at every step — extract raw text, structure content with custom prompts, then generate and fine-tune slides.', tags: ['Step-by-Step', 'Custom Prompts', 'Full Control', 'Edit Everything'], color: '#36a9e1', bg: 'rgba(54,169,225,.1)' },
+          { key: 'reader-start', icon: AlignLeft, title: 'PDF to Text', desc: 'Convert a PDF to clean, full text — every paragraph, heading, list and table preserved. Edit, copy, or send straight to the deck builder.', tags: ['Full Text', 'No Summary', 'Editable', 'Send Forward'], color: 'var(--brand-primary)', bg: 'var(--brand-light)' },
+          { key: 'quick', icon: Zap, title: 'Quick Convert', desc: 'Upload a PDF and get a polished presentation in one click. AI reads, structures, and designs everything.', tags: ['One-Click', 'AI Slides', 'Auto Theme', 'PPTX Export'], color: '#36a9e1', bg: 'rgba(54,169,225,.1)' },
+          { key: 'guided', icon: Wand2, title: 'AI-Guided Builder', desc: 'Full control at every step — extract raw text, structure content with your prompt, then generate and fine-tune slides.', tags: ['Step-by-Step', 'Custom Prompts', 'Edit Everything'], color: '#0f9f6e', bg: 'rgba(15,159,110,.1)' },
         ].map(card => (
           <motion.div key={card.key} whileHover={{ y: -2 }}
-            className="rounded-2xl border p-8 cursor-pointer transition-all"
+            className="rounded-2xl border p-6 cursor-pointer transition-all"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}
-            onClick={() => { setMode(card.key); if (card.key === 'guided') setStep(1); }}
+            onClick={() => {
+              if (card.key === 'reader-start') { setMode('reader-upload'); setFile(null); setDocId(null); setFullText(''); }
+              else { setMode(card.key); if (card.key === 'guided') setStep(1); }
+            }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = card.color; e.currentTarget.style.boxShadow = '0 8px 24px var(--shadow-color)'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}>
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: card.bg }}>
@@ -538,7 +1230,7 @@ const DeckPrep = () => {
                 <FileText className="w-5 h-5" style={{ color: h.pptJson ? 'var(--brand-primary)' : 'var(--text-muted)' }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{h.originalFileId?.fileName || 'Untitled'}</p>
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{getDocumentFileName(h)}</p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {h.pptJson ? `${h.pptJson.slides?.length || 0} slides` : 'No slides'} · {new Date(h.createdAt).toLocaleDateString()}
                 </p>
@@ -634,6 +1326,156 @@ const DeckPrep = () => {
     </div>
   );
 
+  // ── PDF READER (UPLOAD) ───────────────────────────────────────────────────
+  if (mode === 'reader-upload') return (
+    <div className="space-y-6 py-4 max-w-2xl mx-auto">
+      <Toaster position="top-right" />
+      <button onClick={() => setMode('home')} className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        <ChevronLeft className="w-4 h-4" /> Back
+      </button>
+      <div>
+        <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>PDF to Text</h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>Get the full, structured text from any searchable PDF — no summaries, no scattered output.</p>
+      </div>
+      <div onClick={() => fileRef.current?.click()}
+        className="rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all"
+        style={{ borderColor: file ? 'var(--brand-primary)' : 'var(--border-color)', backgroundColor: file ? 'var(--brand-light)' : 'var(--bg-surface)' }}
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.name.endsWith('.pdf')) { setFile(f); setDocId(null); } else toast.error('PDF only'); }}>
+        <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={e => { if (e.target.files[0]) { setFile(e.target.files[0]); setDocId(null); } }} />
+        {file ? <>
+          <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary)' }}><FileText className="w-6 h-6 text-white" /></div>
+          <p className="font-bold" style={{ color: 'var(--text-primary)' }}>{file.name}</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+          <button onClick={e => { e.stopPropagation(); setFile(null); setDocId(null); }} className="mt-2 text-xs" style={{ color: '#dc2626' }}>Remove</button>
+        </> : <>
+          <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+          <p className="font-bold" style={{ color: 'var(--text-primary)' }}>Drop PDF here or click to browse</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Searchable PDFs only — scanned/image PDFs need OCR first.</p>
+        </>}
+      </div>
+      {history.filter(h => h.originalFileId).length > 0 && <div>
+        <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Or reuse a previous PDF</p>
+        <div className="space-y-2 max-h-40 overflow-y-auto">
+          {history.filter(h => h.originalFileId).slice(0, 5).map(h => (
+            <div key={h._id} onClick={() => { setDocId(h._id); setFile(null); }}
+              className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer"
+              style={{ backgroundColor: docId === h._id ? 'var(--brand-light)' : 'var(--bg-surface)', borderColor: docId === h._id ? 'var(--brand-primary)' : 'var(--border-color)' }}>
+              <FileText className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />
+              <span className="text-sm truncate flex-1" style={{ color: 'var(--text-primary)' }}>{h.originalFileId.fileName}</span>
+              {docId === h._id && <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--brand-primary)' }} />}
+            </div>
+          ))}
+        </div>
+      </div>}
+      <ErrorBox msg={error} />
+      <button onClick={handlePdfToText} disabled={!file && !docId}
+        className="w-full py-4 rounded-xl text-base font-black text-white flex items-center justify-center gap-3 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{ backgroundColor: 'var(--brand-primary)' }}>
+        <FileText className="w-5 h-5" /> Extract Full Text
+      </button>
+    </div>
+  );
+
+  // ── PDF READER (STRUCTURED VIEW) ──────────────────────────────────────────
+  if (mode === 'reader') {
+    const wordCount = (fullText || '').split(/\s+/).filter(Boolean).length;
+    const charCount = (fullText || '').length;
+    return (
+      <div className="space-y-5 py-4 max-w-5xl mx-auto">
+        <Toaster position="top-right" />
+        <button onClick={() => setMode('home')} className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+          <ChevronLeft className="w-4 h-4" /> Back
+        </button>
+
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>Extracted Text</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>{wordCount.toLocaleString()} words · {charCount.toLocaleString()} characters</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { navigator.clipboard?.writeText(fullText); toast.success('Copied to clipboard'); }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
+              <FileText className="w-3.5 h-3.5" /> Copy
+            </button>
+            <button
+              onClick={() => {
+                downloadPlainText(fullText, pptJson?.title || 'extracted-text');
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold"
+              style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
+              <Download className="w-3.5 h-3.5" /> Download .txt
+            </button>
+            <button
+              onClick={handleReaderSave}
+              disabled={autoSaving}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white"
+              style={{ backgroundColor: 'var(--brand-primary)' }}>
+              {autoSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Save edits
+            </button>
+          </div>
+        </div>
+
+        <ErrorBox msg={error} />
+
+        <div className="rounded-2xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+          <div className="px-5 py-3 border-b flex items-center justify-between" style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'var(--border-color)' }}>
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" style={{ color: 'var(--brand-primary)' }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Document body</span>
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Editable</span>
+          </div>
+          <textarea
+            value={fullText}
+            onChange={e => setFullText(e.target.value)}
+            rows={28}
+            className="w-full px-7 py-6 text-[14px] leading-7 focus:outline-none resize-y"
+            style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'Georgia, "Source Serif Pro", serif' }}
+          />
+        </div>
+
+        <div className="rounded-2xl border p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
+          <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <Sparkles className="w-4 h-4" /> Send to deck builder
+          </h3>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Use the text above to generate a presentation. Choose how much control you want.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Slides</label>
+              <input type="number" min={6} max={30} value={slideCount} onChange={e => setSlideCount(+e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none" style={inp} onFocus={inpFocus} onBlur={inpBlur} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>Theme</label>
+              <select value={theme} onChange={e => setTheme(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none" style={inp}>
+                {Object.entries(THEMES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={async () => { await handleReaderSave(); handleReaderToQuick(); }}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold hover:opacity-90"
+              style={{ backgroundColor: 'var(--brand-primary)' }}>
+              <Zap className="w-4 h-4" /> Quick Convert to PPTX
+            </button>
+            <button
+              onClick={async () => { await handleReaderSave(); handleReaderToGuided(); }}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl border font-bold"
+              style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}>
+              <Wand2 className="w-4 h-4" /> Open in AI-Guided Builder
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── GUIDED MODE ───────────────────────────────────────────────────────────
   if (mode === 'guided') {
     const steps = [{ n: 1, label: 'Upload' }, { n: 2, label: 'Extract' }, { n: 3, label: 'Review' }, { n: 4, label: 'Structure' }, { n: 5, label: 'Edit' }, { n: 6, label: 'Generate' }];
@@ -682,29 +1524,29 @@ const DeckPrep = () => {
                   {history.slice(0, 5).map(h => (
                     <div key={h._id} onClick={() => loadFromHistory(h)} className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer"
                       style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'var(--border-color)' }}>
-                      <FileText className="w-4 h-4" style={{ color: 'var(--brand-primary)' }} /><span className="text-sm flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{h.originalFileId?.fileName || 'Untitled'}</span>
+                      <FileText className="w-4 h-4" style={{ color: 'var(--brand-primary)' }} /><span className="text-sm flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{getDocumentFileName(h)}</span>
                     </div>
                   ))}
                 </div>
               </div>}
             </div>}
             {step === 2 && <div className="rounded-2xl border p-8 space-y-5" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><FileText className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />Extract PDF Text</h2>
+              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><FileText className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />Extract Full PDF Text</h2>
               <div className="p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-subtle)' }}>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>AI reads your entire PDF and extracts all text. Works best with searchable (non-scanned) PDFs.</p>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>The document service converts the PDF directly to structured text first. No summaries. No binary-file round trip through the model.</p>
               </div>
               <button onClick={handleRawExtract} className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:opacity-90" style={{ backgroundColor: 'var(--brand-primary)' }}>
-                <Zap className="w-4 h-4" /> Extract All Text
+                <Zap className="w-4 h-4" /> Extract Full Text
               </button>
             </div>}
             {step === 3 && <div className="rounded-2xl border p-8 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
-              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><Edit2 className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />Review Extracted Text</h2>
+              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><Edit2 className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />Review Full Text</h2>
               <div className="flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
                 <span>{fullText.length.toLocaleString()} chars</span><span>~{Math.ceil(fullText.split(' ').length / 250)} pages</span>
               </div>
               <textarea value={fullText} onChange={e => setFullText(e.target.value)} rows={14}
                 className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none resize-y"
-                style={{ ...inp, fontFamily: 'monospace' }} onFocus={inpFocus} onBlur={inpBlur} />
+                style={{ ...inp, fontFamily: 'Georgia, \"Source Serif Pro\", serif', lineHeight: 1.7 }} onFocus={inpFocus} onBlur={inpBlur} />
               <button onClick={() => setStep(4)} className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:opacity-90" style={{ backgroundColor: 'var(--brand-primary)' }}>
                 Continue <ArrowRight className="w-4 h-4" />
               </button>
@@ -747,7 +1589,7 @@ const DeckPrep = () => {
                   style={inp} onFocus={inpFocus} onBlur={inpBlur} />
               </div>
               <button onClick={handleGeneratePPT} className="w-full py-4 rounded-xl font-black text-white text-base flex items-center justify-center gap-3 hover:opacity-90" style={{ backgroundColor: 'var(--brand-primary)' }}>
-                <Sparkles className="w-5 h-5" /> Generate Presentation
+                 Generate Presentation
               </button>
             </div>}
           </motion.div>
@@ -897,7 +1739,7 @@ const DeckPrep = () => {
                 <FileText className="w-5 h-5" style={{ color: h.pptJson ? 'var(--brand-primary)' : 'var(--text-muted)' }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{h.originalFileId?.fileName || 'Untitled'}</p>
+                <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{getDocumentFileName(h)}</p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {h.pptJson ? `${h.pptJson.slides?.length || 0} slides` : 'No slides'} · {new Date(h.createdAt).toLocaleDateString()}
                   {h.pptJson?.title ? ` · "${h.pptJson.title}"` : ''}
