@@ -42,6 +42,19 @@ const taskSchema = new mongoose.Schema({
         enum: ['not_submitted', 'submitted', 'approved', 'rejected'],
         default: 'not_submitted',
     },
+    submittedAt: {
+        type: Date,
+        default: null,
+    },
+    reviewedAt: {
+        type: Date,
+        default: null,
+    },
+    reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+        default: null,
+    },
     appealStatus: {
         type: String,
         enum: ['not_appealed', 'accepted', 'rejected'],

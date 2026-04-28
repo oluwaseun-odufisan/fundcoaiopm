@@ -56,6 +56,7 @@ const createOrUpdateTaskReminder = async (task, userId, io) => {
 // UPDATED: populate helper for admin fields
 const TASK_POPULATE = [
     { path: 'assignedBy', select: 'firstName lastName email' },
+    { path: 'reviewedBy', select: 'firstName lastName fullName email' },
     { path: 'adminComments.user', select: 'firstName lastName avatar role' },
 ];
 
@@ -207,7 +208,11 @@ export const submitTask = async (req, res) => {
         if (task.submissionStatus !== 'not_submitted') return res.status(400).json({ success: false, message: 'Task already submitted' });
 
         task.submissionStatus = 'submitted';
-        const updated = await task.save();
+        task.submittedAt = new Date();
+        task.reviewedAt = null;
+        task.reviewedBy = null;
+        const savedTask = await task.save();
+        const updated = await Task.findById(savedTask._id).populate(TASK_POPULATE);
         req.io.to(`user:${req.user._id}`).emit('updateTask', updated);
 
         await notifyAssignedAdmin({

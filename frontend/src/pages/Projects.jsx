@@ -37,6 +37,34 @@ const formatShortDate = (value) => {
   return format(date, 'MMM d, yyyy');
 };
 
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
+
+const getPersonName = (user, fallback = '') => {
+  if (!user) return fallback;
+  return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || fallback;
+};
+
+const getTaskStatusLabel = (task) => {
+  if (task.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Waiting review';
+  }
+  if (task.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
+  return task.completed ? 'Done' : 'Open';
+};
+
 const FilterButton = ({ active, onClick, children }) => (
   <button
     type="button"
@@ -122,15 +150,8 @@ const ProjectCard = ({ project, onSelect }) => {
 };
 
 const TaskRow = ({ task }) => {
-  const submissionLabel = task.submissionStatus === 'approved'
-    ? 'Approved'
-    : task.submissionStatus === 'submitted'
-      ? 'Waiting review'
-      : task.submissionStatus === 'rejected'
-        ? 'Rejected'
-        : task.completed
-          ? 'Done'
-          : 'Open';
+  const submissionLabel = getTaskStatusLabel(task);
+  const assignedBy = getPersonName(task.assignedBy, '');
 
   return (
     <div className="rounded-xl border p-3" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
@@ -140,6 +161,7 @@ const TaskRow = ({ task }) => {
           <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
             {(task.owner?.fullName || `${task.owner?.firstName || ''} ${task.owner?.lastName || ''}`).trim() || 'Unassigned'}
             {task.dueDate ? ` · Due ${formatShortDate(task.dueDate)}` : ''}
+            {assignedBy ? ` · Assigned by ${assignedBy}` : ''}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

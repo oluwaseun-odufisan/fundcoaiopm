@@ -50,6 +50,37 @@ const getReviewAccessHint = (task, user) => {
   }
   return 'Only the admin who assigned this task can approve or reject it.';
 };
+const getPersonName = (user, fallback = '') => {
+  if (!user) return fallback;
+  return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || fallback;
+};
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
+const getSubmissionLabel = (task) => {
+  if (!task) return 'Pending';
+  if (task.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Submitted';
+  }
+  if (task.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
+  return 'Pending';
+};
+const getAssignerLabel = (task) => {
+  if (isSelfAssignedTask(task)) return 'Self assigned';
+  const assigner = getPersonName(task?.assignedBy, '');
+  return assigner ? `Assigned by ${assigner}` : 'Assigner unavailable';
+};
 
 const Tasks = () => {
   const { hasRole, user } = useAuth();
@@ -238,6 +269,8 @@ const Tasks = () => {
               const response = RESPONSE[task.appealStatus] || null;
               const owner = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'Unassigned';
               const progress = task.checklist?.length ? Math.round((task.checklist.filter((entry) => entry.completed).length / task.checklist.length) * 100) : task.completed ? 100 : 0;
+              const submissionLabel = getSubmissionLabel(task);
+              const assignerLabel = getAssignerLabel(task);
 
               return (
                 <motion.div key={task._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.02 }} className="card card-hover cursor-pointer p-4" onClick={() => setViewTask(task)}>
@@ -245,7 +278,7 @@ const Tasks = () => {
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
-                        {task.submissionStatus !== 'not_submitted' ? <span className="badge capitalize" style={{ background: sub.bg, color: sub.c }}>{task.submissionStatus.replace('_', ' ')}</span> : null}
+                        {task.submissionStatus !== 'not_submitted' ? <span className="badge" style={{ background: sub.bg, color: sub.c }}>{submissionLabel}</span> : null}
                         {response ? <span className="badge" style={{ background: response.bg, color: response.c }}>{response.label}</span> : null}
                         {overdue ? <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Overdue</span> : null}
                       </div>
@@ -253,6 +286,7 @@ const Tasks = () => {
                       <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: 'var(--c-text-3)' }}>
                         <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {owner}</span>
                         {task.dueDate ? <span>{format(new Date(task.dueDate), 'MMM d, yyyy')}</span> : null}
+                        {assignerLabel ? <span>{assignerLabel}</span> : null}
                         {task.adminComments?.length ? <span className="inline-flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> {task.adminComments.length}</span> : null}
                       </div>
                     </div>
@@ -274,14 +308,18 @@ const Tasks = () => {
           {tasks.map((task, index) => {
             const overdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
             const pri = PRI[task.priority] || PRI.Low;
+            const sub = SUB[task.submissionStatus] || SUB.not_submitted;
             const response = RESPONSE[task.appealStatus] || null;
             const progress = task.checklist?.length ? Math.round((task.checklist.filter((entry) => entry.completed).length / task.checklist.length) * 100) : task.completed ? 100 : 0;
             const owner = task.owner ? `${task.owner.firstName || ''} ${task.owner.lastName || ''}`.trim() : 'Unassigned';
+            const submissionLabel = getSubmissionLabel(task);
+            const assignerLabel = getAssignerLabel(task);
             return (
               <motion.button key={task._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.03 }} onClick={() => setViewTask(task)} className="card card-hover flex flex-col gap-4 p-5 text-left">
                 <div className="flex items-center justify-between gap-2">
                   <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
                   <div className="flex flex-wrap justify-end gap-2">
+                    {task.submissionStatus !== 'not_submitted' ? <span className="badge" style={{ background: sub.bg, color: sub.c }}>{submissionLabel}</span> : null}
                     {response ? <span className="badge" style={{ background: response.bg, color: response.c }}>{response.label}</span> : null}
                     {overdue ? <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Overdue</span> : null}
                   </div>
@@ -292,6 +330,7 @@ const Tasks = () => {
                     <Users className="h-3.5 w-3.5" />
                     <span className="truncate">{owner}</span>
                   </div>
+                  {assignerLabel ? <p className="mt-1 text-xs" style={{ color: 'var(--c-text-3)' }}>{assignerLabel}</p> : null}
                   <p className="mt-2 line-clamp-2 text-sm" style={{ color: 'var(--c-text-3)' }}>{task.description || 'No description provided yet.'}</p>
                 </div>
                 <div className="mt-auto">
@@ -431,6 +470,9 @@ const TaskDetailModal = ({ open, task, onClose, onReview, onDelete, onEdit, onRe
   const pri = PRI[task.priority] || PRI.Low;
   const response = RESPONSE[task.appealStatus] || null;
   const progress = task.checklist?.length ? Math.round((task.checklist.filter((entry) => entry.completed).length / task.checklist.length) * 100) : task.completed ? 100 : 0;
+  const assignerLabel = getAssignerLabel(task);
+  const submissionLabel = getSubmissionLabel(task);
+  const submittedAtLabel = formatTaskMoment(task.submittedAt);
 
   const addComment = async () => {
     if (!comment.trim()) return;
@@ -453,19 +495,28 @@ const TaskDetailModal = ({ open, task, onClose, onReview, onDelete, onEdit, onRe
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
           <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
-          {task.submissionStatus !== 'not_submitted' ? <span className="badge capitalize" style={{ background: SUB[task.submissionStatus]?.bg, color: SUB[task.submissionStatus]?.c }}>{task.submissionStatus.replace('_', ' ')}</span> : null}
+          {task.submissionStatus !== 'not_submitted' ? <span className="badge" style={{ background: SUB[task.submissionStatus]?.bg, color: SUB[task.submissionStatus]?.c }}>{submissionLabel}</span> : null}
           {response ? <span className="badge" style={{ background: response.bg, color: response.c }}>{response.label}</span> : null}
           {task.completed ? <span className="badge" style={{ background: '#ecfdf5', color: '#059669' }}>Completed</span> : null}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
             <p className="section-title mb-2">Assigned to</p>
             <p className="text-base font-bold" style={{ color: 'var(--c-text-0)' }}>{owner}</p>
           </div>
           <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
+            <p className="section-title mb-2">Assigned by</p>
+            <p className="text-base font-bold" style={{ color: 'var(--c-text-0)' }}>{assignerLabel}</p>
+          </div>
+          <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
             <p className="section-title mb-2">Due date</p>
             <p className="text-base font-bold" style={{ color: 'var(--c-text-0)' }}>{task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None'}</p>
+          </div>
+          <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
+            <p className="section-title mb-2">Submission</p>
+            <p className="text-base font-bold" style={{ color: 'var(--c-text-0)' }}>{task.submissionStatus === 'not_submitted' ? 'Pending submission' : submissionLabel}</p>
+            {submittedAtLabel ? <p className="mt-1 text-xs" style={{ color: 'var(--c-text-3)' }}>{submittedAtLabel}</p> : null}
           </div>
           <div className="rounded-[1.35rem] border p-4" style={{ borderColor: 'var(--c-border)' }}>
             <p className="section-title mb-2">User response</p>

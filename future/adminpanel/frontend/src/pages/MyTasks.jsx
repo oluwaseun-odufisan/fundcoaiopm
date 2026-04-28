@@ -55,13 +55,40 @@ const progressFor = (task) => {
 
 const getAssignerId = (task) => String(task?.assignedBy?._id || task?.assignedBy || '');
 const getCurrentUserId = (user) => String(user?._id || user?.id || '');
+const getPersonName = (user, fallback = '') => {
+  if (!user) return fallback;
+  return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || fallback;
+};
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
 
 const getAssignerLabel = (task, currentUserId) => {
   const assignerId = getAssignerId(task);
   if (!assignerId || assignerId === currentUserId) return 'Created by you';
   const firstName = task?.assignedBy?.firstName || '';
   const lastName = task?.assignedBy?.lastName || '';
-  return `${firstName} ${lastName}`.trim() || task?.assignedBy?.email || 'Another admin';
+  const label = `${firstName} ${lastName}`.trim() || task?.assignedBy?.email || 'Another admin';
+  return `Assigned by ${label}`;
+};
+const getSubmissionLabel = (task) => {
+  if (!task) return SUB.not_submitted.label;
+  if (task.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Submitted';
+  }
+  if (task.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
+  return SUB.not_submitted.label;
 };
 
 const matchesScope = (task, scope, currentUserId) => {
@@ -306,6 +333,7 @@ const MyTasks = () => {
               const sub = SUB[task.submissionStatus] || SUB.not_submitted;
               const progress = progressFor(task);
               const overdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
+              const submissionLabel = getSubmissionLabel(task);
 
               return (
                 <button
@@ -318,7 +346,7 @@ const MyTasks = () => {
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
-                        <span className="badge" style={{ background: sub.bg, color: sub.c }}>{sub.label}</span>
+                        <span className="badge" style={{ background: sub.bg, color: sub.c }}>{submissionLabel}</span>
                         {overdue ? <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>Overdue</span> : null}
                       </div>
                       <h3 className={`text-base font-bold ${task.completed ? 'line-through' : ''}`} style={{ color: task.completed ? 'var(--c-text-3)' : 'var(--c-text-0)' }}>
@@ -404,6 +432,7 @@ const MyTaskDetailModal = ({ task, open, currentUserId, onClose, onMarkDone, onS
   const progress = progressFor(task);
   const canMarkDone = !task.completed;
   const canSubmit = Boolean(task.completed) && task.submissionStatus === 'not_submitted';
+  const submissionLabel = getSubmissionLabel(task);
 
   const addChecklistItem = () => {
     if (!newItem.trim()) return;
@@ -444,7 +473,7 @@ const MyTaskDetailModal = ({ task, open, currentUserId, onClose, onMarkDone, onS
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
           <span className="badge" style={{ background: pri.bg, color: pri.c }}>{task.priority}</span>
-          <span className="badge" style={{ background: sub.bg, color: sub.c }}>{sub.label}</span>
+          <span className="badge" style={{ background: sub.bg, color: sub.c }}>{submissionLabel}</span>
           <span className="badge" style={{ background: 'var(--c-surface-3)', color: 'var(--c-text-soft)' }}>{progress}% complete</span>
         </div>
 
@@ -622,7 +651,7 @@ const MyTaskDetailModal = ({ task, open, currentUserId, onClose, onMarkDone, onS
             ) : (
               <div className="inline-flex min-h-[2.75rem] items-center rounded-[0.95rem] border px-4 text-sm font-bold" style={{ borderColor: 'var(--c-border)', color: 'var(--c-text-soft)', background: 'var(--c-surface-2)' }}>
                 <Clock3 className="mr-2 h-4 w-4" />
-                {sub.label}
+                {submissionLabel}
               </div>
             )
           ) : null}

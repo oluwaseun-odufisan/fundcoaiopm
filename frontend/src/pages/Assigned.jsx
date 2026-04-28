@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, CheckSquare, Clock, Filter, ListChecks, PenSquare, Search, ShieldAlert, X } from 'lucide-react';
 import axios from 'axios';
+import { format } from 'date-fns';
 import { useOutletContext } from 'react-router-dom';
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
@@ -10,10 +11,27 @@ import { useNotifications } from '../context/NotificationContext.jsx';
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
 const isCompletedValue = (value) => [true, 1, 'yes'].includes(typeof value === 'string' ? value.toLowerCase() : value);
 
-const getSubmissionLabel = (status) => {
-  if (status === 'submitted') return 'Waiting Approval';
-  if (status === 'approved') return 'Approved';
-  if (status === 'rejected') return 'Rejected';
+const getPersonName = (user, fallback = '') => user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || fallback;
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
+
+const getSubmissionLabel = (task) => {
+  if (task?.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Waiting Approval';
+  }
+  if (task?.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task?.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
   return 'Not Submitted';
 };
 
@@ -79,7 +97,7 @@ const AssignedTaskActionModal = ({ isOpen, task, onClose, onAction }) => {
           ) : (
             <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold" style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>
               <CheckSquare className="h-4 w-4 flex-shrink-0" />
-              {getSubmissionLabel(task.submissionStatus)}
+              {getSubmissionLabel(task)}
             </div>
           )}
 

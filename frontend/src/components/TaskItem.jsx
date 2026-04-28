@@ -15,13 +15,38 @@ const PRIORITY_CONFIG = {
 };
 
 const SUBMISSION_LABELS = {
-  submitted: { label: 'Submitted', bg: '#fff7ed', text: '#c2410c' },
-  approved: { label: 'Approved', bg: '#f0fdf4', text: '#15803d' },
-  rejected: { label: 'Rejected', bg: '#fef2f2', text: '#dc2626' },
+  submitted: { bg: '#fff7ed', text: '#c2410c' },
+  approved: { bg: '#f0fdf4', text: '#15803d' },
+  rejected: { bg: '#fef2f2', text: '#dc2626' },
 };
 
 const getPriority = (priority) => PRIORITY_CONFIG[String(priority || '').toLowerCase()] || PRIORITY_CONFIG.low;
 const isCompletedValue = (value) => [true, 1, 'yes'].includes(typeof value === 'string' ? value.toLowerCase() : value);
+const getPersonName = (user, fallback = '') => {
+  if (!user) return fallback;
+  return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || fallback;
+};
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
+const getSubmissionLabel = (task) => {
+  if (task?.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Submitted';
+  }
+  if (task?.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task?.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
+  return '';
+};
 
 const TaskItem = ({
   task,
@@ -46,12 +71,11 @@ const TaskItem = ({
     : isCompleted
       ? 100
       : 0;
-  const submissionLabel = SUBMISSION_LABELS[task.submissionStatus];
+  const submissionTone = SUBMISSION_LABELS[task.submissionStatus];
+  const submissionLabel = getSubmissionLabel(task);
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isCompleted;
   const hasAdminComments = Array.isArray(task.adminComments) && task.adminComments.length > 0;
-  const assignedByName = task.assignedBy
-    ? `${task.assignedBy.firstName || ''} ${task.assignedBy.lastName || ''}`.trim()
-    : '';
+  const assignedByName = getPersonName(task.assignedBy, '');
 
   const menuActions = useMemo(() => {
     const actions = [];
@@ -199,9 +223,9 @@ const TaskItem = ({
                 {task.priority || 'Low'}
               </span>
 
-              {submissionLabel ? (
-                <span className="rounded-md px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: submissionLabel.bg, color: submissionLabel.text }}>
-                  {submissionLabel.label}
+              {submissionTone && submissionLabel ? (
+                <span className="rounded-md px-2 py-0.5 text-xs font-semibold leading-4" style={{ backgroundColor: submissionTone.bg, color: submissionTone.text }}>
+                  {submissionLabel}
                 </span>
               ) : null}
 

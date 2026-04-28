@@ -250,6 +250,7 @@ export const getAllTasks = async (req, res) => {
       Task.find(query)
         .populate('owner', 'firstName lastName otherName email position unitSector avatar')
         .populate('assignedBy', 'firstName lastName email')
+        .populate('reviewedBy', 'firstName lastName fullName email')
         .populate('adminComments.user', 'firstName lastName avatar')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -274,6 +275,7 @@ export const getTaskById = async (req, res) => {
     const task = await Task.findById(req.params.id)
       .populate('owner', 'firstName lastName otherName email position avatar')
       .populate('assignedBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName fullName email')
       .populate('adminComments.user', 'firstName lastName avatar')
       .lean();
     if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
@@ -321,6 +323,7 @@ export const createTaskForUser = async (req, res) => {
     const populated = await Task.findById(saved._id)
       .populate('owner', 'firstName lastName email avatar')
       .populate('assignedBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName fullName email')
       .lean();
 
     const actorName = getActorName(req.user);
@@ -374,6 +377,7 @@ export const updateTask = async (req, res) => {
     const updated = await Task.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after', runValidators: true })
       .populate('owner', 'firstName lastName email avatar')
       .populate('assignedBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName fullName email')
       .lean();
 
     const previousOwnerId = getUserId(existingTask.owner);
@@ -498,10 +502,14 @@ export const reviewTask = async (req, res) => {
     }
 
     task.submissionStatus = action;
+    task.reviewedAt = new Date();
+    task.reviewedBy = req.user._id;
     await task.save();
 
     const populated = await Task.findById(task._id)
       .populate('owner', 'firstName lastName email avatar')
+      .populate('assignedBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName fullName email')
       .lean();
 
     await emitTaskRealtime({ event: 'updateTask', userId: task.owner, payload: populated, io: req.io });
@@ -603,11 +611,13 @@ export const bulkAction = async (req, res) => {
         const allowedIds = allowedTasks.map((task) => task._id);
         result = await Task.updateMany(
           { _id: { $in: allowedIds } },
-          { $set: { submissionStatus: 'approved' } }
+          { $set: { submissionStatus: 'approved', reviewedAt: new Date(), reviewedBy: req.user._id } }
         );
 
         const updatedTasks = await Task.find({ _id: { $in: allowedIds } })
           .populate('owner', 'firstName lastName email avatar')
+          .populate('assignedBy', 'firstName lastName email')
+          .populate('reviewedBy', 'firstName lastName fullName email')
           .lean();
 
         await Promise.all(updatedTasks.map(async (task) => {
@@ -653,11 +663,13 @@ export const bulkAction = async (req, res) => {
         const allowedIds = allowedTasks.map((task) => task._id);
         result = await Task.updateMany(
           { _id: { $in: allowedIds } },
-          { $set: { submissionStatus: 'rejected' } }
+          { $set: { submissionStatus: 'rejected', reviewedAt: new Date(), reviewedBy: req.user._id } }
         );
 
         const updatedTasks = await Task.find({ _id: { $in: allowedIds } })
           .populate('owner', 'firstName lastName email avatar')
+          .populate('assignedBy', 'firstName lastName email')
+          .populate('reviewedBy', 'firstName lastName fullName email')
           .lean();
 
         await Promise.all(updatedTasks.map(async (task) => {

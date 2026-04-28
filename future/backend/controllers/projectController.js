@@ -103,10 +103,11 @@ export const getProjects = async (req, res) => {
       .populate('members', 'firstName lastName fullName email avatar position role unitSector')
       .populate({
         path: 'tasks',
-        select: 'title completed priority dueDate owner checklist submissionStatus createdByAdmin assignedBy',
+        select: 'title completed priority dueDate owner checklist submissionStatus submittedAt reviewedAt reviewedBy createdByAdmin assignedBy',
         populate: [
           { path: 'owner', select: 'firstName lastName fullName email avatar position role' },
           { path: 'assignedBy', select: 'firstName lastName fullName email avatar position role' },
+          { path: 'reviewedBy', select: 'firstName lastName fullName email avatar position role' },
         ],
       })
       .populate({
@@ -149,10 +150,11 @@ export const getProjectById = async (req, res) => {
       .populate('members', 'firstName lastName fullName email avatar position role unitSector')
       .populate({
         path: 'tasks',
-        select: 'title description completed priority dueDate owner checklist submissionStatus createdByAdmin assignedBy createdAt',
+        select: 'title description completed priority dueDate owner checklist submissionStatus submittedAt reviewedAt reviewedBy createdByAdmin assignedBy createdAt',
         populate: [
           { path: 'owner', select: 'firstName lastName fullName email avatar position role' },
           { path: 'assignedBy', select: 'firstName lastName fullName email avatar position role' },
+          { path: 'reviewedBy', select: 'firstName lastName fullName email avatar position role' },
         ],
       })
       .populate({

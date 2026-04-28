@@ -71,6 +71,36 @@ const formatShortDate = (value) => {
   if (Number.isNaN(date.getTime())) return 'No date';
   return format(date, 'MMM d, yyyy');
 };
+const formatTaskMoment = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return format(date, 'MMM d, h:mm a');
+};
+const getPersonName = (user, fallback = '') => {
+  if (!user) return fallback;
+  return user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || fallback;
+};
+const getTaskSubmissionLabel = (task) => {
+  if (!task) return '';
+  if (task.submissionStatus === 'approved') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Approved by ${reviewer}` : 'Approved';
+  }
+  if (task.submissionStatus === 'submitted') {
+    const submittedAt = formatTaskMoment(task.submittedAt);
+    return submittedAt ? `Submitted ${submittedAt}` : 'Submitted';
+  }
+  if (task.submissionStatus === 'rejected') {
+    const reviewer = getPersonName(task.reviewedBy, '');
+    return reviewer ? `Rejected by ${reviewer}` : 'Rejected';
+  }
+  return '';
+};
+const getTaskAssignerLabel = (task) => {
+  const assigner = getPersonName(task?.assignedBy, '');
+  return assigner ? `Assigned by ${assigner}` : '';
+};
 
 const uniqueIds = (values = []) => [...new Set(values.map((value) => String(value?._id || value || '')).filter(Boolean))];
 
@@ -246,6 +276,8 @@ const TimelineView = ({ projects, onOpen }) => (
 const TaskCard = ({ task, onRemove }) => {
   const lane = taskLaneMeta[getTaskLane(task)] || taskLaneMeta.planned;
   const priority = priorityMeta[task.priority] || priorityMeta.Low;
+  const assignerLabel = getTaskAssignerLabel(task);
+  const submissionLabel = getTaskSubmissionLabel(task);
 
   return (
     <div className="rounded-[0.85rem] border p-4" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel-subtle)' }}>
@@ -267,6 +299,8 @@ const TaskCard = ({ task, onRemove }) => {
       <div className="mt-3 text-xs font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--c-text-faint)' }}>
         <div>{MemberIdentity(task.owner || {})}</div>
         <div className="mt-1">{task.dueDate ? `Due ${formatShortDate(task.dueDate)}` : 'No due date'}</div>
+        {assignerLabel ? <div className="mt-1">{assignerLabel}</div> : null}
+        {submissionLabel ? <div className="mt-1">{submissionLabel}</div> : null}
       </div>
     </div>
   );
@@ -960,6 +994,8 @@ const ProjectDashboard = ({ projectId, seedProject, users, onBack, onRefresh, on
                           <div key={task._id} className="rounded-[0.65rem] border px-3 py-2 text-sm" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)' }}>
                             <div className="font-black" style={{ color: 'var(--c-text)' }}>{task.title}</div>
                             <div className="mt-1 text-xs" style={{ color: 'var(--c-text-faint)' }}>{MemberIdentity(task.owner || {})}</div>
+                            {getTaskAssignerLabel(task) ? <div className="mt-1 text-[11px]" style={{ color: 'var(--c-text-faint)' }}>{getTaskAssignerLabel(task)}</div> : null}
+                            {getTaskSubmissionLabel(task) ? <div className="mt-1 text-[11px]" style={{ color: 'var(--c-text-faint)' }}>{getTaskSubmissionLabel(task)}</div> : null}
                           </div>
                         ))}
                         {!items.length ? <p className="text-sm" style={{ color: 'var(--c-text-faint)' }}>No tasks here</p> : null}
