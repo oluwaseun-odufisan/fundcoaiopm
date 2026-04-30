@@ -48,9 +48,9 @@ const NotificationStack = () => {
           </span>
         </button>
         <div className="flex items-center gap-1">
-          {popupItems.length > 1 ? (
+          {popupItems.length > 0 ? (
             <button type="button" onClick={clearPopups} className="rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em]" style={{ color: 'var(--text-secondary)' }}>
-              Clear all
+              {popupItems.length > 1 ? 'Clear all' : 'Clear'}
             </button>
           ) : null}
           <button type="button" onClick={() => togglePopupsExpanded()} className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: 'var(--text-secondary)' }}>
@@ -73,7 +73,7 @@ const NotificationStack = () => {
                   : { opacity: collapsedStyle.opacity, x: 0, y: collapsedStyle.top, scale: collapsedStyle.scale }}
                 exit={{ opacity: 0, x: 140, scale: 0.92, transition: { duration: 0.2 } }}
                 transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-                className={popupsExpanded ? 'relative' : 'absolute inset-x-0'}
+                className={`${popupsExpanded ? 'relative' : 'absolute inset-x-0'} pointer-events-auto`}
                 style={popupsExpanded ? undefined : { top: `${collapsedStyle.top}px`, zIndex: 40 - index }}
               >
                 <div className="rounded-[1.25rem] border shadow-xl" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
