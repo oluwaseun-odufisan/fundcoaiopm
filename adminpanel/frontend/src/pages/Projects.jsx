@@ -1269,7 +1269,6 @@ const Projects = () => {
     <div className="page-shell">
       <PageHeader
         title="Projects"
-        description="Run project delivery from one control layer. Track health, deadlines, member coverage, tasks, and linked goals without leaving the workspace."
         actions={
           <button type="button" className="btn-primary" onClick={() => { setEditProject(null); setShowForm(true); }}>
             <Plus className="h-4 w-4" /> New Project
@@ -1312,11 +1311,7 @@ const Projects = () => {
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr),18rem]">
-          <InfoStrip
-            title="Project membership is operational"
-            description="Members see the same project on the user side, receive project notifications, and can be pulled into delivery automatically through project tasks."
-            tone="brand"
-          />
+ 
           <div>
             <label className="label">Filter by member</label>
             <select className="input-base" value={memberFilter} onChange={(event) => setMemberFilter(event.target.value)}>
