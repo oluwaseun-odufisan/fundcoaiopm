@@ -4,12 +4,14 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { NotificationProvider } from './context/NotificationContext.jsx';
 import Layout from './components/Layout.jsx';
+import NotificationStack from './components/NotificationStack.jsx';
 import Login from './pages/Login.jsx';
 import { LoadingScreen } from './components/ui.jsx';
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const Tasks = lazy(() => import('./pages/Tasks.jsx'));
 const MyTasks = lazy(() => import('./pages/MyTasks.jsx'));
+const Calendar = lazy(() => import('./pages/Calendar.jsx'));
 const Goals = lazy(() => import('./pages/Goals.jsx'));
 const Reports = lazy(() => import('./pages/Reports.jsx'));
 const Performance = lazy(() => import('./pages/Performance.jsx'));
@@ -60,12 +62,14 @@ const AppRoutes = () => {
           },
         }}
       />
+      <NotificationStack />
       <Routes>
         <Route path="/login" element={user && !loading ? <Navigate to="/" replace /> : <Login />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Suspense fallback={<Loader />}><Dashboard /></Suspense>} />
           <Route path="/tasks" element={<Suspense fallback={<Loader />}><Tasks /></Suspense>} />
           <Route path="/my-tasks" element={<Suspense fallback={<Loader />}><MyTasks /></Suspense>} />
+          <Route path="/calendar" element={<Suspense fallback={<Loader />}><Calendar /></Suspense>} />
           <Route path="/goals" element={<Suspense fallback={<Loader />}><Goals /></Suspense>} />
           <Route path="/reports" element={<Suspense fallback={<Loader />}><Reports /></Suspense>} />
           <Route path="/performance" element={<Suspense fallback={<Loader />}><Performance /></Suspense>} />

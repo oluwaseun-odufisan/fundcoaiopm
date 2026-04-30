@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Bell,
   BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -29,6 +30,7 @@ const navConfig = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['team-lead', 'executive', 'admin'] },
   { to: '/tasks', icon: ListTodo, label: 'Tasks', roles: ['team-lead', 'executive', 'admin'], badge: 'tasks' },
   { to: '/my-tasks', icon: ClipboardList, label: 'My Tasks', roles: ['team-lead', 'executive', 'admin'] },
+  { to: '/calendar', icon: CalendarDays, label: 'Calendar', roles: ['team-lead', 'executive', 'admin'], badge: 'meetings' },
   { to: '/projects', icon: FolderKanban, label: 'Projects', roles: ['team-lead', 'executive', 'admin'], badge: 'projects' },
   { to: '/goals', icon: Target, label: 'Goals', roles: ['team-lead', 'executive', 'admin'], badge: 'goals' },
   { to: '/reports', icon: FileText, label: 'Reports', roles: ['team-lead', 'executive', 'admin'], badge: 'reports' },

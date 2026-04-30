@@ -37,7 +37,7 @@ const routeFor = (notification) => {
     case 'social': return '/social-feed';
     case 'task': return '/assigned';
     case 'reminder': return '/reminders';
-    case 'meeting': return data.roomId ? `/room/${data.roomId}` : '/meeting';
+    case 'meeting': return data.roomId ? `/room/${data.roomId}` : '/calendar';
     case 'report': return '/reports';
     case 'goal': return '/goals';
     case 'project': return '/projects';
@@ -100,8 +100,7 @@ const makeTaskSnapshot = (task) => ({
 
 const makeLiveNotification = (notification = {}) => normalizeNotification({
   ...notification,
-  _id: undefined,
-  id: notification?.id || `live-${notification?.type || 'system'}-${notification?.entityId || notification?.data?.taskId || 'item'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  id: notification?._id || notification?.id || `live-${notification?.type || 'system'}-${notification?.entityId || notification?.data?.taskId || 'item'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   createdAt: notification?.createdAt || new Date().toISOString(),
   isRead: false,
   synthetic: true,
@@ -128,14 +127,40 @@ const getLiveTaskChangeList = (previous, current) => {
 };
 
 const sortNotifications = (left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+const TOAST_DEDUPE_WINDOW_MS = 20000;
+
+const getToastKey = (notification) => [
+  String(notification?.type || ''),
+  String(notification?.entityId || notification?.data?.taskId || notification?.data?.meetingId || ''),
+  String(notification?.title || ''),
+  String(notification?.body || notification?.description || ''),
+].join('|');
+
+const queuePopupNotification = (notification, popupCacheRef, setPopupItems) => {
+  if (!notification?.title) return;
+  const key = getToastKey(notification);
+  const now = Date.now();
+  const lastShownAt = popupCacheRef.current.get(key);
+  if (lastShownAt && now - lastShownAt < TOAST_DEDUPE_WINDOW_MS) return;
+
+  popupCacheRef.current.set(key, now);
+  for (const [cacheKey, timestamp] of popupCacheRef.current.entries()) {
+    if (now - timestamp > TOAST_DEDUPE_WINDOW_MS) {
+      popupCacheRef.current.delete(cacheKey);
+    }
+  }
+};
 
 export const NotificationProvider = ({ children }) => {
   const [storedItems, setStoredItems] = useState([]);
   const [liveItems, setLiveItems] = useState([]);
+  const [popupItems, setPopupItems] = useState([]);
+  const [popupsExpanded, setPopupsExpanded] = useState(false);
   const [baseCounts, setBaseCounts] = useState(EMPTY_COUNTS);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const taskSnapshotRef = useRef(new Map());
+  const popupCacheRef = useRef(new Map());
 
   const items = useMemo(() => {
     const merged = new Map();
@@ -220,6 +245,11 @@ export const NotificationProvider = ({ children }) => {
     if (!notification?.id || !notification?.dedupeKey) return;
 
     setLiveItems((current) => [
+      notification,
+      ...current.filter((item) => item.dedupeKey !== notification.dedupeKey && item.id !== notification.id),
+    ].slice(0, 20));
+    queuePopupNotification(notification, popupCacheRef, setPopupItems);
+    setPopupItems((current) => [
       notification,
       ...current.filter((item) => item.dedupeKey !== notification.dedupeKey && item.id !== notification.id),
     ].slice(0, 20));
@@ -354,6 +384,12 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [pushLiveNotification, pushLiveTaskNotification, refresh]);
 
+  useEffect(() => {
+    if (popupItems.length === 0) {
+      setPopupsExpanded(false);
+    }
+  }, [popupItems.length]);
+
   const markRead = useCallback(async (notificationId) => {
     if (!notificationId) return;
 
@@ -387,9 +423,36 @@ export const NotificationProvider = ({ children }) => {
     } catch {}
   }, [refresh]);
 
+  const dismissPopup = useCallback((notificationId) => {
+    if (!notificationId) return;
+    setPopupItems((current) => current.filter((item) => item.id !== notificationId));
+  }, []);
+
+  const clearPopups = useCallback(() => {
+    setPopupItems([]);
+  }, []);
+
+  const togglePopupsExpanded = useCallback((nextValue) => {
+    setPopupsExpanded((current) => (typeof nextValue === 'boolean' ? nextValue : !current));
+  }, []);
+
   const value = useMemo(
-    () => ({ items, counts, loading, lastUpdated, refresh, markRead, markAllRead, markTypeRead }),
-    [counts, items, lastUpdated, loading, markAllRead, markRead, markTypeRead, refresh],
+    () => ({
+      items,
+      counts,
+      loading,
+      lastUpdated,
+      refresh,
+      markRead,
+      markAllRead,
+      markTypeRead,
+      popupItems,
+      popupsExpanded,
+      dismissPopup,
+      clearPopups,
+      togglePopupsExpanded,
+    }),
+    [clearPopups, counts, dismissPopup, items, lastUpdated, loading, markAllRead, markRead, markTypeRead, popupItems, popupsExpanded, refresh, togglePopupsExpanded],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
@@ -398,7 +461,21 @@ export const NotificationProvider = ({ children }) => {
 export const useNotifications = () => {
   const value = useContext(NotificationContext);
   if (!value) {
-    return { items: [], counts: EMPTY_COUNTS, loading: false, lastUpdated: null, refresh: async () => [], markRead: async () => {}, markAllRead: async () => {}, markTypeRead: async () => {} };
+    return {
+      items: [],
+      counts: EMPTY_COUNTS,
+      loading: false,
+      lastUpdated: null,
+      refresh: async () => [],
+      markRead: async () => {},
+      markAllRead: async () => {},
+      markTypeRead: async () => {},
+      popupItems: [],
+      popupsExpanded: false,
+      dismissPopup: () => {},
+      clearPopups: () => {},
+      togglePopupsExpanded: () => {},
+    };
   }
   return value;
 };

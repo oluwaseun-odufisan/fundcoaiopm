@@ -7,6 +7,7 @@ import { sendEmail } from './emailService.js';
 import { sendPushNotification } from './pushService.js';
 import OpenAI from 'openai';
 import { createNotification } from './notificationService.js';
+import { getNextRecurringReminderAt, getRecurrenceLabel } from './reminderRecurrence.js';
 
 const openai = new OpenAI({
     apiKey: process.env.GROK_API_KEY,
@@ -88,7 +89,13 @@ const sendReminder = async (reminder) => {
                 body: finalMessage,
                 entityId: reminder._id,
                 entityType: 'Reminder',
-                data: { reminderId: String(reminder._id), type: reminder.type },
+                data: {
+                    reminderId: String(reminder._id),
+                    type: reminder.type,
+                    recurrence: reminder.recurrence || null,
+                    recurrenceLabel: getRecurrenceLabel(reminder.recurrence),
+                    route: '/reminders',
+                },
                 io: global.io,
                 allowSelf: true,
             });
@@ -121,6 +128,15 @@ const sendReminder = async (reminder) => {
         if (reminder.repeatInterval && reminder.isActive) {
             reminder.remindAt = new Date(reminder.remindAt.getTime() + reminder.repeatInterval * 60 * 1000);
             reminder.status = 'pending';
+        } else if (reminder.recurrence?.frequency && reminder.isActive) {
+            const nextRemindAt = getNextRecurringReminderAt(reminder);
+            if (nextRemindAt) {
+                reminder.remindAt = nextRemindAt;
+                reminder.status = 'pending';
+            } else {
+                reminder.isActive = false;
+                reminder.status = 'sent';
+            }
         } else if (!reminder.repeatInterval) {
             // Keep one-off reminders visible in the reminders page until the user dismisses them.
             reminder.status = 'sent';

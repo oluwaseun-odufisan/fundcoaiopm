@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
+import { io } from 'socket.io-client';
 import {
   HardDrive, ArrowLeftRight, Upload, FolderPlus, Grid3X3, List, Search, Star, Trash2,
   ChevronRight, ChevronLeft, ChevronDown, ChevronUp, X, Plus, Download,
@@ -1076,6 +1077,28 @@ const FileStorage = () => {
 
   useEffect(() => { setPage(1); fetchAll(1, true); }, [fetchAll]);
   useEffect(() => { if (page > 1) fetchAll(page, false); }, [page]); // eslint-disable-line
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+
+    const socket = io(API, {
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
+
+    const handleFileReceived = () => {
+      fetchAll(1, true);
+      toast.success('A chat document was added to your file storage.');
+    };
+
+    socket.on('fileReceived', handleFileReceived);
+    return () => {
+      socket.off('fileReceived', handleFileReceived);
+      socket.disconnect();
+    };
+  }, [fetchAll]);
 
   // Infinite scroll
   useEffect(() => {

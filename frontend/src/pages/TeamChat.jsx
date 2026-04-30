@@ -1020,6 +1020,7 @@ const TeamChat = () => {
         try {
             const fd = new FormData();
             fd.append('file', f);
+            fd.append('chatId', selectedChat?._id || '');
             const res = await axios.post(`${API_BASE_URL}/api/chats/upload`, fd, {
                 headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' },
             });

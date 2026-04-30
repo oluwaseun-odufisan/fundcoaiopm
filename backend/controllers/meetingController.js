@@ -5,6 +5,7 @@ import Joi from 'joi';
 import { createZoomMeeting, updateZoomMeeting, deleteZoomMeeting, getZoomTranscript, getZoomMeetingRecordings, generateSignature } from '../utils/zoomService.js';
 import { sendEmail } from '../utils/emailService.js';
 import { createNotification } from '../utils/notificationService.js';
+import { deleteMeetingRemindersForMeeting, upsertMeetingRemindersForMeeting } from './reminderController.js';
 
 const meetingSchema = Joi.object({
   topic: Joi.string().min(3).max(200).required(),
@@ -26,7 +27,7 @@ export const createMeeting = async (req, res) => {
   try {
     // Validate participants
     if (participants.length > 0) {
-      const validUsers = await User.find({ _id: { $in: participants } }).select('_id email name');
+      const validUsers = await User.find({ _id: { $in: participants } }).select('_id email firstName lastName otherName fullName');
       if (validUsers.length !== participants.length) return res.status(400).json({ success: false, message: 'Invalid participants' });
     }
 
@@ -46,6 +47,7 @@ export const createMeeting = async (req, res) => {
     });
 
     await meeting.save();
+    await upsertMeetingRemindersForMeeting({ meeting, createdBy: req.user.id, io: req.io });
 
     // Send emails and in-app notifications
     const meetingDetails = `Topic: ${topic}\nStart Time: ${parsedStartTime.toLocaleString()}\nJoin URL: ${meeting.joinUrl}`;
@@ -85,7 +87,15 @@ export const createMeeting = async (req, res) => {
 
 export const getMeetings = async (req, res) => {
   try {
-    const meetings = await Meeting.find({ creator: req.user.id }).sort({ startTime: -1 }).populate('participants', 'name email');
+    const meetings = await Meeting.find({
+      $or: [
+        { creator: req.user.id },
+        { participants: req.user.id },
+      ],
+    })
+      .sort({ startTime: -1 })
+      .populate('creator', 'firstName lastName otherName fullName email')
+      .populate('participants', 'firstName lastName otherName fullName email');
     res.json({ success: true, meetings });
   } catch (err) {
     console.error('Get meetings error:', err);
@@ -108,7 +118,7 @@ export const updateMeeting = async (req, res) => {
 
     // Validate participants
     if (participants.length > 0) {
-      const validUsers = await User.find({ _id: { $in: participants } }).select('_id email name');
+      const validUsers = await User.find({ _id: { $in: participants } }).select('_id email firstName lastName otherName fullName');
       if (validUsers.length !== participants.length) return res.status(400).json({ success: false, message: 'Invalid participants' });
     }
 
@@ -121,6 +131,8 @@ export const updateMeeting = async (req, res) => {
     meeting.duration = duration;
     meeting.participants = participants;
     await meeting.save();
+    await deleteMeetingRemindersForMeeting({ meetingId: meeting._id, io: req.io });
+    await upsertMeetingRemindersForMeeting({ meeting, createdBy: req.user.id, io: req.io });
 
     // Send update notifications
     const meetingDetails = `Updated Meeting: ${topic}\nStart Time: ${parsedStartTime.toLocaleString()}\nJoin URL: ${meeting.joinUrl}`;
@@ -189,6 +201,7 @@ export const deleteMeeting = async (req, res) => {
       });
     }
 
+    await deleteMeetingRemindersForMeeting({ meetingId: meeting._id, io: req.io });
     await meeting.deleteOne();
     req.io.to(`user:${req.user.id}`).emit('meetingDeleted', meeting._id);
 
@@ -240,7 +253,7 @@ export const getSignature = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ _id: { $ne: req.user.id } }).select('_id name email');
+    const users = await User.find({ _id: { $ne: req.user.id } }).select('_id firstName lastName otherName fullName email position');
     res.json({ success: true, users });
   } catch (err) {
     console.error('Get all users error:', err);

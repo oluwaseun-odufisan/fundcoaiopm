@@ -1,13 +1,15 @@
 // src/pages/CalendarView.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Clock, Plus, ChevronLeft, ChevronRight, CalendarDays, CheckCircle2, Circle } from 'lucide-react';
+import { Clock, Plus, ChevronLeft, ChevronRight, CalendarDays, CheckCircle2, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TaskItem from '../components/TaskItem';
 import TaskModal from '../components/TaskModal';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/tasks`;
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4001';
+const API_BASE_URL = `${API_BASE}/api/tasks`;
 
 // ── Priority colours ──────────────────────────────────────────────────────────
 const PRIORITY_COLOR = {
@@ -17,7 +19,7 @@ const PRIORITY_COLOR = {
 };
 
 // ── Mini calendar ─────────────────────────────────────────────────────────────
-const MiniCalendar = ({ value, onChange, tasksByDate }) => {
+const MiniCalendar = ({ value, onChange, tasksByDate, meetingsByDate }) => {
   const [view, setView] = useState(new Date(value.getFullYear(), value.getMonth(), 1));
   const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const year  = view.getFullYear();
@@ -37,6 +39,7 @@ const MiniCalendar = ({ value, onChange, tasksByDate }) => {
   const isSelected= (d) => d && value.getFullYear() === year && value.getMonth() === month && value.getDate() === d;
   const key       = (d) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   const hasTasks  = (d) => d && (tasksByDate[key(d)]?.length > 0);
+  const hasMeetings = (d) => d && (meetingsByDate[key(d)]?.length > 0);
 
   return (
     <div className="rounded-2xl border overflow-hidden"
@@ -79,7 +82,8 @@ const MiniCalendar = ({ value, onChange, tasksByDate }) => {
             const selected = isSelected(day);
             const today_   = isToday(day);
             const tasks    = tasksByDate[key(day)] || [];
-            const hasDot   = tasks.length > 0;
+            const meetings = meetingsByDate[key(day)] || [];
+            const hasDot   = tasks.length > 0 || meetings.length > 0;
 
             return (
               <button key={i} onClick={() => onChange(new Date(year, month, day))}
@@ -95,11 +99,14 @@ const MiniCalendar = ({ value, onChange, tasksByDate }) => {
                 </span>
                 {hasDot && (
                   <div className="flex gap-0.5 mt-0.5">
-                    {tasks.slice(0, 3).map((t, ti) => {
+                    {tasks.slice(0, 2).map((t, ti) => {
                       const p = (t.priority || 'low').toLowerCase();
                       return <span key={ti} className="w-1 h-1 rounded-full"
                         style={{ backgroundColor: selected ? 'rgba(255,255,255,0.7)' : (PRIORITY_COLOR[p]?.dot || '#94a3b8') }} />;
                     })}
+                    {meetings.length > 0 ? (
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: selected ? '#ffffff' : '#2563eb' }} />
+                    ) : null}
                   </div>
                 )}
               </button>
@@ -123,7 +130,7 @@ const MiniCalendar = ({ value, onChange, tasksByDate }) => {
 };
 
 // ── Month strip (mini month overview) ────────────────────────────────────────
-const MonthStrip = ({ tasksByDate, selectedDate, onSelect }) => {
+const MonthStrip = ({ tasksByDate, meetingsByDate, selectedDate, onSelect }) => {
   const year  = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -132,7 +139,7 @@ const MonthStrip = ({ tasksByDate, selectedDate, onSelect }) => {
     <div className="flex gap-1 overflow-x-auto pb-1">
       {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
         const k   = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-        const n   = (tasksByDate[k] || []).length;
+        const n   = (tasksByDate[k] || []).length + (meetingsByDate[k] || []).length;
         const sel = selectedDate.getDate() === day;
         const d   = new Date(year, month, day);
         const today = new Date();
@@ -230,6 +237,7 @@ const CalendarView = () => {
   const [showModal, setShowModal]       = useState(false);
   const [taskToEdit, setTaskToEdit]     = useState(null);
   const [currentTime, setCurrentTime]   = useState('');
+  const [meetings, setMeetings] = useState([]);
 
   // Live clock WAT
   useEffect(() => {
@@ -253,6 +261,14 @@ const CalendarView = () => {
            d.getDate()     === selectedDate.getDate();
   }), [tasks, selectedDate]);
 
+  const dailyMeetings = useMemo(() => meetings.filter((meeting) => {
+    if (!meeting?.startTime) return false;
+    const d = new Date(meeting.startTime);
+    return d.getFullYear() === selectedDate.getFullYear() &&
+           d.getMonth()    === selectedDate.getMonth() &&
+           d.getDate()     === selectedDate.getDate();
+  }), [meetings, selectedDate]);
+
   // Tasks by date (for dots)
   const tasksByDate = useMemo(() => {
     const m = {};
@@ -265,6 +281,77 @@ const CalendarView = () => {
     });
     return m;
   }, [tasks]);
+
+  const meetingsByDate = useMemo(() => {
+    const m = {};
+    meetings.forEach((meeting) => {
+      if (!meeting?.startTime) return;
+      const d = new Date(meeting.startTime);
+      const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (!m[k]) m[k] = [];
+      m[k].push(meeting);
+    });
+    return m;
+  }, [meetings]);
+
+  useEffect(() => {
+    const fetchMeetings = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const { data } = await axios.get(`${API_BASE}/api/meetings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setMeetings(data.meetings || []);
+      } catch (error) {
+        if (error.response?.status === 401) onLogout?.();
+      }
+    };
+
+    fetchMeetings();
+
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+    const socket = io(API_BASE, {
+      auth: (cb) => cb({ token: localStorage.getItem('token') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
+
+    const upsertMeeting = (incoming) => {
+      if (!incoming?._id) return;
+      setMeetings((prev) => {
+        const index = prev.findIndex((meeting) => meeting._id === incoming._id);
+        if (index === -1) return [incoming, ...prev];
+        const next = [...prev];
+        next[index] = { ...next[index], ...incoming };
+        return next;
+      });
+    };
+
+    const removeMeeting = (payload) => {
+      const meetingId = String(payload?.id || payload?._id || payload || '');
+      if (!meetingId) return;
+      setMeetings((prev) => prev.filter((meeting) => String(meeting._id) !== meetingId));
+    };
+
+    const handleInvitation = ({ meeting }) => upsertMeeting(meeting);
+
+    socket.on('newMeeting', upsertMeeting);
+    socket.on('newMeetingInvitation', handleInvitation);
+    socket.on('meetingUpdated', upsertMeeting);
+    socket.on('meetingDeleted', removeMeeting);
+    socket.on('meetingCancelled', removeMeeting);
+
+    return () => {
+      socket.off('newMeeting', upsertMeeting);
+      socket.off('newMeetingInvitation', handleInvitation);
+      socket.off('meetingUpdated', upsertMeeting);
+      socket.off('meetingDeleted', removeMeeting);
+      socket.off('meetingCancelled', removeMeeting);
+      socket.disconnect();
+    };
+  }, [onLogout]);
 
   const handleSave = async (taskData) => {
     try {
@@ -302,6 +389,7 @@ const CalendarView = () => {
 
   const completedCount = dailyTasks.filter(t => t.completed).length;
   const pendingCount   = dailyTasks.filter(t => !t.completed).length;
+  const meetingCount   = dailyMeetings.length;
 
   return (
     <div className="space-y-5 py-4">
@@ -336,12 +424,13 @@ const CalendarView = () => {
 
         {/* Left: mini calendar + stats */}
         <div className="space-y-4">
-          <MiniCalendar value={selectedDate} onChange={setSelectedDate} tasksByDate={tasksByDate} />
+          <MiniCalendar value={selectedDate} onChange={setSelectedDate} tasksByDate={tasksByDate} meetingsByDate={meetingsByDate} />
 
           {/* Daily stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {[
               { label: 'Total',     value: dailyTasks.length,  color: 'var(--brand-primary)' },
+              { label: 'Meetings',  value: meetingCount,       color: '#2563eb' },
               { label: 'Done',      value: completedCount,     color: '#16a34a' },
               { label: 'Pending',   value: pendingCount,       color: '#f59e0b' },
             ].map(s => (
@@ -367,10 +456,10 @@ const CalendarView = () => {
               <h2 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>
                 {isToday ? 'Today' : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </h2>
-              {dailyTasks.length > 0 && (
+              {(dailyTasks.length > 0 || dailyMeetings.length > 0) && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                   style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand-primary)' }}>
-                  {dailyTasks.length} task{dailyTasks.length !== 1 ? 's' : ''}
+                  {dailyTasks.length + dailyMeetings.length} item{dailyTasks.length + dailyMeetings.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -383,12 +472,12 @@ const CalendarView = () => {
 
           {/* Month strip */}
           <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-subtle)' }}>
-            <MonthStrip tasksByDate={tasksByDate} selectedDate={selectedDate} onSelect={setSelectedDate} />
+            <MonthStrip tasksByDate={tasksByDate} meetingsByDate={meetingsByDate} selectedDate={selectedDate} onSelect={setSelectedDate} />
           </div>
 
           {/* Task list */}
           <div className="flex-1 overflow-y-auto p-5">
-            {dailyTasks.length === 0 ? (
+            {dailyTasks.length === 0 && dailyMeetings.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-16 text-center">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
                   style={{ backgroundColor: 'var(--bg-subtle)' }}>
@@ -404,7 +493,46 @@ const CalendarView = () => {
               </div>
             ) : (
               <AnimatePresence>
-                <div className="space-y-3">
+                <div className="space-y-5">
+                  {dailyMeetings.length > 0 ? (
+                    <div>
+                      <p className="mb-3 text-xs font-bold uppercase tracking-wider" style={{ color: '#2563eb' }}>Meetings</p>
+                      <div className="space-y-3">
+                        {dailyMeetings.map((meeting, i) => (
+                          <motion.div
+                            key={meeting._id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.03 }}
+                            className="rounded-xl border p-4"
+                            style={{ backgroundColor: 'var(--bg-subtle)', borderColor: 'rgba(37,99,235,0.18)' }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{meeting.topic}</p>
+                                {meeting.agenda ? (
+                                  <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{meeting.agenda}</p>
+                                ) : null}
+                              </div>
+                              <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: '#2563eb' }}>
+                                {meeting.status || 'scheduled'}
+                              </span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                              <span className="inline-flex items-center gap-1"><Video className="w-3.5 h-3.5" />Meeting</span>
+                              <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{format(new Date(meeting.startTime), 'h:mm a')}</span>
+                              <span>{meeting.participants?.length || 0} invited</span>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {dailyTasks.length > 0 ? (
+                    <div>
+                      <p className="mb-3 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Tasks</p>
+                      <div className="space-y-3">
                   {dailyTasks.map((task, i) => (
                     <motion.div key={task._id || task.id}
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
@@ -416,6 +544,9 @@ const CalendarView = () => {
                       />
                     </motion.div>
                   ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </AnimatePresence>
             )}

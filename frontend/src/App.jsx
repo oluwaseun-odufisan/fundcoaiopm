@@ -1,7 +1,9 @@
 // src/App.jsx
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, useNavigate, Route, Outlet, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
+import NotificationStack from './components/NotificationStack';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import './index.css';
@@ -96,6 +98,23 @@ const App = () => {
   return (
     <ThemeProvider>
       <NotificationProvider currentUser={currentUser}>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4200,
+          style: {
+            fontSize: 13,
+            fontWeight: 700,
+            borderRadius: 16,
+            padding: '12px 14px',
+            color: 'var(--text-primary)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 14px 38px rgba(15, 23, 42, 0.18)',
+          },
+        }}
+      />
+      <NotificationStack />
       {!authReady ? (
         <div className="flex min-h-screen items-center justify-center text-sm" style={{ color: 'var(--text-secondary)' }}>
           Loading session...

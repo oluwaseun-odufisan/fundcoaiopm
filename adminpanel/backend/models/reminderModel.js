@@ -30,6 +30,28 @@ const reminderSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
     isUserCreated: { type: Boolean, default: false },
     repeatInterval: { type: Number, default: null, min: 5, max: 1440 },
+    recurrence: {
+      frequency: {
+        type: String,
+        enum: ['daily', 'weekly', null],
+        default: null,
+      },
+      interval: {
+        type: Number,
+        default: 1,
+        min: 1,
+        max: 52,
+      },
+      weekdays: {
+        type: [Number],
+        default: [],
+        validate: {
+          validator: (value) => Array.isArray(value) && value.every((day) => Number.isInteger(day) && day >= 0 && day <= 6),
+          message: 'Weekdays must be an array of day indexes between 0 and 6',
+        },
+      },
+      timezone: { type: String, default: 'Africa/Lagos', trim: true },
+    },
     isActive: { type: Boolean, default: true, index: true },
     emailOverride: { type: String, trim: true, lowercase: true, default: null },
   },

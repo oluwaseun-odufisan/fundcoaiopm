@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 import {
   Check,
   Copy,
@@ -28,7 +29,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import userApi from '../utils/userApi.js';
+import userApi, { USER_API_BASE } from '../utils/userApi.js';
 import api from '../utils/api.js';
 import { EmptyState, FilterChip, LoadingScreen, Modal, PageHeader, Panel, ProgressBar, SearchInput, StatCard, StatusPill } from '../components/ui.jsx';
 
@@ -131,6 +132,28 @@ const FileStorage = () => {
 
   useEffect(() => {
     fetchAll();
+  }, [fetchAll]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return undefined;
+
+    const socket = io(USER_API_BASE, {
+      auth: (cb) => cb({ token: localStorage.getItem('adminToken') }),
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+    });
+
+    const handleFileReceived = () => {
+      fetchAll();
+      toast.success('A chat document was added to your file storage.');
+    };
+
+    socket.on('fileReceived', handleFileReceived);
+    return () => {
+      socket.off('fileReceived', handleFileReceived);
+      socket.disconnect();
+    };
   }, [fetchAll]);
 
   const currentFolders = useMemo(

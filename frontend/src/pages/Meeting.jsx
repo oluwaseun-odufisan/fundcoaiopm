@@ -150,7 +150,11 @@ const Meeting = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         const fetchedUsers = res.data.users || [];
-        setUsers(fetchedUsers.map((u) => ({ value: u._id, label: u.name, email: u.email })));
+        setUsers(fetchedUsers.map((u) => ({
+          value: u._id,
+          label: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+          email: u.email,
+        })));
         console.log('Users fetched successfully:', fetchedUsers);
         setIsLoadingUsers(false);
         return; // Success, exit loop
@@ -208,7 +212,7 @@ const Meeting = () => {
       return;
     }
     data.startTime = parsedStartTime.toISOString();
-    data.participants = data.participants?.map((p) => p.value) || [];
+    data.participants = data.participants?.map((participant) => participant?.value || participant).filter(Boolean) || [];
     try {
       const token = localStorage.getItem('token');
       let res;
@@ -509,7 +513,7 @@ const Meeting = () => {
                       <Select
                         isMulti
                         options={users}
-                        onChange={(selected) => setValue('participants', selected ? selected.map(s => s.value) : [])}
+                        onChange={(selected) => setValue('participants', selected || [])}
                         className="text-sm"
                         isDisabled={isLoadingUsers}
                         placeholder={isLoadingUsers ? 'Loading users...' : 'Select participants...'}

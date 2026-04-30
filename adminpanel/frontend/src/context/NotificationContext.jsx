@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import api, { API_BASE } from '../utils/api.js';
 import userApi, { USER_API_BASE } from '../utils/userApi.js';
@@ -46,7 +46,7 @@ const routeFor = (notification) => {
     case 'social': return '/social';
     case 'task': return '/tasks';
     case 'report': return '/reports';
-    case 'meeting': return data.roomId ? '/meetings' : '/meetings';
+    case 'meeting': return data.roomId ? '/meetings' : '/calendar';
     case 'reminder': return '/reminders';
     case 'goal': return '/goals';
     case 'project': return '/projects';
@@ -65,6 +65,17 @@ const normalizeStoredItem = (notification) => ({
   synthetic: false,
 });
 
+const normalizePopupItem = (notification) => ({
+  ...notification,
+  id: notification?._id || notification?.id || `admin-live-${notification?.type || 'system'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  to: routeFor(notification),
+  tone: toneFor(notification?.type),
+  description: notification?.body || notification?.description || '',
+  count: 1,
+  synthetic: Boolean(notification?.synthetic),
+  createdAt: notification?.createdAt || new Date().toISOString(),
+});
+
 const makeSyntheticItem = ({ id, type, title, description, count, to, priority }) => ({
   id,
   type,
@@ -78,12 +89,38 @@ const makeSyntheticItem = ({ id, type, title, description, count, to, priority }
   createdAt: new Date().toISOString(),
 });
 
+const TOAST_DEDUPE_WINDOW_MS = 20000;
+const getToastKey = (notification) => [
+  String(notification?.type || ''),
+  String(notification?.entityId || notification?.data?.taskId || notification?.data?.meetingId || ''),
+  String(notification?.title || ''),
+  String(notification?.body || notification?.description || ''),
+].join('|');
+
+const queuePopupNotification = (notification, popupCacheRef) => {
+  if (!notification?.title) return;
+  const key = getToastKey(notification);
+  const now = Date.now();
+  const lastShownAt = popupCacheRef.current.get(key);
+  if (lastShownAt && now - lastShownAt < TOAST_DEDUPE_WINDOW_MS) return;
+
+  popupCacheRef.current.set(key, now);
+  for (const [cacheKey, timestamp] of popupCacheRef.current.entries()) {
+    if (now - timestamp > TOAST_DEDUPE_WINDOW_MS) {
+      popupCacheRef.current.delete(cacheKey);
+    }
+  }
+};
+
 export const NotificationProvider = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState([]);
+  const [popupItems, setPopupItems] = useState([]);
+  const [popupsExpanded, setPopupsExpanded] = useState(false);
   const [counts, setCounts] = useState(EMPTY_COUNTS);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const popupCacheRef = useRef(new Map());
 
   const refresh = useCallback(async () => {
     if (!user || authLoading) {
@@ -220,7 +257,17 @@ export const NotificationProvider = ({ children }) => {
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });
-    const handleIncoming = () => refresh();
+    const handleIncoming = (payload) => {
+      if (payload?.type && payload?.title) {
+        const nextPopup = normalizePopupItem(payload);
+        queuePopupNotification(nextPopup, popupCacheRef);
+        setPopupItems((current) => [
+          nextPopup,
+          ...current.filter((item) => item.id !== nextPopup.id && getToastKey(item) !== getToastKey(nextPopup)),
+        ].slice(0, 20));
+      }
+      refresh();
+    };
 
     userSocket.on('notification:new', handleIncoming);
     adminSocket.on('notification:new', handleIncoming);
@@ -234,6 +281,12 @@ export const NotificationProvider = ({ children }) => {
       adminSocket.disconnect();
     };
   }, [authLoading, refresh, user]);
+
+  useEffect(() => {
+    if (popupItems.length === 0) {
+      setPopupsExpanded(false);
+    }
+  }, [popupItems.length]);
 
   const markRead = useCallback(async (notificationId) => {
     if (!notificationId) return;
@@ -258,9 +311,36 @@ export const NotificationProvider = ({ children }) => {
     } catch {}
   }, [refresh]);
 
+  const dismissPopup = useCallback((notificationId) => {
+    if (!notificationId) return;
+    setPopupItems((current) => current.filter((item) => item.id !== notificationId));
+  }, []);
+
+  const clearPopups = useCallback(() => {
+    setPopupItems([]);
+  }, []);
+
+  const togglePopupsExpanded = useCallback((nextValue) => {
+    setPopupsExpanded((current) => (typeof nextValue === 'boolean' ? nextValue : !current));
+  }, []);
+
   const value = useMemo(
-    () => ({ items, counts, loading, lastUpdated, refresh, markRead, markAllRead, markTypeRead }),
-    [counts, items, lastUpdated, loading, markAllRead, markRead, markTypeRead, refresh],
+    () => ({
+      items,
+      counts,
+      loading,
+      lastUpdated,
+      refresh,
+      markRead,
+      markAllRead,
+      markTypeRead,
+      popupItems,
+      popupsExpanded,
+      dismissPopup,
+      clearPopups,
+      togglePopupsExpanded,
+    }),
+    [clearPopups, counts, dismissPopup, items, lastUpdated, loading, markAllRead, markRead, markTypeRead, popupItems, popupsExpanded, refresh, togglePopupsExpanded],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
@@ -278,6 +358,11 @@ export const useNotifications = () => {
       markRead: async () => {},
       markAllRead: async () => {},
       markTypeRead: async () => {},
+      popupItems: [],
+      popupsExpanded: false,
+      dismissPopup: () => {},
+      clearPopups: () => {},
+      togglePopupsExpanded: () => {},
     };
   }
   return value;

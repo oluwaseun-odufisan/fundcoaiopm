@@ -3,6 +3,7 @@ import validator from 'validator';
 import sanitizeHtml from 'sanitize-html';
 import mongoose from 'mongoose';
 import Chat from '../models/chatModel.js';
+import File from '../models/fileModel.js';
 import Message from '../models/messageModel.js';
 import User from '../models/userModel.js';
 import { createNotification } from '../utils/notificationService.js';
@@ -579,6 +580,16 @@ export const uploadChatFile = async (req, res) => {
         if (!req.files || !req.files.file) {
             return res.status(400).json({ success: false, message: 'No file uploaded' });
         }
+        const chatId = String(req.body?.chatId || '').trim();
+        if (!chatId || !mongoose.isValidObjectId(chatId)) {
+            return res.status(400).json({ success: false, message: 'Valid chat ID is required' });
+        }
+
+        const chat = await Chat.findOne({ _id: chatId, members: req.user._id }).select('name type members').lean();
+        if (!chat) {
+            return res.status(404).json({ success: false, message: 'Chat not found' });
+        }
+
         const file = req.files.file;
         if (file.size > 50 * 1024 * 1024) {
             return res.status(400).json({ success: false, message: 'File size exceeds 50MB' });
@@ -592,7 +603,50 @@ export const uploadChatFile = async (req, res) => {
         const cid = await uploadFileToIPFS(buffer, fileName, mimeType);
         const fileUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
         const contentType = mimeType.split('/')[0];
-        res.json({ success: true, fileUrl, contentType, fileName });
+        const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : 'bin';
+        const owners = [...new Set((chat.members || []).map((memberId) => String(memberId)))];
+        const tagList = ['chat', `chat-${chatId}`];
+
+        const savedFiles = await Promise.all(owners.map(async (ownerId) => {
+            const created = await File.create({
+                fileName,
+                cid,
+                size: file.size,
+                type: extension,
+                owner: ownerId,
+                folderId: null,
+                taskId: null,
+                taskTitle: null,
+                tags: tagList,
+            });
+
+            req.io?.to(`user:${ownerId}`).emit('fileReceived', created.toObject());
+            return created;
+        }));
+
+        const senderName = getFullName(req.user);
+        await Promise.all(owners
+            .filter((ownerId) => ownerId !== String(req.user._id))
+            .map((ownerId) => createNotification({
+                userId: ownerId,
+                type: 'file',
+                title: `New file in ${chat.type === 'group' ? (chat.name || 'group chat') : 'chat'}`,
+                body: `${senderName} shared ${fileName}`,
+                actorId: req.user._id,
+                actorName: senderName,
+                entityId: savedFiles.find((item) => String(item.owner) === ownerId)?._id || '',
+                entityType: 'File',
+                data: { chatId, fileName },
+                io: req.io,
+            })));
+
+        res.json({
+            success: true,
+            fileUrl,
+            contentType,
+            fileName,
+            fileRecordId: savedFiles.find((item) => String(item.owner) === String(req.user._id))?._id || null,
+        });
     } catch (error) {
         console.error('Error uploading chat file:', error.message, error.stack);
         res.status(500).json({ success: false, message: 'Failed to upload file' });

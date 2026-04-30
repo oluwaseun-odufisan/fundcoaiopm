@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Check, Clock, Copy, ExternalLink, Hash, Lock, Plus, Search, Users, Video, XCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../utils/api.js';
 import userApi, { USER_FRONTEND_BASE } from '../utils/userApi.js';
 import { EmptyState, FilterChip, LoadingScreen, Modal, PageHeader, Panel, SearchInput, StatCard, StatusPill } from '../components/ui.jsx';
@@ -106,6 +107,9 @@ const Meetings = () => {
         title="Meetings and live rooms"
         actions={
           <>
+            <Link to="/calendar" className="btn-secondary">
+              Calendar
+            </Link>
             <div className="flex min-w-[18rem] items-center gap-2 rounded-full border px-3 py-2" style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)' }}>
               <Hash className="h-4 w-4 shrink-0" style={{ color: 'var(--c-text-faint)' }} />
               <input

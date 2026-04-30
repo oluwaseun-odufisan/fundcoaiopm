@@ -338,6 +338,7 @@ const TeamChat = () => {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('chatId', selectedChat?._id || '');
       const { data } = await userApi.post('/api/chats/upload', form);
       return data;
     } finally {
